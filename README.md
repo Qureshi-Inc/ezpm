@@ -143,7 +143,10 @@ rent-payment-app/
 
 ## License
 
-MIT
+This project is licensed under the [AGPLv3](LICENSE) license.
+
+If you deploy this software or create derivatives for public or commercial use, you are required to share your source code under the same license. We welcome improvements via pull requests!
+
 
 ## Support
 
