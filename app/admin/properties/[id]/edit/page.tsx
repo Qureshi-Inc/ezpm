@@ -9,13 +9,7 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { ArrowLeft, Building } from 'lucide-react'
 
-interface EditPropertyPageProps {
-  params: {
-    id: string
-  }
-}
-
-export default async function EditPropertyPage({ params }: EditPropertyPageProps) {
+export default async function EditPropertyPage({ params }: { params: { id: string } }) {
   try {
     const session = await requireAdmin()
     const supabase = createServerSupabaseClient()
@@ -34,11 +28,14 @@ export default async function EditPropertyPage({ params }: EditPropertyPageProps
     return (
       <div className="min-h-screen bg-gray-50">
         <Navigation role="admin" userName="Admin" />
-        
+
         <main className="max-w-2xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="mb-6">
-              <Link href={`/admin/properties/${property.id}`} className="flex items-center text-blue-600 hover:text-blue-700 mb-4">
+              <Link
+                href={`/admin/properties/${property.id}`}
+                className="flex items-center text-blue-600 hover:text-blue-700 mb-4"
+              >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Property Details
               </Link>
@@ -60,32 +57,32 @@ export default async function EditPropertyPage({ params }: EditPropertyPageProps
                 <form className="space-y-6">
                   <div className="space-y-2">
                     <Label htmlFor="address">Property Address *</Label>
-                    <Input 
-                      id="address" 
+                    <Input
+                      id="address"
                       name="address"
                       defaultValue={property.address}
-                      required 
+                      required
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="unit_number">Unit Number</Label>
-                      <Input 
-                        id="unit_number" 
+                      <Input
+                        id="unit_number"
                         name="unit_number"
                         defaultValue={property.unit_number || ''}
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="rent_amount">Monthly Rent *</Label>
-                      <Input 
-                        id="rent_amount" 
+                      <Input
+                        id="rent_amount"
                         name="rent_amount"
                         type="number"
                         step="0.01"
                         defaultValue={property.rent_amount}
-                        required 
+                        required
                       />
                     </div>
                   </div>
@@ -93,8 +90,8 @@ export default async function EditPropertyPage({ params }: EditPropertyPageProps
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="bedrooms">Bedrooms</Label>
-                      <Input 
-                        id="bedrooms" 
+                      <Input
+                        id="bedrooms"
                         name="bedrooms"
                         type="number"
                         defaultValue={property.bedrooms || ''}
@@ -102,8 +99,8 @@ export default async function EditPropertyPage({ params }: EditPropertyPageProps
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="bathrooms">Bathrooms</Label>
-                      <Input 
-                        id="bathrooms" 
+                      <Input
+                        id="bathrooms"
                         name="bathrooms"
                         type="number"
                         step="0.5"
@@ -114,8 +111,8 @@ export default async function EditPropertyPage({ params }: EditPropertyPageProps
 
                   <div className="space-y-2">
                     <Label htmlFor="description">Description</Label>
-                    <textarea 
-                      id="description" 
+                    <textarea
+                      id="description"
                       name="description"
                       className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       defaultValue={property.description || ''}
@@ -154,4 +151,4 @@ export default async function EditPropertyPage({ params }: EditPropertyPageProps
   } catch (error) {
     redirect('/auth/login')
   }
-} 
+}
