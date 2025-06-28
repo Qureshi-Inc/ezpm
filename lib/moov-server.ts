@@ -21,7 +21,13 @@ function checkMoovConfig() {
 
 // Helper function to get authorization header
 function getAuthHeader() {
-  return `Basic ${Buffer.from(`${MOOV_PUBLIC_KEY}:${MOOV_SECRET_KEY}`).toString('base64')}`
+  const authHeader = `Basic ${Buffer.from(`${MOOV_PUBLIC_KEY}:${MOOV_SECRET_KEY}`).toString('base64')}`
+  console.log('Generated auth header:', {
+    publicKey: MOOV_PUBLIC_KEY ? '***' + MOOV_PUBLIC_KEY.slice(-4) : 'missing',
+    secretKey: MOOV_SECRET_KEY ? '***' + MOOV_SECRET_KEY.slice(-4) : 'missing',
+    authHeader: '***' + authHeader.slice(-10)
+  })
+  return authHeader
 }
 
 // Helper function to create a Moov account for a tenant
@@ -80,33 +86,79 @@ export async function createBankAccount(accountId: string, bankData: {
   checkMoovConfig()
   
   try {
-    const response = await fetch(`${MOOV_DOMAIN}/accounts/${accountId}/payment-methods`, {
-      method: 'POST',
-      headers: {
-        'Authorization': getAuthHeader(),
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    const requestBody = {
+      account: {
+        accountNumber: bankData.accountNumber,
+        routingNumber: bankData.routingNumber,
+        type: bankData.accountType,
+        holderName: bankData.accountHolderName
+      }
+    }
+    
+    const url = `${MOOV_DOMAIN}/accounts/${accountId}/payment-methods`
+    const headers = {
+      'Authorization': getAuthHeader(),
+      'Content-Type': 'application/json'
+    }
+    
+    console.log('Creating bank account with details:', {
+      url,
+      accountId,
+      requestBody: {
+        ...requestBody,
         account: {
-          accountNumber: bankData.accountNumber,
-          routingNumber: bankData.routingNumber,
-          type: bankData.accountType,
-          holderName: bankData.accountHolderName
+          ...requestBody.account,
+          accountNumber: '***' + bankData.accountNumber.slice(-4),
+          routingNumber: '***' + bankData.routingNumber.slice(-4)
         }
-      })
+      },
+      headers: {
+        ...headers,
+        'Authorization': '***' + headers.Authorization.slice(-10)
+      }
+    })
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody)
+    })
+    
+    console.log('Moov API response:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
     })
     
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Bank account creation error:', errorText)
-      throw new Error(`Failed to create bank account: ${response.status} ${response.statusText}`)
+      console.error('Bank account creation error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorBody: errorText,
+        url,
+        accountId
+      })
+      throw new Error(`Failed to create bank account: ${response.status} ${response.statusText} - ${errorText}`)
     }
     
     const bankAccount = await response.json()
-    console.log('Bank account created successfully:', bankAccount.paymentMethodID)
+    console.log('Bank account created successfully:', {
+      paymentMethodID: bankAccount.paymentMethodID,
+      status: bankAccount.status,
+      accountId
+    })
     return bankAccount
   } catch (error) {
-    console.error('Failed to create bank account:', error)
+    console.error('Failed to create bank account:', {
+      error: error instanceof Error ? error.message : error,
+      accountId,
+      bankData: {
+        ...bankData,
+        accountNumber: '***' + bankData.accountNumber.slice(-4),
+        routingNumber: '***' + bankData.routingNumber.slice(-4)
+      }
+    })
     throw error
   }
 }
