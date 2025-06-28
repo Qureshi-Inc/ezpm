@@ -4,7 +4,7 @@ import { Navigation } from '@/components/layout/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { MoovPaymentMethodForm } from '@/components/forms/MoovPaymentMethodForm'
 import Link from 'next/link'
-import { ArrowLeft, Building2 } from 'lucide-react'
+import { ArrowLeft, Building2, Check } from 'lucide-react'
 
 export default async function AddMoovPaymentMethodPage() {
   const tenant = await getCurrentTenant()
@@ -30,15 +30,25 @@ export default async function AddMoovPaymentMethodPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Building2 className="w-5 h-5" />
-                <span>Bank Account Information</span>
-              </CardTitle>
+              <CardTitle>Add Bank Account (ACH)</CardTitle>
               <CardDescription>
-                Add your bank account for secure ACH rent payments
+                Connect your bank account for ACH transfers through Moov. Bank account payments typically process within 1-3 business days.
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <Check className="w-5 h-5 text-green-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-green-900">No Processing Fees!</h4>
+                    <p className="text-sm text-green-800 mt-1">
+                      Unlike credit card or Stripe bank payments, Moov ACH transfers have no processing fees. 
+                      You pay exactly your rent amount with nothing added.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
               <MoovPaymentMethodForm tenantId={tenant.id} />
             </CardContent>
           </Card>

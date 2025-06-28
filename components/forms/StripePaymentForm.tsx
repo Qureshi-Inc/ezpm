@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { formatCurrency, getPaymentMethodIcon } from '@/utils/helpers'
+import { calculateProcessingFee } from '@/utils/payment-fees'
 import { CreditCard, AlertCircle, Check } from 'lucide-react'
 
 interface Payment {
@@ -42,6 +43,10 @@ function PaymentForm({ payment, paymentMethods, tenantId }: StripePaymentFormPro
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
+  // Calculate processing fee based on selected payment method
+  const selectedMethod = paymentMethods.find(pm => pm.id === selectedPaymentMethod)
+  const processingFee = selectedMethod ? calculateProcessingFee(payment.amount, selectedMethod.type) : null
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -68,6 +73,7 @@ function PaymentForm({ payment, paymentMethods, tenantId }: StripePaymentFormPro
           paymentId: payment.id,
           paymentMethodId: selectedPaymentMethod,
           tenantId: tenantId,
+          expectedTotal: processingFee ? processingFee.totalWithFee : payment.amount
         }),
       })
 
@@ -179,6 +185,15 @@ function PaymentForm({ payment, paymentMethods, tenantId }: StripePaymentFormPro
                       <p className="text-sm text-gray-600">
                         ****{method.last4}
                       </p>
+                      {method.type === 'card' && (
+                        <p className="text-xs text-amber-600 mt-1">+2.9% + $0.30 fee</p>
+                      )}
+                      {method.type === 'us_bank_account' && (
+                        <p className="text-xs text-amber-600 mt-1">+0.8% fee (max $5)</p>
+                      )}
+                      {method.type === 'moov_ach' && (
+                        <p className="text-xs text-green-600 mt-1">No fee</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -204,9 +219,28 @@ function PaymentForm({ payment, paymentMethods, tenantId }: StripePaymentFormPro
 
           <div className="space-y-4">
             <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Total Amount:</span>
-                <span className="text-xl font-bold">{formatCurrency(payment.amount)}</span>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Rent Amount:</span>
+                  <span className="font-medium">{formatCurrency(payment.amount)}</span>
+                </div>
+                {processingFee && (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Processing Fee:</span>
+                      <span className="font-medium">{formatCurrency(processingFee.amount)}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 text-right">
+                      {processingFee.description}
+                    </div>
+                    <div className="border-t pt-2 mt-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">Total Amount:</span>
+                        <span className="text-xl font-bold">{formatCurrency(processingFee.totalWithFee)}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -222,7 +256,7 @@ function PaymentForm({ payment, paymentMethods, tenantId }: StripePaymentFormPro
                   <span>Processing Payment...</span>
                 </div>
               ) : (
-                `Pay ${formatCurrency(payment.amount)}`
+                `Pay ${formatCurrency(processingFee ? processingFee.totalWithFee : payment.amount)}`
               )}
             </Button>
 

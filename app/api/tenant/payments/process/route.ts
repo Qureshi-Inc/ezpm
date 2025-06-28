@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { calculateNextDueDate, generatePaymentForTenant } from '@/utils/payment-generation'
 import { stripe } from '@/lib/stripe-server'
+import { calculateProcessingFee } from '@/utils/payment-fees'
 
 export async function POST(request: NextRequest) {
   try {
@@ -92,6 +93,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Calculate processing fee
+    const processingFee = calculateProcessingFee(payment.amount, paymentMethod.type)
+    const totalAmount = processingFee.totalWithFee
+
+    console.log(`Processing payment: Base amount: $${payment.amount}, Fee: $${processingFee.amount}${paymentMethod.type === 'moov_ach' ? ' (absorbed by merchant)' : ''}, Total charged: $${totalAmount}`)
+
     // Process payment based on payment method type
     if (paymentMethod.type === 'moov_ach') {
       // Process Moov ACH payment
@@ -118,7 +125,9 @@ export async function POST(request: NextRequest) {
         console.log('Processing Moov ACH payment:', {
           tenantMoovAccountId: tenantWithMoov.moov_account_id,
           paymentMethodId: paymentMethod.moov_payment_method_id,
-          amount: payment.amount
+          baseAmount: payment.amount,
+          processingFee: processingFee.amount,
+          totalAmount: totalAmount
         })
 
         // For now, simulate successful payment
@@ -146,6 +155,8 @@ export async function POST(request: NextRequest) {
           payment: {
             id: payment.id,
             amount: payment.amount,
+            processingFee: processingFee.amount,
+            totalAmount: totalAmount,
             status: 'processing',
             moov_transfer_id: `moov_${Date.now()}`,
             payment_method: {
@@ -175,7 +186,7 @@ export async function POST(request: NextRequest) {
       // Process Stripe payment
       try {
         const paymentIntentData: any = {
-          amount: Math.round(payment.amount * 100), // Convert to cents
+          amount: Math.round(totalAmount * 100), // Convert to cents
           currency: 'usd',
           payment_method: paymentMethod.stripe_payment_method_id,
           confirm: true,
@@ -183,6 +194,8 @@ export async function POST(request: NextRequest) {
           metadata: {
             tenant_id: tenantId,
             payment_id: paymentId,
+            base_amount: payment.amount,
+            processing_fee: processingFee.amount
           },
         }
 
@@ -230,6 +243,8 @@ export async function POST(request: NextRequest) {
             payment: {
               id: payment.id,
               amount: payment.amount,
+              processingFee: processingFee.amount,
+              totalAmount: totalAmount,
               status: 'succeeded',
               stripe_payment_intent_id: paymentIntent.id,
               payment_method: {

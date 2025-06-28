@@ -53,6 +53,12 @@ export default async function AddPaymentMethodPage() {
                 <p>• Your payment data is processed by Stripe, a PCI-compliant payment processor</p>
                 <p>• You can modify or remove payment methods at any time</p>
               </div>
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-900">
+                  <strong>Processing Fee Notice:</strong> Credit and debit card payments are subject to a 
+                  2.9% + $0.30 processing fee. This fee will be added to your rent payment amount.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>

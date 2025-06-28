@@ -106,18 +106,47 @@ export default async function PaymentMethodsPage() {
             </CardContent>
           </Card>
 
-          {/* Stripe Integration Notice */}
+          {/* Payment Integration Notice */}
           <Card className="mb-4 sm:mb-6 border-blue-200 bg-blue-50">
             <CardContent className="pt-6">
               <div className="flex items-start space-x-3">
                 <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
-                  <h3 className="font-medium text-blue-900">Payment Method Integration</h3>
+                  <h3 className="font-medium text-blue-900">Payment Method Options</h3>
                   <p className="text-sm text-blue-800 mt-1">
-                    To add and manage payment methods, Stripe Elements integration is required. 
-                    This will enable secure collection of credit card and bank account information.
+                    We offer multiple secure payment options: Credit/Debit cards and bank accounts through Stripe, 
+                    or ACH bank transfers through Moov. Choose the option that works best for you.
                   </p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Processing Fee Notice */}
+          <Card className="mb-4 sm:mb-6 border-amber-200 bg-amber-50">
+            <CardContent className="pt-6">
+              <div>
+                <h3 className="font-medium text-amber-900 mb-2">Processing Fees</h3>
+                <p className="text-sm text-amber-800 mb-3">
+                  All payment methods include processing fees that will be added to your rent payment:
+                </p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-amber-700">• Credit/Debit Cards (Stripe)</span>
+                    <span className="font-medium text-amber-900">2.9% + $0.30</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-amber-700">• Bank Account (Stripe)</span>
+                    <span className="font-medium text-amber-900">0.8% (max $5.00)</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-amber-700">• Bank Account (Moov ACH)</span>
+                    <span className="font-medium text-green-900">No fee</span>
+                  </div>
+                </div>
+                <p className="text-xs text-amber-700 mt-3">
+                  Example: $1,000 rent + credit card = $1,029.30 total | Moov ACH = $1,000.00 (no fee)
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -190,12 +219,20 @@ export default async function PaymentMethodsPage() {
                   <p className="text-gray-600 mb-6">
                     Add a payment method to start making rent payments online.
                   </p>
-                  <Link href="/tenant/payment-methods/add">
-                    <Button>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Your First Payment Method
-                    </Button>
-                  </Link>
+                  <div className="space-y-3">
+                    <Link href="/tenant/payment-methods/add" className="block">
+                      <Button className="w-full sm:w-auto">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Card or Bank (Stripe)
+                      </Button>
+                    </Link>
+                    <Link href="/tenant/payment-methods/add-moov" className="block">
+                      <Button variant="outline" className="w-full sm:w-auto">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Bank Account (ACH)
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -206,12 +243,15 @@ export default async function PaymentMethodsPage() {
             <CardContent className="pt-6">
               <h3 className="font-medium text-gray-900 mb-2">Accepted Payment Methods</h3>
               <div className="text-sm text-gray-600 space-y-1">
-                <p>• Credit Cards (Visa, Mastercard, American Express)</p>
-                <p>• Debit Cards</p>
-                <p>• Bank Account (ACH Transfer)</p>
+                <p>• Credit Cards (Visa, Mastercard, American Express) - via Stripe</p>
+                <p>• Debit Cards - via Stripe</p>
+                <p>• Bank Account (US Bank Account) - via Stripe</p>
+                <p>• Bank Account (ACH Transfer) - via Moov</p>
               </div>
               <p className="text-xs text-gray-500 mt-3">
-                All payments are processed securely through Stripe. Your payment information is encrypted and never stored on our servers.
+                All payments are processed securely. Stripe handles card and US bank account payments with 
+                industry-standard encryption. Moov processes ACH bank transfers as a licensed money transmitter. 
+                Your payment information is never stored on our servers.
               </p>
             </CardContent>
           </Card>
