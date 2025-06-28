@@ -37,14 +37,31 @@ export default function EditPropertyForm({ property }: EditPropertyFormProps) {
 
     const formData = new FormData(e.currentTarget)
     
-    const data = {
-      address: formData.get('address') as string,
-      unit_number: formData.get('unit_number') as string || null,
-      rent_amount: parseFloat(formData.get('rent_amount') as string),
-      bedrooms: formData.get('bedrooms') ? parseInt(formData.get('bedrooms') as string) : null,
-      bathrooms: formData.get('bathrooms') ? parseFloat(formData.get('bathrooms') as string) : null,
-      description: formData.get('description') as string || null,
+    // Helper function to parse number or return null if empty
+    const parseNumber = (value: string | null): number | null => {
+      if (!value || value.trim() === '') return null
+      const parsed = parseFloat(value)
+      return isNaN(parsed) ? null : parsed
     }
+
+    // Helper function to parse integer or return null if empty
+    const parseInteger = (value: string | null): number | null => {
+      if (!value || value.trim() === '') return null
+      const parsed = Number(value)
+      return isNaN(parsed) ? null : parsed
+    }
+    
+    const data = {
+      address: (formData.get('address') as string)?.trim() || '',
+      unit_number: (formData.get('unit_number') as string)?.trim() || null,
+      rent_amount: parseFloat((formData.get('rent_amount') as string) || '0'),
+      bedrooms: parseInteger(formData.get('bedrooms') as string),
+      bathrooms: parseNumber(formData.get('bathrooms') as string),
+      description: (formData.get('description') as string)?.trim() || null,
+    }
+
+    console.log('Form data being sent:', data)
+    console.log('Property ID:', property.id)
 
     try {
       const response = await fetch(`/api/admin/properties/${property.id}`, {
@@ -55,7 +72,9 @@ export default function EditPropertyForm({ property }: EditPropertyFormProps) {
         body: JSON.stringify(data),
       })
 
+      console.log('Response status:', response.status)
       const result = await response.json()
+      console.log('Response result:', result)
 
       if (!response.ok) {
         throw new Error(result.error || 'Failed to update property')
@@ -65,6 +84,7 @@ export default function EditPropertyForm({ property }: EditPropertyFormProps) {
       router.push(`/admin/properties/${property.id}?message=property_updated`)
       router.refresh()
     } catch (err) {
+      console.error('Form submission error:', err)
       setError(err instanceof Error ? err.message : 'Failed to update property')
     } finally {
       setIsSubmitting(false)

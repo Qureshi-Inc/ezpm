@@ -121,19 +121,26 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log('Property update request received')
     const session = await requireAdmin()
+    console.log('Admin session verified')
     const supabase = createServerSupabaseClient()
     const { id } = await params
+    console.log('Property ID:', id)
 
     const data = await request.json()
+    console.log('Received data:', data)
 
     // Validate required fields
     if (!data.address || !data.rent_amount) {
+      console.log('Validation failed: missing address or rent_amount')
       return NextResponse.json(
         { error: 'Address and rent amount are required' },
         { status: 400 }
       )
     }
+
+    console.log('Validation passed, updating property...')
 
     // Update the property
     const { data: property, error } = await supabase
@@ -159,6 +166,7 @@ export async function PUT(
       )
     }
 
+    console.log('Property updated successfully:', property)
     return NextResponse.json({ property })
   } catch (error) {
     console.error('Property update error:', error)
