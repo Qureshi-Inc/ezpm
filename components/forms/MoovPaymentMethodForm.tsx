@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertCircle, Building2 } from 'lucide-react'
-import { getMoov } from '@/lib/moov-client'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface MoovPaymentMethodFormProps {
   tenantId: string
@@ -16,72 +16,46 @@ interface MoovPaymentMethodFormProps {
 export function MoovPaymentMethodForm({ tenantId }: MoovPaymentMethodFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
-  const [routingNumber, setRoutingNumber] = useState('')
-  const [accountHolderName, setAccountHolderName] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  
+  const [formData, setFormData] = useState({
+    accountHolderName: '',
+    routingNumber: '',
+    accountNumber: '',
+    accountType: 'checking' as 'checking' | 'savings'
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (isSubmitting) {
-      return // Prevent double submission
-    }
-    
-    if (!accountNumber || !routingNumber || !accountHolderName) {
-      setError('All fields are required')
-      return
-    }
-
-    // Validate routing number (should be 9 digits)
-    if (!/^\d{9}$/.test(routingNumber)) {
-      setError('Routing number must be 9 digits')
-      return
-    }
-
     setIsSubmitting(true)
-    setError('')
+    setError(null)
+
+    const { accountHolderName, routingNumber, accountNumber, accountType } = formData
+
+    if (!accountHolderName || !routingNumber || !accountNumber) {
+      setError('Please fill in all required fields')
+      setIsSubmitting(false)
+      return
+    }
 
     try {
-      // First, get a Moov token with the necessary scopes
-      const tokenResponse = await fetch('/api/moov/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          scopes: ['/accounts.write', '/bank-accounts.write']
-        }),
-      })
-
-      if (!tokenResponse.ok) {
-        throw new Error('Failed to get authentication token')
-      }
-
-      const { token } = await tokenResponse.json()
-      
-      // Initialize Moov.js
-      const moov = await getMoov(token)
-      
-      // Generate a unique bank account ID
-      const bankAccountId = `bank_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      
-      // Create the payment method with the final bank account ID
-      const accountResponse = await fetch('/api/tenant/payment-methods/moov', {
+      // Create the payment method directly with server-side bank account creation
+      const response = await fetch('/api/tenant/payment-methods/moov', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           tenantId,
-          moovPaymentMethodId: bankAccountId,
+          accountHolderName,
+          routingNumber,
           accountNumber,
-          routingNumber
+          accountType
         }),
       })
 
-      if (!accountResponse.ok) {
-        const errorData = await accountResponse.json()
+      if (!response.ok) {
+        const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to create payment method')
       }
 
@@ -95,54 +69,75 @@ export function MoovPaymentMethodForm({ tenantId }: MoovPaymentMethodFormProps) 
     }
   }
 
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="accountHolderName">Account Holder Name</Label>
+        <div>
+          <Label htmlFor="accountHolderName">Account Holder Name *</Label>
           <Input
             id="accountHolderName"
             type="text"
-            placeholder="John Doe"
-            value={accountHolderName}
-            onChange={(e) => setAccountHolderName(e.target.value)}
+            value={formData.accountHolderName}
+            onChange={(e) => handleInputChange('accountHolderName', e.target.value)}
+            placeholder="Enter the name on the bank account"
             required
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="routingNumber">Routing Number</Label>
+        <div>
+          <Label htmlFor="routingNumber">Routing Number *</Label>
           <Input
             id="routingNumber"
             type="text"
-            placeholder="123456789"
-            value={routingNumber}
-            onChange={(e) => setRoutingNumber(e.target.value.replace(/\D/g, '').slice(0, 9))}
+            value={formData.routingNumber}
+            onChange={(e) => handleInputChange('routingNumber', e.target.value)}
+            placeholder="Enter 9-digit routing number"
+            pattern="[0-9]{9}"
             maxLength={9}
             required
           />
-          <p className="text-xs text-gray-600">
-            9-digit routing number found on your checks
+          <p className="text-xs text-gray-500 mt-1">
+            This is the 9-digit number on the bottom of your checks
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="accountNumber">Account Number</Label>
+        <div>
+          <Label htmlFor="accountNumber">Account Number *</Label>
           <Input
             id="accountNumber"
             type="text"
-            placeholder="1234567890"
-            value={accountNumber}
-            onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
+            value={formData.accountNumber}
+            onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+            placeholder="Enter your account number"
             required
           />
+        </div>
+
+        <div>
+          <Label htmlFor="accountType">Account Type *</Label>
+          <Select 
+            value={formData.accountType} 
+            onValueChange={(value: 'checking' | 'savings') => handleInputChange('accountType', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select account type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="checking">Checking</SelectItem>
+              <SelectItem value="savings">Savings</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

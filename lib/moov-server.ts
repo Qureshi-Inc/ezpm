@@ -70,6 +70,122 @@ export async function createMoovAccount(tenantData: {
   }
 }
 
+// Helper function to create a bank account for a tenant
+export async function createBankAccount(accountId: string, bankData: {
+  accountNumber: string
+  routingNumber: string
+  accountType: 'checking' | 'savings'
+  accountHolderName: string
+}) {
+  checkMoovConfig()
+  
+  try {
+    const response = await fetch(`${MOOV_DOMAIN}/accounts/${accountId}/bank-accounts`, {
+      method: 'POST',
+      headers: {
+        'Authorization': getAuthHeader(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        accountNumber: bankData.accountNumber,
+        routingNumber: bankData.routingNumber,
+        accountType: bankData.accountType,
+        accountHolderName: bankData.accountHolderName,
+        // For sandbox testing, we can skip verification
+        // In production, you'd want to implement proper verification
+        verification: {
+          method: 'micro-deposits'
+        }
+      })
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Bank account creation error:', errorText)
+      throw new Error(`Failed to create bank account: ${response.status} ${response.statusText}`)
+    }
+    
+    const bankAccount = await response.json()
+    console.log('Bank account created successfully:', bankAccount.bankAccountID)
+    return bankAccount
+  } catch (error) {
+    console.error('Failed to create bank account:', error)
+    throw error
+  }
+}
+
+// Helper function to create a transfer
+export async function createTransfer(transferData: {
+  sourceAccountId: string
+  destinationAccountId: string
+  amount: number
+  description: string
+  metadata?: Record<string, string>
+}) {
+  checkMoovConfig()
+  
+  try {
+    const response = await fetch(`${MOOV_DOMAIN}/transfers`, {
+      method: 'POST',
+      headers: {
+        'Authorization': getAuthHeader(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        source: {
+          accountID: transferData.sourceAccountId
+        },
+        destination: {
+          accountID: transferData.destinationAccountId
+        },
+        amount: {
+          currency: 'USD',
+          value: transferData.amount
+        },
+        description: transferData.description,
+        metadata: transferData.metadata || {}
+      })
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Transfer creation error:', errorText)
+      throw new Error(`Failed to create transfer: ${response.status} ${response.statusText}`)
+    }
+    
+    const transfer = await response.json()
+    console.log('Transfer created successfully:', transfer.transferID)
+    return transfer
+  } catch (error) {
+    console.error('Failed to create transfer:', error)
+    throw error
+  }
+}
+
+// Helper function to get transfer status
+export async function getTransferStatus(transferId: string) {
+  checkMoovConfig()
+  
+  try {
+    const response = await fetch(`${MOOV_DOMAIN}/transfers/${transferId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': getAuthHeader()
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get transfer status: ${response.status} ${response.statusText}`)
+    }
+    
+    const transfer = await response.json()
+    return transfer
+  } catch (error) {
+    console.error('Failed to get transfer status:', error)
+    throw error
+  }
+}
+
 // Helper function to generate access token for Moov.js
 export async function generateMoovToken(scopes: string[]) {
   // Check config when function is actually called

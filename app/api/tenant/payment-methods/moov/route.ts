@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase'
-import { createMoovAccount } from '@/lib/moov-server'
+import { createMoovAccount, createBankAccount } from '@/lib/moov-server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,10 +21,15 @@ export async function POST(request: NextRequest) {
     const requestData = await request.json()
     console.log('Request data:', requestData)
     
-    const { tenantId, moovPaymentMethodId, accountNumber, routingNumber } = requestData
+    const { tenantId, accountNumber, routingNumber, accountType = 'checking', accountHolderName } = requestData
 
-    if (!tenantId || !moovPaymentMethodId || !accountNumber || !routingNumber) {
-      console.log('Missing required fields:', { tenantId, moovPaymentMethodId, accountNumber: accountNumber ? '***' + accountNumber.slice(-4) : 'missing', routingNumber: routingNumber ? '***' + routingNumber.slice(-4) : 'missing' })
+    if (!tenantId || !accountNumber || !routingNumber || !accountHolderName) {
+      console.log('Missing required fields:', { 
+        tenantId, 
+        accountNumber: accountNumber ? '***' + accountNumber.slice(-4) : 'missing', 
+        routingNumber: routingNumber ? '***' + routingNumber.slice(-4) : 'missing',
+        accountHolderName: accountHolderName ? '***' + accountHolderName.slice(-4) : 'missing'
+      })
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -143,11 +148,33 @@ export async function POST(request: NextRequest) {
       console.log('Using existing Moov account:', moovAccountId)
     }
 
+    // Create the bank account in Moov
+    console.log('Creating bank account in Moov for account:', moovAccountId)
+    let moovBankAccountId: string
+    
+    try {
+      const bankAccount = await createBankAccount(moovAccountId, {
+        accountNumber,
+        routingNumber,
+        accountType: accountType as 'checking' | 'savings',
+        accountHolderName
+      })
+      
+      moovBankAccountId = bankAccount.bankAccountID
+      console.log('Bank account created in Moov:', moovBankAccountId)
+    } catch (error) {
+      console.error('Failed to create bank account in Moov:', error)
+      return NextResponse.json(
+        { error: 'Failed to create bank account. Please verify your account information and try again.' },
+        { status: 400 }
+      )
+    }
+
     // Save the payment method to the database
     const paymentMethodData = {
       tenant_id: tenantId,
       type: 'moov_ach',
-      moov_payment_method_id: moovPaymentMethodId,
+      moov_payment_method_id: moovBankAccountId,
       last4: accountNumber.slice(-4),
       is_default: false,
       stripe_payment_method_id: null // Explicitly set to null for Moov payment methods
@@ -173,7 +200,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       paymentMethod,
-      moovAccountId 
+      moovAccountId,
+      moovBankAccountId
     })
     
   } catch (error) {

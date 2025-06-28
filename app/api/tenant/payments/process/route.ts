@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase'
-import { calculateNextDueDate, generatePaymentForTenant } from '@/utils/payment-generation'
-import { stripe } from '@/lib/stripe-server'
+import { createTransfer } from '@/lib/moov-server'
 import { calculateProcessingFee } from '@/utils/payment-fees'
+import { stripe } from '@/lib/stripe-server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,22 +16,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { paymentId, paymentMethodId, tenantId } = await request.json()
+    const { paymentId, paymentMethodId } = await request.json()
 
-    if (!paymentId || !paymentMethodId || !tenantId) {
+    if (!paymentId || !paymentMethodId) {
       return NextResponse.json(
-        { error: 'Payment ID, payment method ID, and tenant ID are required' },
+        { error: 'Missing payment ID or payment method ID' },
         { status: 400 }
       )
     }
 
     const supabase = createServerSupabaseClient()
 
-    // Verify the tenant belongs to the current user and get tenant info
+    // Get the payment
+    const { data: payment, error: paymentError } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('id', paymentId)
+      .single()
+
+    if (paymentError || !payment) {
+      return NextResponse.json(
+        { error: 'Payment not found' },
+        { status: 404 }
+      )
+    }
+
+    // Get the tenant
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('id, payment_due_day, stripe_customer_id')
-      .eq('id', tenantId)
+      .select('*')
+      .eq('id', payment.tenant_id)
       .eq('user_id', session.userId)
       .single()
 
@@ -42,21 +56,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the payment to process (pending or failed)
-    const { data: payment, error: paymentError } = await supabase
-      .from('payments')
-      .select('*')
-      .eq('id', paymentId)
-      .eq('tenant_id', tenantId)
-      .in('status', ['pending', 'failed'])
-      .single()
-
-    if (paymentError || !payment) {
-      return NextResponse.json(
-        { error: 'Payment not found or already processed' },
-        { status: 404 }
-      )
-    }
+    const tenantId = tenant.id
 
     // If this is a retry of a failed payment, reset it to pending
     if (payment.status === 'failed') {
@@ -117,11 +117,6 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        // Create Moov transfer (simplified for now)
-        // In a real implementation, you would:
-        // 1. Create a transfer from the tenant's linked bank account to your merchant account
-        // 2. Handle webhooks for transfer status updates
-        
         console.log('Processing Moov ACH payment:', {
           tenantMoovAccountId: tenantWithMoov.moov_account_id,
           paymentMethodId: paymentMethod.moov_payment_method_id,
@@ -130,12 +125,28 @@ export async function POST(request: NextRequest) {
           totalAmount: totalAmount
         })
 
-        // For now, simulate successful payment
+        // Create actual transfer from tenant's bank account to merchant account
+        const transfer = await createTransfer({
+          sourceAccountId: tenantWithMoov.moov_account_id,
+          destinationAccountId: process.env.MOOV_ACCOUNT_ID!, // Merchant account
+          amount: totalAmount,
+          description: `Rent payment for ${tenant.first_name} ${tenant.last_name}`,
+          metadata: {
+            tenant_id: tenantId,
+            payment_id: paymentId,
+            base_amount: payment.amount.toString(),
+            processing_fee: processingFee.amount.toString()
+          }
+        })
+
+        console.log('Moov transfer created:', transfer.transferID)
+
+        // Update payment status
         const { error: updateError } = await supabase
           .from('payments')
           .update({ 
             status: 'processing', // ACH takes time to process
-            moov_transfer_id: `moov_${Date.now()}`, // Placeholder transfer ID
+            moov_transfer_id: transfer.transferID,
             paid_at: new Date().toISOString(),
             payment_method_id: paymentMethodId
           })
@@ -158,7 +169,7 @@ export async function POST(request: NextRequest) {
             processingFee: processingFee.amount,
             totalAmount: totalAmount,
             status: 'processing',
-            moov_transfer_id: `moov_${Date.now()}`,
+            moov_transfer_id: transfer.transferID,
             payment_method: {
               type: paymentMethod.type,
               last4: paymentMethod.last4
