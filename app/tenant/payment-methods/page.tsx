@@ -145,7 +145,9 @@ export default async function PaymentMethodsPage() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-gray-900">
-                              {method.type === 'card' ? 'Credit/Debit Card' : 'Bank Account'}
+                              {method.type === 'card' ? 'Credit/Debit Card' : 
+                               method.type === 'us_bank_account' ? 'Bank Account (Stripe)' :
+                               method.type === 'moov_ach' ? 'Bank Account (ACH)' : 'Unknown'}
                             </p>
                             <p className="text-sm text-gray-600">
                               ****{method.last4}
@@ -165,12 +167,18 @@ export default async function PaymentMethodsPage() {
                     ))}
                   </div>
                   
-                  {/* Add Payment Method Button */}
-                  <div className="pt-6 border-t">
+                  {/* Add Payment Method Buttons */}
+                  <div className="pt-6 border-t space-y-3">
                     <Link href="/tenant/payment-methods/add" className="block">
                       <Button className="w-full sm:w-auto flex items-center justify-center space-x-2">
                         <Plus className="w-4 h-4" />
-                        <span>Add Payment Method</span>
+                        <span>Add Card or Bank (Stripe)</span>
+                      </Button>
+                    </Link>
+                    <Link href="/tenant/payment-methods/add-moov" className="block">
+                      <Button variant="outline" className="w-full sm:w-auto flex items-center justify-center space-x-2">
+                        <Plus className="w-4 h-4" />
+                        <span>Add Bank Account (ACH)</span>
                       </Button>
                     </Link>
                   </div>

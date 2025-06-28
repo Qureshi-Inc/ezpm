@@ -19,7 +19,7 @@ interface Payment {
 
 interface PaymentMethod {
   id: string
-  type: 'card' | 'us_bank_account'
+  type: 'card' | 'us_bank_account' | 'moov_ach'
   last4: string
   is_default: boolean
 }
@@ -172,7 +172,9 @@ function PaymentForm({ payment, paymentMethods, tenantId }: StripePaymentFormPro
                     </div>
                     <div>
                       <p className="font-medium">
-                        {method.type === 'card' ? 'Credit/Debit Card' : 'Bank Account'}
+                        {method.type === 'card' ? 'Credit/Debit Card' : 
+                         method.type === 'us_bank_account' ? 'Bank Account (Stripe)' :
+                         method.type === 'moov_ach' ? 'Bank Account (ACH)' : 'Unknown'}
                       </p>
                       <p className="text-sm text-gray-600">
                         ****{method.last4}

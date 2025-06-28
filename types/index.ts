@@ -32,8 +32,9 @@ export interface Property {
 export interface PaymentMethod {
   id: string
   tenant_id: string
-  stripe_payment_method_id: string
-  type: 'card' | 'us_bank_account'
+  stripe_payment_method_id?: string
+  moov_payment_method_id?: string
+  type: 'card' | 'us_bank_account' | 'moov_ach'
   last4: string
   is_default: boolean
   created_at: string

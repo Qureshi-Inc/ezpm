@@ -15,8 +15,11 @@ export function formatDateTime(date: string | Date): string {
   return format(new Date(date), 'MMM dd, yyyy h:mm a')
 }
 
-export function getPaymentMethodIcon(type: 'card' | 'us_bank_account'): string {
-  return type === 'card' ? '💳' : '🏦'
+export function getPaymentMethodIcon(type: 'card' | 'us_bank_account' | 'moov_ach'): string {
+  if (type === 'card') return '💳'
+  if (type === 'us_bank_account') return '🏦'
+  if (type === 'moov_ach') return '🏛️'
+  return '💰'
 }
 
 export function getPaymentStatusColor(status: string): string {
