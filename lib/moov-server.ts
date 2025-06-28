@@ -4,16 +4,19 @@ const MOOV_ACCOUNT_ID = process.env.MOOV_ACCOUNT_ID
 const MOOV_PUBLIC_KEY = process.env.MOOV_PUBLIC_KEY
 const MOOV_SECRET_KEY = process.env.MOOV_SECRET_KEY
 
-if (!MOOV_ACCOUNT_ID) {
-  throw new Error('Missing MOOV_ACCOUNT_ID environment variable')
-}
-
-if (!MOOV_PUBLIC_KEY) {
-  throw new Error('Missing MOOV_PUBLIC_KEY environment variable')
-}
-
-if (!MOOV_SECRET_KEY) {
-  throw new Error('Missing MOOV_SECRET_KEY environment variable')
+// Helper function to check required environment variables
+function checkMoovConfig() {
+  if (!MOOV_ACCOUNT_ID) {
+    throw new Error('Missing MOOV_ACCOUNT_ID environment variable')
+  }
+  
+  if (!MOOV_PUBLIC_KEY) {
+    throw new Error('Missing MOOV_PUBLIC_KEY environment variable')
+  }
+  
+  if (!MOOV_SECRET_KEY) {
+    throw new Error('Missing MOOV_SECRET_KEY environment variable')
+  }
 }
 
 // Helper function to get authorization header
@@ -28,6 +31,9 @@ export async function createMoovAccount(tenantData: {
   email: string
   tenantId: string
 }) {
+  // Check config when function is actually called
+  checkMoovConfig()
+  
   try {
     const response = await fetch(`${MOOV_DOMAIN}/accounts`, {
       method: 'POST',
@@ -66,12 +72,15 @@ export async function createMoovAccount(tenantData: {
 
 // Helper function to generate access token for Moov.js
 export async function generateMoovToken(scopes: string[]) {
+  // Check config when function is actually called
+  checkMoovConfig()
+  
   try {
     // Use OAuth2 to generate token
-    const response = await fetch(`${process.env.MOOV_DOMAIN || 'https://api.moov.io'}/oauth2/token`, {
+    const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${Buffer.from(`${process.env.MOOV_PUBLIC_KEY}:${process.env.MOOV_SECRET_KEY}`).toString('base64')}`,
+        'Authorization': getAuthHeader(),
         'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: new URLSearchParams({

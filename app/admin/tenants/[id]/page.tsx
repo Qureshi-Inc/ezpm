@@ -11,9 +11,9 @@ import Link from 'next/link'
 import { ArrowLeft, User, Mail, Phone, Building, DollarSign, Edit } from 'lucide-react'
 
 interface TenantDetailsPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function TenantDetailsPage({ params }: TenantDetailsPageProps) {

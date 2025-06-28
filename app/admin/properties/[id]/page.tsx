@@ -11,9 +11,9 @@ import Link from 'next/link'
 import { ArrowLeft, Building, MapPin, DollarSign, Users, Edit, User } from 'lucide-react'
 
 interface PropertyDetailsPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function PropertyDetailsPage({ params }: PropertyDetailsPageProps) {

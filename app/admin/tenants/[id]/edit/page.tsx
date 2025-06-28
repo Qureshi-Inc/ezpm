@@ -8,9 +8,9 @@ import Link from 'next/link'
 import { ArrowLeft, User } from 'lucide-react'
 
 interface EditTenantPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function EditTenantPage({ params }: EditTenantPageProps) {
