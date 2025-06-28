@@ -12,7 +12,7 @@ DROP CONSTRAINT payment_methods_type_check;
 
 ALTER TABLE payment_methods 
 ADD CONSTRAINT payment_methods_type_check 
-CHECK (type IN ('card', 'us_bank_account', 'moov_ach'));
+CHECK (type IN ('card', 'moov_ach'));
 
 -- Add Moov transfer ID to payments table
 ALTER TABLE payments 

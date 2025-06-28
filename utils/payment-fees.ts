@@ -1,8 +1,6 @@
 // Stripe fee structure
 const STRIPE_CARD_PERCENTAGE = 0.029 // 2.9%
 const STRIPE_CARD_FIXED = 0.30 // $0.30
-const STRIPE_ACH_PERCENTAGE = 0.008 // 0.8%
-const STRIPE_ACH_CAP = 5.00 // $5.00 cap
 
 // Moov ACH fees (example - adjust based on your Moov pricing)
 const MOOV_ACH_PERCENTAGE = 0.005 // 0.50%
@@ -16,7 +14,7 @@ export interface ProcessingFee {
 
 export function calculateProcessingFee(
   amount: number, 
-  paymentType: 'card' | 'us_bank_account' | 'moov_ach'
+  paymentType: 'card' | 'moov_ach'
 ): ProcessingFee {
   let feeAmount = 0
   let description = ''
@@ -26,12 +24,6 @@ export function calculateProcessingFee(
       // Stripe card fee: 2.9% + $0.30
       feeAmount = (amount * STRIPE_CARD_PERCENTAGE) + STRIPE_CARD_FIXED
       description = '2.9% + $0.30 processing fee'
-      break
-      
-    case 'us_bank_account':
-      // Stripe ACH fee: 0.8% (capped at $5)
-      feeAmount = Math.min(amount * STRIPE_ACH_PERCENTAGE, STRIPE_ACH_CAP)
-      description = '0.8% processing fee (max $5.00)'
       break
       
     case 'moov_ach':

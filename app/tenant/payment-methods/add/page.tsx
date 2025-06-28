@@ -31,12 +31,9 @@ export default async function AddPaymentMethodPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <CreditCard className="w-5 h-5" />
-                <span>Payment Information</span>
-              </CardTitle>
+              <CardTitle>Add Credit/Debit Card</CardTitle>
               <CardDescription>
-                Add a credit card or bank account for secure rent payments
+                Add a credit or debit card for rent payments. Cards are processed instantly with a 2.9% + $0.30 processing fee.
               </CardDescription>
             </CardHeader>
             <CardContent>

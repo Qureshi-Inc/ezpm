@@ -12,7 +12,7 @@ import { AlertCircle, Settings, CreditCard } from 'lucide-react'
 
 interface PaymentMethod {
   id: string
-  type: 'card' | 'us_bank_account'
+  type: 'card' | 'moov_ach'
   last4: string
   is_default: boolean
 }
@@ -176,7 +176,8 @@ export function AutoPaySetupForm({ tenantId, paymentMethods, existingAutoPayment
                         </div>
                         <div>
                           <p className="font-medium">
-                            {method.type === 'card' ? 'Credit/Debit Card' : 'Bank Account'}
+                            {method.type === 'card' ? 'Credit/Debit Card' : 
+                             method.type === 'moov_ach' ? 'Bank Account (ACH)' : 'Unknown'}
                           </p>
                           <p className="text-sm text-gray-600">
                             ****{method.last4}

@@ -17,9 +17,12 @@ interface Payment {
 
 interface PaymentMethod {
   id: string
-  type: 'card' | 'us_bank_account'
+  tenant_id: string
+  stripe_payment_method_id: string
+  type: 'card' | 'moov_ach'
   last4: string
   is_default: boolean
+  created_at: string
 }
 
 interface PaymentFormProps {

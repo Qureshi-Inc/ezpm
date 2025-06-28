@@ -20,9 +20,11 @@ interface Payment {
 
 interface PaymentMethod {
   id: string
-  type: 'card' | 'us_bank_account' | 'moov_ach'
+  type: 'card' | 'moov_ach'
   last4: string
   is_default: boolean
+  stripe_payment_method_id?: string
+  moov_payment_method_id?: string
 }
 
 interface StripePaymentFormProps {
@@ -178,21 +180,13 @@ function PaymentForm({ payment, paymentMethods, tenantId }: StripePaymentFormPro
                     </div>
                     <div>
                       <p className="font-medium">
-                        {method.type === 'card' ? 'Credit/Debit Card' : 
-                         method.type === 'us_bank_account' ? 'Bank Account (Stripe)' :
-                         method.type === 'moov_ach' ? 'Bank Account (ACH)' : 'Unknown'}
+                        {method.type === 'card' ? 'Credit/Debit Card' : 'Unknown'}
                       </p>
                       <p className="text-sm text-gray-600">
                         ****{method.last4}
                       </p>
                       {method.type === 'card' && (
                         <p className="text-xs text-amber-600 mt-1">+2.9% + $0.30 fee</p>
-                      )}
-                      {method.type === 'us_bank_account' && (
-                        <p className="text-xs text-amber-600 mt-1">+0.8% fee (max $5)</p>
-                      )}
-                      {method.type === 'moov_ach' && (
-                        <p className="text-xs text-green-600 mt-1">No fee</p>
                       )}
                     </div>
                   </div>

@@ -114,8 +114,8 @@ export default async function PaymentMethodsPage() {
                 <div>
                   <h3 className="font-medium text-blue-900">Payment Method Options</h3>
                   <p className="text-sm text-blue-800 mt-1">
-                    We offer multiple secure payment options: Credit/Debit cards and bank accounts through Stripe, 
-                    or ACH bank transfers through Moov. Choose the option that works best for you.
+                    We offer two secure payment options: Credit/Debit cards through Stripe (with processing fees), 
+                    or ACH bank transfers through Moov (no fees). Choose the option that works best for you.
                   </p>
                 </div>
               </div>
@@ -128,115 +128,100 @@ export default async function PaymentMethodsPage() {
               <div>
                 <h3 className="font-medium text-amber-900 mb-2">Processing Fees</h3>
                 <p className="text-sm text-amber-800 mb-3">
-                  All payment methods include processing fees that will be added to your rent payment:
+                  Payment processing fees vary by method:
                 </p>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between items-center">
-                    <span className="text-amber-700">• Credit/Debit Cards (Stripe)</span>
+                    <span className="text-amber-700">• Credit/Debit Cards</span>
                     <span className="font-medium text-amber-900">2.9% + $0.30</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-amber-700">• Bank Account (Stripe)</span>
-                    <span className="font-medium text-amber-900">0.8% (max $5.00)</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-amber-700">• Bank Account (Moov ACH)</span>
+                    <span className="text-amber-700">• Bank Account (ACH)</span>
                     <span className="font-medium text-green-900">No fee</span>
                   </div>
                 </div>
                 <p className="text-xs text-amber-700 mt-3">
-                  Example: $1,000 rent + credit card = $1,029.30 total | Moov ACH = $1,000.00 (no fee)
+                  Example: $1,000 rent + credit card = $1,029.30 total | Bank ACH = $1,000.00 (no fee)
                 </p>
               </div>
             </CardContent>
           </Card>
 
           {/* Payment Methods List */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Payment Methods</CardTitle>
-              <CardDescription>
-                Manage your saved payment methods for rent payments
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {paymentMethods && paymentMethods.length > 0 ? (
-                <>
-                  <div className="space-y-4">
-                    {paymentMethods.map((method) => (
-                      <div 
-                        key={method.id} 
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors space-y-3 sm:space-y-0"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <span className="text-xl">{getPaymentMethodIcon(method.type)}</span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-gray-900">
-                              {method.type === 'card' ? 'Credit/Debit Card' : 
-                               method.type === 'us_bank_account' ? 'Bank Account (Stripe)' :
-                               method.type === 'moov_ach' ? 'Bank Account (ACH)' : 'Unknown'}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              ****{method.last4}
-                            </p>
-                            {method.is_default && (
-                              <Badge variant="default" className="mt-1 text-xs">
-                                Default
-                              </Badge>
-                            )}
-                          </div>
+          {!paymentMethods || paymentMethods.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-8">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CreditCard className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  No payment methods yet
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Add a payment method to start paying rent online.
+                </p>
+                <Link href="/tenant/payment-methods/add-new">
+                  <Button>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add New Payment Method
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Your Payment Methods</CardTitle>
+                    <CardDescription>
+                      Manage your saved payment methods for rent payments
+                    </CardDescription>
+                  </div>
+                  <Link href="/tenant/payment-methods/add-new">
+                    <Button size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add New
+                    </Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {paymentMethods.map((method) => (
+                    <div 
+                      key={method.id} 
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors space-y-3 sm:space-y-0"
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-xl">{getPaymentMethodIcon(method.type)}</span>
                         </div>
-                        
-                        <div className="flex justify-end sm:justify-start">
-                          <PaymentMethodActions paymentMethod={method} />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-gray-900">
+                            {method.type === 'card' ? 'Credit/Debit Card' : 
+                             method.type === 'moov_ach' ? 'Bank Account (ACH)' : 'Unknown'}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            ****{method.last4}
+                          </p>
+                          {method.is_default && (
+                            <Badge variant="default" className="mt-1 text-xs">
+                              Default
+                            </Badge>
+                          )}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                  
-                  {/* Add Payment Method Buttons */}
-                  <div className="pt-6 border-t space-y-3">
-                    <Link href="/tenant/payment-methods/add" className="block">
-                      <Button className="w-full sm:w-auto flex items-center justify-center space-x-2">
-                        <Plus className="w-4 h-4" />
-                        <span>Add Card or Bank (Stripe)</span>
-                      </Button>
-                    </Link>
-                    <Link href="/tenant/payment-methods/add-moov" className="block">
-                      <Button variant="outline" className="w-full sm:w-auto flex items-center justify-center space-x-2">
-                        <Plus className="w-4 h-4" />
-                        <span>Add Bank Account (ACH)</span>
-                      </Button>
-                    </Link>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-12">
-                  <CreditCard className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No payment methods yet</h3>
-                  <p className="text-gray-600 mb-6">
-                    Add a payment method to start making rent payments online.
-                  </p>
-                  <div className="space-y-3">
-                    <Link href="/tenant/payment-methods/add" className="block">
-                      <Button className="w-full sm:w-auto">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Card or Bank (Stripe)
-                      </Button>
-                    </Link>
-                    <Link href="/tenant/payment-methods/add-moov" className="block">
-                      <Button variant="outline" className="w-full sm:w-auto">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Bank Account (ACH)
-                      </Button>
-                    </Link>
-                  </div>
+                      
+                      <div className="flex justify-end sm:justify-start">
+                        <PaymentMethodActions paymentMethod={method} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Instructions */}
           <Card className="mt-4 sm:mt-6">

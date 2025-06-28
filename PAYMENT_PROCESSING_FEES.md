@@ -9,13 +9,17 @@ Payment processing fees are handled differently depending on the payment method:
 | Payment Method | Provider | Fee Charged to Tenant | Fee Paid by Landlord | Example ($1,000 rent) |
 |----------------|----------|----------------------|---------------------|----------------------|
 | Credit/Debit Card | Stripe | 2.9% + $0.30 | None | Tenant pays $1,029.30 |
-| US Bank Account | Stripe | 0.8% (max $5) | None | Tenant pays $1,008.00 |
-| ACH Transfer | Moov | **No fee** | 0.50% | Tenant pays $1,000.00 |
+| Bank Account (ACH) | Moov | **No fee** | 0.50% | Tenant pays $1,000.00 |
+
+## Payment Method Separation
+
+- **Stripe**: Handles credit and debit card payments only
+- **Moov**: Handles bank account ACH transfers only
 
 ## How It Works
 
-### Stripe Payments (Cards & Bank Accounts)
-1. **Fee Calculation**: The system calculates Stripe's processing fee based on the rent amount
+### Stripe Card Payments
+1. **Fee Calculation**: The system calculates Stripe's 2.9% + $0.30 processing fee
 2. **Tenant Pays**: The fee is added to the tenant's payment (rent + fee)
 3. **Transparent Display**: Tenants see the breakdown before confirming payment
 
@@ -47,8 +51,6 @@ To change the fee structure, update the constants in `utils/payment-fees.ts`:
 ```typescript
 const STRIPE_CARD_PERCENTAGE = 0.029 // 2.9%
 const STRIPE_CARD_FIXED = 0.30 // $0.30
-const STRIPE_ACH_PERCENTAGE = 0.008 // 0.8%
-const STRIPE_ACH_CAP = 5.00 // $5.00 cap
 const MOOV_ACH_PERCENTAGE = 0.005 // 0.50% (paid by landlord, not tenant)
 ```
 

@@ -8,7 +8,7 @@ import { Edit, Trash2 } from 'lucide-react'
 
 interface PaymentMethod {
   id: string
-  type: 'card' | 'us_bank_account'
+  type: 'card' | 'moov_ach'
   last4: string
   is_default: boolean
 }
