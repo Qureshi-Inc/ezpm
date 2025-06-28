@@ -68,6 +68,8 @@ Moov ACH has been added as an additional payment method alongside the existing S
    MOOV_SECRET_KEY=your_moov_secret_key
    MOOV_DOMAIN=https://api.sandbox.moov.io
    ```
+   
+   **Note**: Get your API keys from the Moov dashboard at https://dashboard.moov.io > API Keys. You need both the public key (client_id) and secret key (client_secret) for OAuth 2.0 authentication.
 
 3. **Run Database Migration**
    Execute the SQL script in `supabase/add_moov_support.sql` to update your database schema.

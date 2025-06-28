@@ -19,12 +19,52 @@ function checkMoovConfig() {
   }
 }
 
-// Helper function to get authorization header
-function getAuthHeader() {
-  const authHeader = `Basic ${Buffer.from(`${MOOV_PUBLIC_KEY}:${MOOV_SECRET_KEY}`).toString('base64')}`
-  console.log('Generated auth header:', {
+// Helper function to generate OAuth 2.0 Bearer token
+async function getBearerToken(scopes: string[] = ['accounts:read', 'accounts:write', 'payment-methods:write', 'transfers:write']) {
+  console.log('Generating OAuth 2.0 Bearer token with config:', {
+    domain: MOOV_DOMAIN,
     publicKey: MOOV_PUBLIC_KEY ? '***' + MOOV_PUBLIC_KEY.slice(-4) : 'missing',
     secretKey: MOOV_SECRET_KEY ? '***' + MOOV_SECRET_KEY.slice(-4) : 'missing',
+    scopes
+  })
+  
+  try {
+    const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-moov-version': '1.0.0'
+      },
+      body: JSON.stringify({
+        grant_type: 'client_credentials',
+        client_id: MOOV_PUBLIC_KEY,
+        client_secret: MOOV_SECRET_KEY,
+        scope: scopes.join(' ')
+      })
+    })
+
+    console.log('OAuth 2.0 token response status:', response.status)
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('OAuth 2.0 token error response:', errorText)
+      throw new Error(`Failed to generate OAuth 2.0 token: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    console.log('OAuth 2.0 Bearer token generated successfully')
+    return data.access_token
+  } catch (error) {
+    console.error('Failed to generate OAuth 2.0 Bearer token:', error)
+    throw error
+  }
+}
+
+// Helper function to get authorization header with Bearer token
+async function getAuthHeader(scopes?: string[]) {
+  const bearerToken = await getBearerToken(scopes)
+  const authHeader = `Bearer ${bearerToken}`
+  console.log('Generated Bearer auth header:', {
     authHeader: '***' + authHeader.slice(-10)
   })
   return authHeader
@@ -41,10 +81,11 @@ export async function createMoovAccount(tenantData: {
   checkMoovConfig()
   
   try {
+    const authHeader = await getAuthHeader()
     const response = await fetch(`${MOOV_DOMAIN}/accounts`, {
       method: 'POST',
       headers: {
-        'Authorization': getAuthHeader(),
+        'Authorization': authHeader,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -96,8 +137,9 @@ export async function createBankAccount(accountId: string, bankData: {
     }
     
     const url = `${MOOV_DOMAIN}/accounts/${accountId}/payment-methods`
+    const authHeader = await getAuthHeader()
     const headers = {
-      'Authorization': getAuthHeader(),
+      'Authorization': authHeader,
       'Content-Type': 'application/json'
     }
     
@@ -114,7 +156,7 @@ export async function createBankAccount(accountId: string, bankData: {
       },
       headers: {
         ...headers,
-        'Authorization': '***' + headers.Authorization.slice(-10)
+        'Authorization': '***' + authHeader.slice(-10)
       }
     })
     
@@ -174,10 +216,11 @@ export async function createTransfer(transferData: {
   checkMoovConfig()
   
   try {
+    const authHeader = await getAuthHeader()
     const response = await fetch(`${MOOV_DOMAIN}/transfers`, {
       method: 'POST',
       headers: {
-        'Authorization': getAuthHeader(),
+        'Authorization': authHeader,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -216,10 +259,11 @@ export async function getTransferStatus(transferId: string) {
   checkMoovConfig()
   
   try {
+    const authHeader = await getAuthHeader()
     const response = await fetch(`${MOOV_DOMAIN}/transfers/${transferId}`, {
       method: 'GET',
       headers: {
-        'Authorization': getAuthHeader()
+        'Authorization': authHeader
       }
     })
     
@@ -253,28 +297,30 @@ export async function generateMoovToken(scopes: string[]) {
     const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
       method: 'POST',
       headers: {
-        'Authorization': getAuthHeader(),
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/json',
+        'x-moov-version': '1.0.0'
       },
-      body: new URLSearchParams({
+      body: JSON.stringify({
         grant_type: 'client_credentials',
+        client_id: MOOV_PUBLIC_KEY,
+        client_secret: MOOV_SECRET_KEY,
         scope: scopes.join(' ')
       })
     })
 
-    console.log('Moov token response status:', response.status)
+    console.log('OAuth 2.0 token response status:', response.status)
     
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Moov token error response:', errorText)
-      throw new Error(`Failed to generate token: ${response.status} ${response.statusText}`)
+      console.error('OAuth 2.0 token error response:', errorText)
+      throw new Error(`Failed to generate OAuth 2.0 token: ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json()
-    console.log('Moov token generated successfully')
+    console.log('OAuth 2.0 Bearer token generated successfully')
     return data.access_token
   } catch (error) {
-    console.error('Failed to generate Moov token:', error)
+    console.error('Failed to generate OAuth 2.0 Bearer token:', error)
     throw error
   }
 }
