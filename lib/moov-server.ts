@@ -20,7 +20,7 @@ function checkMoovConfig() {
 }
 
 // Helper function to generate OAuth 2.0 Bearer token using Moov SDK
-async function getBearerToken(scopes: string[] = ['/accounts.read', '/accounts.write', '/payment-methods.write', '/transfers.write']) {
+async function getBearerToken(scopes: string[] = ['/accounts.read', '/accounts.write', '/payment-methods.read', '/transfers.write']) {
   console.log('Generating OAuth 2.0 Bearer token with config:', {
     domain: MOOV_DOMAIN,
     publicKey: MOOV_PUBLIC_KEY ? '***' + MOOV_PUBLIC_KEY.slice(-4) : 'missing',
@@ -29,7 +29,7 @@ async function getBearerToken(scopes: string[] = ['/accounts.read', '/accounts.w
   })
   
   try {
-    const response = await fetch(`${MOOV_DOMAIN}/v2/oauth2/token`, {
+    const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -294,7 +294,7 @@ export async function generateMoovToken(scopes: string[]) {
   
   try {
     // Use OAuth2 to generate token
-    const response = await fetch(`${MOOV_DOMAIN}/v2/oauth2/token`, {
+    const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
