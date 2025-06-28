@@ -9,16 +9,17 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { ArrowLeft, Building } from 'lucide-react'
 
-export default async function EditPropertyPage({ params }: { params: { id: string } }) {
+export default async function EditPropertyPage({ params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAdmin()
     const supabase = createServerSupabaseClient()
+    const { id } = await params
 
     // Get property details
     const { data: property, error } = await supabase
       .from('properties')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (error || !property) {
