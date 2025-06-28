@@ -113,7 +113,7 @@ export default async function PayPage() {
                         <p className="text-sm text-amber-800 mt-1">
                           You need to add a payment method before you can make a payment.
                         </p>
-                        <Link href="/tenant/payment-methods/add" className="inline-block mt-3">
+                        <Link href="/tenant/payment-methods/add-new" className="inline-block mt-3">
                           <Button size="sm">
                             Add Payment Method
                           </Button>
@@ -129,9 +129,10 @@ export default async function PayPage() {
                 <CardContent className="pt-6">
                   <h3 className="font-medium text-gray-900 mb-2">Payment Information</h3>
                   <div className="text-sm text-gray-600 space-y-1">
-                    <p>• Payments are processed securely through Stripe</p>
+                    <p>• Credit/debit cards are processed securely through Stripe (2.9% + $0.30 fee)</p>
+                    <p>• Bank accounts (ACH) are processed through Moov with no fees</p>
                     <p>• You'll receive an email confirmation once payment is complete</p>
-                    <p>• Bank transfers (ACH) may take 1-3 business days to process</p>
+                    <p>• Bank transfers may take 1-3 business days to process</p>
                     <p>• Credit/debit card payments are processed immediately</p>
                   </div>
                 </CardContent>
