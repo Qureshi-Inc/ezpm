@@ -76,6 +76,31 @@ export async function POST(request: NextRequest) {
 
     console.log('Tenant found:', { id: tenant.id, firstName: tenant.first_name, lastName: tenant.last_name, moovAccountId: tenant.moov_account_id })
 
+    // Check for existing payment method with the same account number
+    const { data: existingPaymentMethod, error: checkError } = await supabase
+      .from('payment_methods')
+      .select('id, last4')
+      .eq('tenant_id', tenantId)
+      .eq('type', 'moov_ach')
+      .eq('last4', accountNumber.slice(-4))
+      .single()
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found" error
+      console.error('Error checking for existing payment method:', checkError)
+      return NextResponse.json(
+        { error: 'Failed to check for existing payment method' },
+        { status: 500 }
+      )
+    }
+
+    if (existingPaymentMethod) {
+      console.log('Payment method with same account number already exists:', existingPaymentMethod)
+      return NextResponse.json(
+        { error: 'A payment method with this account number already exists' },
+        { status: 400 }
+      )
+    }
+
     // Create Moov account if tenant doesn't have one
     let moovAccountId = tenant.moov_account_id
     
@@ -124,7 +149,8 @@ export async function POST(request: NextRequest) {
       type: 'moov_ach',
       moov_payment_method_id: moovPaymentMethodId,
       last4: accountNumber.slice(-4),
-      is_default: false
+      is_default: false,
+      stripe_payment_method_id: null // Explicitly set to null for Moov payment methods
     }
 
     console.log('Saving payment method:', { ...paymentMethodData, last4: '***' + paymentMethodData.last4 })

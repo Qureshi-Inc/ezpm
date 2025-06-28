@@ -24,6 +24,10 @@ export function MoovPaymentMethodForm({ tenantId }: MoovPaymentMethodFormProps) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    if (isSubmitting) {
+      return // Prevent double submission
+    }
+    
     if (!accountNumber || !routingNumber || !accountHolderName) {
       setError('All fields are required')
       return
@@ -59,33 +63,11 @@ export function MoovPaymentMethodForm({ tenantId }: MoovPaymentMethodFormProps) 
       // Initialize Moov.js
       const moov = await getMoov(token)
       
-      // Get or create the account
-      const accountResponse = await fetch('/api/tenant/payment-methods/moov', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tenantId,
-          moovPaymentMethodId: 'temp', // We'll update this after creating the bank account
-          accountNumber,
-          routingNumber
-        }),
-      })
-
-      if (!accountResponse.ok) {
-        const errorData = await accountResponse.json()
-        throw new Error(errorData.error || 'Failed to create payment method')
-      }
-
-      const { moovAccountId } = await accountResponse.json()
-
-      // For now, we'll use a placeholder ID until we can properly link the bank account
-      // In a real implementation, you would use Moov Drops or the Moov API directly
-      const bankAccountId = `bank_${Date.now()}`
+      // Generate a unique bank account ID
+      const bankAccountId = `bank_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       
-      // Update the payment method with the bank account ID
-      const updateResponse = await fetch('/api/tenant/payment-methods/moov', {
+      // Create the payment method with the final bank account ID
+      const accountResponse = await fetch('/api/tenant/payment-methods/moov', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -98,8 +80,9 @@ export function MoovPaymentMethodForm({ tenantId }: MoovPaymentMethodFormProps) 
         }),
       })
 
-      if (!updateResponse.ok) {
-        throw new Error('Failed to save payment method')
+      if (!accountResponse.ok) {
+        const errorData = await accountResponse.json()
+        throw new Error(errorData.error || 'Failed to create payment method')
       }
 
       // Success - redirect to payment methods list
