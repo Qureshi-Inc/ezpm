@@ -80,21 +80,18 @@ export async function createBankAccount(accountId: string, bankData: {
   checkMoovConfig()
   
   try {
-    const response = await fetch(`${MOOV_DOMAIN}/accounts/${accountId}/bank-accounts`, {
+    const response = await fetch(`${MOOV_DOMAIN}/accounts/${accountId}/payment-methods`, {
       method: 'POST',
       headers: {
         'Authorization': getAuthHeader(),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        accountNumber: bankData.accountNumber,
-        routingNumber: bankData.routingNumber,
-        accountType: bankData.accountType,
-        accountHolderName: bankData.accountHolderName,
-        // For sandbox testing, we can skip verification
-        // In production, you'd want to implement proper verification
-        verification: {
-          method: 'micro-deposits'
+        account: {
+          accountNumber: bankData.accountNumber,
+          routingNumber: bankData.routingNumber,
+          type: bankData.accountType,
+          holderName: bankData.accountHolderName
         }
       })
     })
@@ -106,7 +103,7 @@ export async function createBankAccount(accountId: string, bankData: {
     }
     
     const bankAccount = await response.json()
-    console.log('Bank account created successfully:', bankAccount.bankAccountID)
+    console.log('Bank account created successfully:', bankAccount.paymentMethodID)
     return bankAccount
   } catch (error) {
     console.error('Failed to create bank account:', error)

@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
         accountHolderName
       })
       
-      moovBankAccountId = bankAccount.bankAccountID
+      moovBankAccountId = bankAccount.paymentMethodID
       console.log('Bank account created in Moov:', moovBankAccountId)
     } catch (error) {
       console.error('Failed to create bank account in Moov:', error)
