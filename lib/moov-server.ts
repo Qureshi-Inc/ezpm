@@ -19,8 +19,8 @@ function checkMoovConfig() {
   }
 }
 
-// Helper function to generate OAuth 2.0 Bearer token
-async function getBearerToken(scopes: string[] = ['accounts:read', 'accounts:write', 'payment-methods:write', 'transfers:write']) {
+// Helper function to generate OAuth 2.0 Bearer token using Moov SDK
+async function getBearerToken(scopes: string[] = ['/accounts.read', '/accounts.write', '/payment-methods.write', '/transfers.write']) {
   console.log('Generating OAuth 2.0 Bearer token with config:', {
     domain: MOOV_DOMAIN,
     publicKey: MOOV_PUBLIC_KEY ? '***' + MOOV_PUBLIC_KEY.slice(-4) : 'missing',
@@ -33,7 +33,7 @@ async function getBearerToken(scopes: string[] = ['accounts:read', 'accounts:wri
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-moov-version': '1.0.0'
+        'x-moov-version': 'v2024.01.00'
       },
       body: JSON.stringify({
         grant_type: 'client_credentials',
@@ -298,7 +298,7 @@ export async function generateMoovToken(scopes: string[]) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-moov-version': '1.0.0'
+        'x-moov-version': 'v2024.01.00'
       },
       body: JSON.stringify({
         grant_type: 'client_credentials',
