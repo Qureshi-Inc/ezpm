@@ -8,21 +8,25 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatDate } from '@/utils/helpers'
 import { PropertyActions } from '@/components/admin/PropertyActions'
 import Link from 'next/link'
-import { ArrowLeft, Building, MapPin, DollarSign, Users, Edit, User } from 'lucide-react'
+import { ArrowLeft, Building, MapPin, DollarSign, Users, Edit, User, CheckCircle } from 'lucide-react'
 
 interface PropertyDetailsPageProps {
   params: Promise<{
     id: string
   }>
+  searchParams: Promise<{
+    message?: string
+  }>
 }
 
-export default async function PropertyDetailsPage({ params }: PropertyDetailsPageProps) {
+export default async function PropertyDetailsPage({ params, searchParams }: PropertyDetailsPageProps) {
   try {
     const session = await requireAdmin()
     const supabase = createServerSupabaseClient()
     
     // Await params to fix Next.js 15 compatibility
     const { id } = await params
+    const { message } = await searchParams
 
     // Get property details
     const { data: property, error } = await supabase
@@ -67,6 +71,14 @@ export default async function PropertyDetailsPage({ params }: PropertyDetailsPag
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Properties
               </Link>
+              
+              {message === 'property_updated' && (
+                <div className="mb-4 p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>Property updated successfully!</span>
+                </div>
+              )}
+              
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">{property.address}</h1>

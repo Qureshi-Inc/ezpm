@@ -4,9 +4,13 @@ import { generateMoovToken } from '@/lib/moov-server'
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('Moov token request received')
+    
     const session = await getSession()
+    console.log('Session:', session ? { role: session.role, userId: session.userId } : 'No session')
     
     if (!session || session.role !== 'tenant') {
+      console.log('Unauthorized access attempt')
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -14,6 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { scopes } = await request.json()
+    console.log('Requested scopes:', scopes)
 
     if (!scopes || !Array.isArray(scopes)) {
       return NextResponse.json(

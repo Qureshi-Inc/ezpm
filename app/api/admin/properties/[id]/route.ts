@@ -114,4 +114,57 @@ export async function DELETE(
       { status: 500 }
     )
   }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await requireAdmin()
+    const supabase = createServerSupabaseClient()
+    const { id } = await params
+
+    const data = await request.json()
+
+    // Validate required fields
+    if (!data.address || !data.rent_amount) {
+      return NextResponse.json(
+        { error: 'Address and rent amount are required' },
+        { status: 400 }
+      )
+    }
+
+    // Update the property
+    const { data: property, error } = await supabase
+      .from('properties')
+      .update({
+        address: data.address,
+        unit_number: data.unit_number,
+        rent_amount: data.rent_amount,
+        bedrooms: data.bedrooms,
+        bathrooms: data.bathrooms,
+        description: data.description,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Failed to update property:', error)
+      return NextResponse.json(
+        { error: 'Failed to update property' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ property })
+  } catch (error) {
+    console.error('Property update error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
 } 

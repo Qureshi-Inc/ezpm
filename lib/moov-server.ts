@@ -75,6 +75,14 @@ export async function generateMoovToken(scopes: string[]) {
   // Check config when function is actually called
   checkMoovConfig()
   
+  console.log('Generating Moov token with config:', {
+    domain: MOOV_DOMAIN,
+    accountId: MOOV_ACCOUNT_ID,
+    publicKey: MOOV_PUBLIC_KEY ? '***' + MOOV_PUBLIC_KEY.slice(-4) : 'missing',
+    secretKey: MOOV_SECRET_KEY ? '***' + MOOV_SECRET_KEY.slice(-4) : 'missing',
+    scopes
+  })
+  
   try {
     // Use OAuth2 to generate token
     const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
@@ -89,11 +97,16 @@ export async function generateMoovToken(scopes: string[]) {
       })
     })
 
+    console.log('Moov token response status:', response.status)
+    
     if (!response.ok) {
-      throw new Error('Failed to generate token')
+      const errorText = await response.text()
+      console.error('Moov token error response:', errorText)
+      throw new Error(`Failed to generate token: ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json()
+    console.log('Moov token generated successfully')
     return data.access_token
   } catch (error) {
     console.error('Failed to generate Moov token:', error)
