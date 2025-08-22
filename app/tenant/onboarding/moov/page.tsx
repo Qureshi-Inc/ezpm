@@ -8,15 +8,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
-// Declare the custom element type
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'moov-onboarding': any
-    }
-  }
-}
-
 export default function MoovOnboardingPage() {
   const router = useRouter()
   const onboardingRef = useRef<any>(null)
@@ -295,6 +286,7 @@ export default function MoovOnboardingPage() {
           </Card>
 
           {/* Hidden Moov Onboarding element */}
+          {/* @ts-ignore - Moov custom element */}
           <moov-onboarding
             ref={onboardingRef}
             token={token}

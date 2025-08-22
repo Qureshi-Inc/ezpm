@@ -55,6 +55,7 @@ async function getBearerToken(scopes?: string[]) {
         client_secret: MOOV_SECRET_KEY!,
         scope: finalScopes.join(' ')
       })
+    })
 
     console.log('OAuth 2.0 token response status:', response.status)
     
@@ -316,8 +317,9 @@ export async function generateMoovToken(scopes: string[]) {
         grant_type: 'client_credentials',
         client_id: MOOV_PUBLIC_KEY!,
         client_secret: MOOV_SECRET_KEY!,
-        scope: finalScopes.join(' ')
+        scope: scopes.join(' ')
       })
+    })
 
     console.log('OAuth 2.0 token response status:', response.status)
     
