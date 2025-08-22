@@ -80,24 +80,22 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (tenant) {
-      // Save as payment method
+      // Update the payment method to mark it as verified
       const { data: paymentMethod, error: pmError } = await supabase
         .from('payment_methods')
-        .insert({
-          tenant_id: tenant.id,
-          type: 'moov_ach',
-          moov_payment_method_id: bankAccountId,
-          last4: result.lastFourAccountNumber || '****',
-          is_default: false
+        .update({
+          is_verified: true
         })
+        .eq('tenant_id', tenant.id)
+        .eq('moov_payment_method_id', bankAccountId)
         .select()
         .single()
 
       if (pmError) {
-        console.error('Failed to save payment method:', pmError)
-        // Don't fail the whole request if saving fails
+        console.error('Failed to update payment method:', pmError)
+        // Don't fail the whole request if updating fails
       } else {
-        console.log('Payment method saved:', paymentMethod)
+        console.log('Payment method marked as verified:', paymentMethod)
       }
     }
 

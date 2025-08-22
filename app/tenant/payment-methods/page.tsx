@@ -210,6 +210,14 @@ export default async function PaymentMethodsPage() {
                               Default
                             </Badge>
                           )}
+                          {method.type === 'moov_ach' && !method.is_verified && (
+                            <Link 
+                              href={`/tenant/payment-methods/verify-micro-deposits?bankAccountId=${method.moov_payment_method_id}&accountId=${tenant.moov_account_id}&last4=${method.last4}`}
+                              className="text-xs text-blue-600 hover:underline mt-1 inline-block"
+                            >
+                              Verify bank account →
+                            </Link>
+                          )}
                         </div>
                       </div>
                       
