@@ -4,16 +4,14 @@ import { createServerSupabaseClient } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Save Moov bank endpoint called')
+    console.log('🏦 Save Moov bank endpoint called')
     
-    // Try to get session
-    const session = await getSession()
-    console.log('Session:', session ? 'Found' : 'Not found')
-
-    const { moovAccountId, bankAccountId, last4 } = await request.json()
-    console.log('Request data:', { moovAccountId, bankAccountId, last4 })
+    const requestBody = await request.json()
+    const { moovAccountId, bankAccountId, last4 } = requestBody
+    console.log('📝 Request data:', { moovAccountId, bankAccountId, last4 })
 
     if (!moovAccountId || !bankAccountId) {
+      console.error('❌ Missing required fields in request body:', { moovAccountId, bankAccountId })
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -21,56 +19,84 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServerSupabaseClient()
+    const session = await getSession()
+    
+    if (!session) {
+      console.error('❌ No session found')
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
 
-    // First try to find tenant by moov_account_id
-    let tenant = await supabase
+    console.log('👤 Session user ID:', session.userId)
+    
+    // Strategy: Find tenant by session first, then update moov_account_id if needed
+    let tenantId: string | null = null
+    let tenantMoovAccountId: string | null = null
+    
+    // 1. First, find the tenant by session user ID
+    console.log('🔍 Finding tenant by session user ID...')
+    const { data: tenantBySession, error: tenantSessionError } = await supabase
       .from('tenants')
-      .select('id')
-      .eq('moov_account_id', moovAccountId)
+      .select('id, moov_account_id')
+      .eq('user_id', session.userId)
       .single()
-
-    // If not found and we have a session, try to find by user_id and update
-    if ((!tenant.data || tenant.error) && session) {
-      console.log('Tenant not found by Moov ID, trying by user ID...')
+    
+    if (tenantBySession) {
+      console.log('✅ Found tenant by session:', {
+        id: tenantBySession.id,
+        existing_moov_id: tenantBySession.moov_account_id
+      })
       
-      const { data: tenantByUser, error: userError } = await supabase
-        .from('tenants')
-        .select('id')
-        .eq('user_id', session.userId)
-        .single()
-
-      if (tenantByUser) {
-        // Update the tenant with the Moov account ID
-        console.log('Found tenant by user, updating with Moov account ID...')
-        await supabase
+      tenantId = tenantBySession.id
+      tenantMoovAccountId = tenantBySession.moov_account_id
+      
+      // Update moov_account_id if it's different or missing
+      if (!tenantBySession.moov_account_id || tenantBySession.moov_account_id !== moovAccountId) {
+        console.log('🔄 Updating tenant with new Moov account ID...')
+        const { error: updateError } = await supabase
           .from('tenants')
           .update({ moov_account_id: moovAccountId })
-          .eq('id', tenantByUser.id)
+          .eq('id', tenantId)
         
-        tenant = { data: tenantByUser, error: null }
+        if (updateError) {
+          console.error('⚠️ Failed to update Moov account ID:', updateError)
+        } else {
+          console.log('✅ Updated tenant with Moov account ID:', moovAccountId)
+          tenantMoovAccountId = moovAccountId
+        }
       }
+    } else {
+      console.error('❌ No tenant found for session user:', session.userId)
+      console.error('Error:', tenantSessionError)
     }
 
-    if (!tenant.data) {
-      console.error('Could not find or create tenant association')
-      // Still return success to not break the flow
+    if (!tenantId) {
+      console.error('❌ Critical: Could not determine tenant ID for saving payment method.')
       return NextResponse.json({ 
-        success: true,
-        message: 'Bank account created but not fully linked',
-        warning: 'Manual verification may be required'
-      })
+        success: false,
+        error: 'Could not link bank account to a tenant. Please ensure you are logged in.'
+      }, { status: 500 })
     }
+
+    console.log('📊 Final tenant state:', { tenantId, tenantMoovAccountId })
 
     // Check if this payment method already exists
-    const { data: existingMethod } = await supabase
+    console.log('🔍 Checking for existing payment method...')
+    const { data: existingMethod, error: checkError } = await supabase
       .from('payment_methods')
       .select('id')
-      .eq('tenant_id', tenant.data.id)
+      .eq('tenant_id', tenantId)
       .eq('moov_payment_method_id', bankAccountId)
       .single()
 
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('⚠️ Error checking for existing payment method:', checkError)
+    }
+
     if (existingMethod) {
-      console.log('Payment method already exists')
+      console.log('✅ Payment method already exists:', existingMethod.id)
       return NextResponse.json({ 
         success: true,
         message: 'Payment method already saved',
@@ -78,11 +104,12 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Save the payment method
+    // Save the new payment method
+    console.log('💾 Saving new payment method for tenant:', tenantId)
     const { data: paymentMethod, error: pmError } = await supabase
       .from('payment_methods')
       .insert({
-        tenant_id: tenant.data.id,
+        tenant_id: tenantId,
         type: 'moov_ach',
         moov_payment_method_id: bankAccountId,
         last4: last4 || '****',
@@ -93,24 +120,24 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (pmError) {
-      console.error('Failed to save payment method:', pmError)
+      console.error('❌ Failed to save payment method:', pmError)
       return NextResponse.json(
-        { error: 'Failed to save payment method' },
+        { error: 'Failed to save payment method', details: pmError.message },
         { status: 500 }
       )
     }
 
-    console.log('Payment method saved:', paymentMethod)
+    console.log('🎉 Payment method saved successfully:', paymentMethod.id)
 
     return NextResponse.json({ 
       success: true,
       paymentMethod 
     })
 
-  } catch (error) {
-    console.error('Error saving Moov bank account:', error)
+  } catch (error: any) {
+    console.error('🚨 Uncaught error in save-moov-bank endpoint:', error)
     return NextResponse.json(
-      { error: 'Failed to save bank account' },
+      { error: 'Internal server error', details: error.message },
       { status: 500 }
     )
   }

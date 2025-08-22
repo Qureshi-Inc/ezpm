@@ -172,37 +172,48 @@ export default function MoovOnboardingPage() {
 
         // Handle bank account creation
         if (resourceType === 'bankAccount') {
-          console.log('Bank account created:', resource)
+          console.log('🏦 Bank account created:', resource)
+          console.log('📋 Using Moov Account ID:', newAccountId || resource.accountID)
           
           // Save the bank account as a payment method
           try {
+            const saveData = {
+              moovAccountId: newAccountId || resource.accountID,
+              bankAccountId: resource.bankAccountID,
+              last4: resource.lastFourAccountNumber || '****'
+            }
+            console.log('📤 Sending save request:', saveData)
+            
             const response = await fetch('/api/tenant/payment-methods/save-moov-bank', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({
-                moovAccountId: newAccountId || resource.accountID,
-                bankAccountId: resource.bankAccountID,
-                last4: resource.lastFourAccountNumber || '****'
-              })
+              body: JSON.stringify(saveData)
             })
 
             const data = await response.json()
+            console.log('📥 Save response:', { status: response.status, data })
             
-            if (response.ok) {
-              console.log('Bank account saved:', data)
-              // Always go to payment methods page - no auto redirect to verification
-              router.push('/tenant/payment-methods')
+            if (response.ok && data.success) {
+              console.log('✅ Bank account saved successfully!')
+              setStatus('Bank account saved! Redirecting to payment methods...')
             } else {
-              console.error('Failed to save bank account:', data)
-              // Still go to payment methods page even if save failed
-              router.push('/tenant/payment-methods')
+              console.error('❌ Failed to save bank account:', data)
+              setStatus('Bank account created but save failed. You can still verify it from payment methods.')
             }
+            
+            // Always navigate to payment methods after a short delay
+            setTimeout(() => {
+              router.push('/tenant/payment-methods')
+            }, 2000)
           } catch (error) {
-            console.error('Failed to save bank account:', error)
+            console.error('🚨 Exception while saving bank account:', error)
+            setStatus('Error saving bank account. Redirecting to payment methods...')
             // Still navigate to payment methods
-            router.push('/tenant/payment-methods')
+            setTimeout(() => {
+              router.push('/tenant/payment-methods')
+            }, 2000)
           }
         }
       }
