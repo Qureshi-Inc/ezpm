@@ -20,7 +20,7 @@ export default function MoovOnboardingPage() {
   // Load Moov.js script
   useEffect(() => {
     const script = document.createElement('script')
-    script.src = 'https://cdn.moov.io/moov-js/v1/moov.js'
+    script.src = 'https://js.moov.io/'
     script.async = true
     script.onload = () => {
       setLoading(false)
