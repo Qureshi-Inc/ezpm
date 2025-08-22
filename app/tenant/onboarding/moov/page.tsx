@@ -92,7 +92,11 @@ export default function MoovOnboardingPage() {
             `/accounts/${accountId}/profile.read`,
             `/accounts/${accountId}/profile.write`,
             `/accounts/${accountId}/representatives.read`,
-            `/accounts/${accountId}/representatives.write`
+            `/accounts/${accountId}/representatives.write`,
+            `/accounts/${accountId}/transfers.read`,
+            `/accounts/${accountId}/transfers.write`,
+            `/accounts/${accountId}/wallets.read`,
+            `/accounts/${accountId}/wallets.write`
           ]
         })
       })
@@ -121,7 +125,7 @@ export default function MoovOnboardingPage() {
       // Set properties
       onboarding.token = initialToken
       onboarding.facilitatorAccountID = process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID
-      onboarding.capabilities = ['transfers', 'send-funds', 'wallet'] // ACH capabilities
+      onboarding.capabilities = ['transfers', 'send-funds', 'collect-funds', 'wallet'] // ACH capabilities including collect-funds for micro-deposits
       onboarding.paymentMethodTypes = ['bankAccount'] // Only bank accounts for ACH
       onboarding.microDeposits = true // Enable micro-deposit verification
       onboarding.showLogo = false
