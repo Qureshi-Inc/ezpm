@@ -13,24 +13,33 @@ async function getAuthHeader() {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔐 Verification endpoint called')
+    
     const session = await getSession()
     if (!session || session.role !== 'tenant') {
+      console.error('❌ Unauthorized access attempt')
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    const { moovAccountId, bankAccountId, amounts } = await request.json()
+    const requestBody = await request.json()
+    const { moovAccountId, bankAccountId, amounts } = requestBody
+    
+    console.log('📝 Request body:', requestBody)
+    console.log('👤 Session user ID:', session.userId)
 
     if (!moovAccountId || !bankAccountId || !amounts || amounts.length !== 2) {
+      console.error('❌ Missing required fields:', { moovAccountId, bankAccountId, amounts })
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       )
     }
 
-    console.log('Verifying micro-deposits:', {
+    console.log('✅ All required fields present, proceeding with verification')
+    console.log('🔍 Verification details:', {
       moovAccountId,
       bankAccountId,
       amounts

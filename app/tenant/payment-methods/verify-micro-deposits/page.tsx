@@ -18,7 +18,7 @@ function VerifyMicroDepositsContent() {
   const [amount2, setAmount2] = useState('')
   
   const bankAccountId = searchParams.get('bankAccountId')
-  const moovAccountId = searchParams.get('accountId')
+  const moovAccountId = searchParams.get('accountId') // This is actually the Moov account ID
   const last4 = searchParams.get('last4')
 
   useEffect(() => {
@@ -33,19 +33,24 @@ function VerifyMicroDepositsContent() {
     setError('')
 
     try {
+      const requestBody = {
+        moovAccountId,
+        bankAccountId,
+        amounts: [
+          Math.round(parseFloat(amount1) * 100), // Convert to cents
+          Math.round(parseFloat(amount2) * 100)  // Convert to cents
+        ]
+      }
+      
+      console.log('🔍 Sending verification request:', requestBody)
+      console.log('📋 URL params:', { bankAccountId, moovAccountId, last4 })
+      
       const response = await fetch('/api/tenant/payment-methods/verify-micro-deposits', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          moovAccountId,
-          bankAccountId,
-          amounts: [
-            Math.round(parseFloat(amount1) * 100), // Convert to cents
-            Math.round(parseFloat(amount2) * 100)  // Convert to cents
-          ]
-        })
+        body: JSON.stringify(requestBody)
       })
 
       const data = await response.json()
