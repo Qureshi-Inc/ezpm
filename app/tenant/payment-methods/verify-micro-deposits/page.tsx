@@ -72,11 +72,24 @@ function VerifyMicroDepositsContent() {
         return
       }
 
-      // Normal verification success
-      setSuccess(true)
-      setTimeout(() => {
-        router.push('/tenant/payment-methods')
-      }, 2000)
+      // Handle successful verification
+      if (data.verified && data.paymentMethod) {
+        console.log('✅ Verification successful:', data)
+        setInitiated(false)
+        setSuccess(true)
+        setError('')
+        
+        // Force refresh payment methods page
+        setTimeout(() => {
+          router.refresh() // Force Next.js to revalidate data
+          router.push('/tenant/payment-methods')
+        }, 2000)
+        return
+      }
+
+      // Unexpected response
+      console.error('❌ Unexpected verification response:', data)
+      throw new Error('Unexpected verification response')
     } catch (err) {
       console.error('Verification error:', err)
       setError(err instanceof Error ? err.message : 'Failed to verify micro-deposits')
@@ -91,28 +104,33 @@ function VerifyMicroDepositsContent() {
         <Card>
           <CardContent className="pt-6">
             <Alert>
-                          <AlertDescription className="text-green-600">
-              {initiated ? (
-                <>
-                  ✓ Step 1 Complete: Micro-deposits Initiated! 
-                  <br />
-                  <span className="font-medium">Next Steps:</span>
-                  <br />
-                  1. Wait for deposits to arrive (1-2 minutes in test mode)
-                  <br />
-                  2. Return to payment methods and click "Verify Now" again
-                  <br />
-                  3. Enter the test amounts (0.00 and 0.00)
-                  <br />
-                  <br />
-                  Redirecting to payment methods...
-                </>
-              ) : (
-                <>
-                  ✓ Bank account verified successfully! Redirecting...
-                </>
-              )}
-            </AlertDescription>
+              <AlertDescription className="text-green-600">
+                {initiated ? (
+                  <>
+                    ✓ Step 1 Complete: Micro-deposits Initiated! 
+                    <br />
+                    <span className="font-medium">Next Steps:</span>
+                    <br />
+                    1. Wait for deposits to arrive (1-2 minutes in test mode)
+                    <br />
+                    2. Return to payment methods and click "Verify Now" again
+                    <br />
+                    3. Enter the test amounts (0.00 and 0.00)
+                    <br />
+                    <br />
+                    Redirecting to payment methods...
+                  </>
+                ) : (
+                  <>
+                    ✓ Bank account verified successfully!
+                    <br />
+                    Your bank account is now ready to use.
+                    <br />
+                    <br />
+                    Redirecting to payment methods...
+                  </>
+                )}
+              </AlertDescription>
             </Alert>
           </CardContent>
         </Card>
