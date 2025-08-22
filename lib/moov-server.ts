@@ -20,28 +20,41 @@ function checkMoovConfig() {
 }
 
 // Helper function to generate OAuth 2.0 Bearer token using Moov SDK
-async function getBearerToken(scopes: string[] = ['/accounts.read', '/accounts.write', '/payment-methods.read', '/transfers.write']) {
+async function getBearerToken(scopes?: string[]) {
+  // Use account-specific scopes if no custom scopes provided
+  const defaultScopes = MOOV_ACCOUNT_ID ? [
+    `/accounts/${MOOV_ACCOUNT_ID}/profile.read`,
+    `/accounts/${MOOV_ACCOUNT_ID}/profile.write`,
+    `/accounts/${MOOV_ACCOUNT_ID}/bank-accounts.read`,
+    `/accounts/${MOOV_ACCOUNT_ID}/bank-accounts.write`,
+    `/accounts/${MOOV_ACCOUNT_ID}/transfers.read`,
+    `/accounts/${MOOV_ACCOUNT_ID}/transfers.write`
+  ] : [
+    '/accounts.write',
+    '/bank-accounts.write', 
+    '/transfers.write'
+  ]
+  
+  const finalScopes = scopes || defaultScopes
   console.log('Generating OAuth 2.0 Bearer token with config:', {
     domain: MOOV_DOMAIN,
     publicKey: MOOV_PUBLIC_KEY ? '***' + MOOV_PUBLIC_KEY.slice(-4) : 'missing',
     secretKey: MOOV_SECRET_KEY ? '***' + MOOV_SECRET_KEY.slice(-4) : 'missing',
-    scopes
+    scopes: finalScopes
   })
   
   try {
     const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-moov-version': 'v2024.01.00'
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
+      body: new URLSearchParams({
         grant_type: 'client_credentials',
-        client_id: MOOV_PUBLIC_KEY,
-        client_secret: MOOV_SECRET_KEY,
-        scope: scopes.join(' ')
+        client_id: MOOV_PUBLIC_KEY!,
+        client_secret: MOOV_SECRET_KEY!,
+        scope: finalScopes.join(' ')
       })
-    })
 
     console.log('OAuth 2.0 token response status:', response.status)
     
@@ -297,16 +310,14 @@ export async function generateMoovToken(scopes: string[]) {
     const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-moov-version': 'v2024.01.00'
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
+      body: new URLSearchParams({
         grant_type: 'client_credentials',
-        client_id: MOOV_PUBLIC_KEY,
-        client_secret: MOOV_SECRET_KEY,
-        scope: scopes.join(' ')
+        client_id: MOOV_PUBLIC_KEY!,
+        client_secret: MOOV_SECRET_KEY!,
+        scope: finalScopes.join(' ')
       })
-    })
 
     console.log('OAuth 2.0 token response status:', response.status)
     
