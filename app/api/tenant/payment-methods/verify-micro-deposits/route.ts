@@ -176,37 +176,53 @@ export async function POST(request: NextRequest) {
     const supabase = createServerSupabaseClient()
     
     // Get tenant info
-    const { data: tenant } = await supabase
+    console.log('🔍 Looking up tenant...')
+    const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('id')
       .eq('user_id', session.userId)
       .eq('moov_account_id', moovAccountId)
       .single()
 
-    if (tenant) {
-      // Update the payment method to mark it as verified
-      const { data: paymentMethod, error: pmError } = await supabase
-        .from('payment_methods')
-        .update({
-          is_verified: true
-        })
-        .eq('tenant_id', tenant.id)
-        .eq('moov_payment_method_id', bankAccountId)
-        .select()
-        .single()
-
-      if (pmError) {
-        console.error('Failed to update payment method:', pmError)
-        // Don't fail the whole request if updating fails
-      } else {
-        console.log('Payment method marked as verified:', paymentMethod)
-      }
+    if (tenantError) {
+      console.error('❌ Failed to find tenant:', tenantError)
+      throw new Error('Failed to find tenant')
     }
+
+    if (!tenant) {
+      console.error('❌ No tenant found for user:', session.userId)
+      throw new Error('No tenant found')
+    }
+
+    // Update the payment method to mark it as verified
+    console.log('💾 Marking payment method as verified...')
+    const { data: paymentMethod, error: pmError } = await supabase
+      .from('payment_methods')
+      .update({
+        is_verified: true
+      })
+      .eq('tenant_id', tenant.id)
+      .eq('moov_payment_method_id', bankAccountId)
+      .select()
+      .single()
+
+    if (pmError) {
+      console.error('❌ Failed to update payment method:', pmError)
+      throw new Error('Failed to update payment method status')
+    }
+
+    if (!paymentMethod) {
+      console.error('❌ Payment method not found:', { tenant_id: tenant.id, bankAccountId })
+      throw new Error('Payment method not found')
+    }
+
+    console.log('✅ Payment method marked as verified:', paymentMethod)
 
     return NextResponse.json({ 
       success: true,
       verified: true,
-      bankAccount: result
+      bankAccount: result,
+      paymentMethod
     })
 
   } catch (error) {

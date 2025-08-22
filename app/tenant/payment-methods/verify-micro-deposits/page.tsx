@@ -94,9 +94,16 @@ function VerifyMicroDepositsContent() {
                           <AlertDescription className="text-green-600">
               {initiated ? (
                 <>
-                  ✓ Micro-deposits initiated successfully! 
+                  ✓ Step 1 Complete: Micro-deposits Initiated! 
                   <br />
-                  Please wait 1-2 business days for them to appear in your bank account, then return to verify.
+                  <span className="font-medium">Next Steps:</span>
+                  <br />
+                  1. Wait for deposits to arrive (1-2 minutes in test mode)
+                  <br />
+                  2. Return to payment methods and click "Verify Now" again
+                  <br />
+                  3. Enter the test amounts (0.00 and 0.00)
+                  <br />
                   <br />
                   Redirecting to payment methods...
                 </>
