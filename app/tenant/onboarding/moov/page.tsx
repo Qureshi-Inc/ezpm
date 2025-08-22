@@ -17,6 +17,8 @@ export default function MoovOnboardingPage() {
   const [token, setToken] = useState<string | null>(null)
   const [accountCreated, setAccountCreated] = useState(false)
   const [newAccountId, setNewAccountId] = useState<string | null>(null)
+  const [bankAccountCreated, setBankAccountCreated] = useState(false)
+  const [showFinishButton, setShowFinishButton] = useState(false)
 
   // Load Moov.js script
   useEffect(() => {
@@ -209,23 +211,15 @@ export default function MoovOnboardingPage() {
             
             if (response.ok && data.success) {
               console.log('✅ Bank account saved successfully!')
-              console.log('Redirecting to payment methods...')
+              setBankAccountCreated(true)
+              setShowFinishButton(true)
             } else {
               console.error('❌ Failed to save bank account:', data)
-              console.log('Bank account created but save may have failed. Redirecting to payment methods...')
+              setError('Failed to save bank account. Please try again.')
             }
-            
-            // Always navigate to payment methods after a short delay
-            setTimeout(() => {
-              router.push('/tenant/payment-methods')
-            }, 2000)
           } catch (error) {
             console.error('🚨 Exception while saving bank account:', error)
-            console.log('Error saving bank account. Redirecting to payment methods...')
-            // Still navigate to payment methods
-            setTimeout(() => {
-              router.push('/tenant/payment-methods')
-            }, 2000)
+            setError('Error saving bank account. Please try again.')
           }
         }
       }
@@ -303,50 +297,84 @@ export default function MoovOnboardingPage() {
             </Alert>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Moov Account Setup</CardTitle>
-              <CardDescription>
-                Set up your Moov account to enable ACH payments with no processing fees
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h3 className="font-medium text-blue-900 mb-2">What you'll need:</h3>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Your legal name and address</li>
-                    <li>• Date of birth</li>
-                    <li>• Last 4 digits of SSN (for verification)</li>
-                    <li>• Bank account and routing numbers</li>
-                  </ul>
+          {bankAccountCreated ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Bank Account Added Successfully!</CardTitle>
+                <CardDescription>
+                  Your bank account has been added and will need to be verified with micro-deposits.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 className="font-medium text-green-900 mb-2">Next Steps:</h3>
+                    <ul className="text-sm text-green-800 space-y-2">
+                      <li>1. We'll send two small deposits (less than $1.00) to your bank account</li>
+                      <li>2. These will appear in 1-2 business days (or instantly in test mode)</li>
+                      <li>3. Once you see them, return to verify your account</li>
+                      <li>4. Enter the exact amounts to complete verification</li>
+                    </ul>
+                  </div>
+
+                  {showFinishButton && (
+                    <Button 
+                      onClick={() => router.push('/tenant/payment-methods')}
+                      className="w-full"
+                      size="lg"
+                    >
+                      Finish Setup
+                    </Button>
+                  )}
                 </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Moov Account Setup</CardTitle>
+                <CardDescription>
+                  Set up your Moov account to enable ACH payments with no processing fees
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="font-medium text-blue-900 mb-2">What you'll need:</h3>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• Your legal name and address</li>
+                      <li>• Date of birth</li>
+                      <li>• Last 4 digits of SSN (for verification)</li>
+                      <li>• Bank account and routing numbers</li>
+                    </ul>
+                  </div>
 
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <h3 className="font-medium text-green-900 mb-2">Benefits of ACH Payments:</h3>
-                  <ul className="text-sm text-green-800 space-y-1">
-                    <li>• No processing fees - pay exactly your rent amount</li>
-                    <li>• Automatic payments from your bank account</li>
-                    <li>• Secure and reliable transfers</li>
-                    <li>• Typically processes in 1-3 business days</li>
-                  </ul>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 className="font-medium text-green-900 mb-2">Benefits of ACH Payments:</h3>
+                    <ul className="text-sm text-green-800 space-y-1">
+                      <li>• No processing fees - pay exactly your rent amount</li>
+                      <li>• Automatic payments from your bank account</li>
+                      <li>• Secure and reliable transfers</li>
+                      <li>• Typically processes in 1-3 business days</li>
+                    </ul>
+                  </div>
+
+                  <Button 
+                    onClick={openOnboarding}
+                    className="w-full"
+                    size="lg"
+                  >
+                    Start Setup
+                  </Button>
+
+                  <p className="text-xs text-gray-500 text-center">
+                    By continuing, you agree to Moov's Terms of Service and Privacy Policy.
+                    Your information is encrypted and securely processed by Moov, a licensed money transmitter.
+                  </p>
                 </div>
-
-                <Button 
-                  onClick={openOnboarding}
-                  className="w-full"
-                  size="lg"
-                >
-                  Start Setup
-                </Button>
-
-                <p className="text-xs text-gray-500 text-center">
-                  By continuing, you agree to Moov's Terms of Service and Privacy Policy.
-                  Your information is encrypted and securely processed by Moov, a licensed money transmitter.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Hidden Moov Onboarding element */}
           {/* @ts-ignore - Moov custom element */}
