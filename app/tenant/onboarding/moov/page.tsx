@@ -11,6 +11,7 @@ import Link from 'next/link'
 export default function MoovOnboardingPage() {
   const router = useRouter()
   const onboardingRef = useRef<any>(null)
+  const accountIdRef = useRef<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
@@ -151,6 +152,9 @@ export default function MoovOnboardingPage() {
         if (resourceType === 'account') {
           setAccountCreated(true)
           setNewAccountId(resource.accountID)
+          // Store in ref for immediate access
+          accountIdRef.current = resource.accountID
+          console.log('📝 Stored account ID in ref:', resource.accountID)
 
           // Get new token with account-specific scopes
           const accountToken = await getAccountToken(resource.accountID)
@@ -173,12 +177,20 @@ export default function MoovOnboardingPage() {
         // Handle bank account creation
         if (resourceType === 'bankAccount') {
           console.log('🏦 Bank account created:', resource)
-          console.log('📋 Using Moov Account ID:', newAccountId || resource.accountID)
+          
+          // Use the account ID from ref (set when account was created)
+          const moovAccountId = accountIdRef.current
+          console.log('📋 Using Moov Account ID from ref:', moovAccountId)
+          
+          if (!moovAccountId) {
+            console.error('❌ No Moov Account ID available! Cannot save bank account.')
+            return
+          }
           
           // Save the bank account as a payment method
           try {
             const saveData = {
-              moovAccountId: newAccountId || resource.accountID,
+              moovAccountId: moovAccountId,
               bankAccountId: resource.bankAccountID,
               last4: resource.lastFourAccountNumber || '****'
             }
