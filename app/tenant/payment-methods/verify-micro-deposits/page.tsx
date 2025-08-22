@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-export default function VerifyMicroDepositsPage() {
+function VerifyMicroDepositsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
@@ -166,5 +166,21 @@ export default function VerifyMicroDepositsPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function VerifyMicroDepositsPage() {
+  return (
+    <Suspense fallback={
+      <div className="container max-w-md mx-auto py-10">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">Loading...</div>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <VerifyMicroDepositsContent />
+    </Suspense>
   )
 }
