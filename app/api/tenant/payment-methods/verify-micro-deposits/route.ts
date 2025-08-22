@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
       }
     )
     
+    console.log('📊 Check response status:', checkResponse.status)
+    
     if (checkResponse.status === 404) {
       console.log('📤 Micro-deposits not found, initiating them...')
       
@@ -74,6 +76,8 @@ export async function POST(request: NextRequest) {
           }
         }
       )
+      
+      console.log('📤 Initiate response status:', initiateResponse.status)
       
       if (!initiateResponse.ok) {
         const errorText = await initiateResponse.text()
@@ -94,9 +98,43 @@ export async function POST(request: NextRequest) {
     
     if (!checkResponse.ok) {
       const errorText = await checkResponse.text()
-      console.error('❌ Error checking micro-deposits:', errorText)
+      console.error('❌ Error checking micro-deposits. Status:', checkResponse.status, 'Error:', errorText)
+      
+      // Log response headers for debugging
+      console.log('📋 Response headers:', Object.fromEntries(checkResponse.headers.entries()))
+      
+      // If it's a 403 or other auth error, try initiating anyway
+      if (checkResponse.status === 403 || checkResponse.status === 401) {
+        console.log('🔄 Auth error checking micro-deposits, attempting to initiate...')
+        
+        const initiateResponse = await fetch(
+          `${MOOV_DOMAIN}/accounts/${moovAccountId}/bank-accounts/${bankAccountId}/micro-deposits`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': authHeader,
+              'Content-Type': 'application/json',
+            }
+          }
+        )
+        
+        console.log('📤 Initiate response status:', initiateResponse.status)
+        
+        if (initiateResponse.ok) {
+          console.log('✅ Micro-deposits initiated successfully (after auth error)')
+          return NextResponse.json({
+            success: false,
+            message: 'Micro-deposits have been sent to your bank account. Please wait 1-2 business days and try verification again.',
+            initiated: true
+          })
+        } else {
+          const initiateErrorText = await initiateResponse.text()
+          console.error('❌ Failed to initiate after auth error:', initiateErrorText)
+        }
+      }
+      
       return NextResponse.json(
-        { error: 'Error checking micro-deposit status' },
+        { error: `Error checking micro-deposit status: ${checkResponse.status} - ${errorText}` },
         { status: 500 }
       )
     }
