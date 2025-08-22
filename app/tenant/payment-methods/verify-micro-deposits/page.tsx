@@ -83,7 +83,7 @@ function VerifyMicroDepositsContent() {
         setTimeout(() => {
           router.refresh() // Force Next.js to revalidate data
           router.push('/tenant/payment-methods')
-        }, 2000)
+        }, 4000) // Give more time to see the success message
         return
       }
 
