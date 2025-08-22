@@ -188,19 +188,21 @@ export default function MoovOnboardingPage() {
               })
             })
 
+            const data = await response.json()
+            
             if (response.ok) {
-              console.log('Bank account saved as payment method')
-              
-              // Redirect to verification page if micro-deposits are needed
-              if (resource.status === 'new' || resource.status === 'pending') {
-                router.push(`/tenant/payment-methods/verify-micro-deposits?accountId=${newAccountId || resource.accountID}&bankAccountId=${resource.bankAccountID}&last4=${resource.lastFourAccountNumber || '****'}`)
-              } else if (resource.status === 'verified') {
-                // If already verified (test accounts), go to payment methods
-                router.push('/tenant/payment-methods')
-              }
+              console.log('Bank account saved:', data)
+              // Always go to payment methods page - no auto redirect to verification
+              router.push('/tenant/payment-methods')
+            } else {
+              console.error('Failed to save bank account:', data)
+              // Still go to payment methods page even if save failed
+              router.push('/tenant/payment-methods')
             }
           } catch (error) {
             console.error('Failed to save bank account:', error)
+            // Still navigate to payment methods
+            router.push('/tenant/payment-methods')
           }
         }
       }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { getPaymentMethodIcon } from '@/utils/helpers'
 import { PaymentMethodActions } from '@/components/tenant/PaymentMethodActions'
+import { PaymentMethodsList } from '@/components/tenant/PaymentMethodsList'
 import Link from 'next/link'
 import { Plus, CreditCard, Settings, AlertCircle } from 'lucide-react'
 
@@ -187,58 +188,10 @@ export default async function PaymentMethodsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {paymentMethods.map((method) => (
-                    <div 
-                      key={method.id} 
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors space-y-3 sm:space-y-0"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-xl">{getPaymentMethodIcon(method.type)}</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-gray-900">
-                            {method.type === 'card' ? 'Credit/Debit Card' : 
-                             method.type === 'moov_ach' ? 'Bank Account (ACH)' : 'Unknown'}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            ****{method.last4}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            {method.is_default && (
-                              <Badge variant="default" className="text-xs">
-                                Default
-                              </Badge>
-                            )}
-                            {method.type === 'moov_ach' && method.is_verified === false && (
-                              <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
-                                Pending Verification
-                              </Badge>
-                            )}
-                            {method.type === 'moov_ach' && method.is_verified === true && (
-                              <Badge variant="outline" className="text-xs text-green-600 border-green-300">
-                                Verified
-                              </Badge>
-                            )}
-                          </div>
-                          {method.type === 'moov_ach' && !method.is_verified && (
-                            <Link 
-                              href={`/tenant/payment-methods/verify-micro-deposits?bankAccountId=${method.moov_payment_method_id}&accountId=${tenant.moov_account_id || ''}&last4=${method.last4}`}
-                              className="text-xs text-blue-600 hover:underline mt-1 inline-block"
-                            >
-                              Complete verification →
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-end sm:justify-start">
-                        <PaymentMethodActions paymentMethod={method} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <PaymentMethodsList 
+                  paymentMethods={paymentMethods} 
+                  moovAccountId={tenant.moov_account_id}
+                />
               </CardContent>
             </Card>
           )}

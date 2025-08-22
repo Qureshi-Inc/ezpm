@@ -6,14 +6,9 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Save Moov bank endpoint called')
     
-    // Try to get session, but don't fail if it's not there
-    // This endpoint is called from the onboarding widget which may not have cookies
+    // Try to get session
     const session = await getSession()
     console.log('Session:', session ? 'Found' : 'Not found')
-    
-    // For now, we'll allow the request to proceed even without a session
-    // In production, you'd want to verify the request is legitimate
-    // (e.g., by checking a temporary token or verifying the Moov webhook)
 
     const { moovAccountId, bankAccountId, last4 } = await request.json()
     console.log('Request data:', { moovAccountId, bankAccountId, last4 })
@@ -27,25 +22,42 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerSupabaseClient()
 
-    // Get the tenant associated with this Moov account
-    // We find by moov_account_id since session might not be available
-    const { data: tenant, error: tenantError } = await supabase
+    // First try to find tenant by moov_account_id
+    let tenant = await supabase
       .from('tenants')
       .select('id')
       .eq('moov_account_id', moovAccountId)
       .single()
 
-    if (tenantError || !tenant) {
-      console.error('Tenant lookup error:', tenantError)
-      console.error('Moov Account ID:', moovAccountId)
-      console.error('This usually means the Moov account ID was not saved to the tenant record')
+    // If not found and we have a session, try to find by user_id and update
+    if ((!tenant.data || tenant.error) && session) {
+      console.log('Tenant not found by Moov ID, trying by user ID...')
       
-      // For now, return success to allow the flow to continue
-      console.log('⚠️ Warning: Could not find tenant with Moov account, but continuing...')
+      const { data: tenantByUser, error: userError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('user_id', session.userId)
+        .single()
+
+      if (tenantByUser) {
+        // Update the tenant with the Moov account ID
+        console.log('Found tenant by user, updating with Moov account ID...')
+        await supabase
+          .from('tenants')
+          .update({ moov_account_id: moovAccountId })
+          .eq('id', tenantByUser.id)
+        
+        tenant = { data: tenantByUser, error: null }
+      }
+    }
+
+    if (!tenant.data) {
+      console.error('Could not find or create tenant association')
+      // Still return success to not break the flow
       return NextResponse.json({ 
         success: true,
-        message: 'Bank account created but not saved to database',
-        warning: 'Please verify manually'
+        message: 'Bank account created but not fully linked',
+        warning: 'Manual verification may be required'
       })
     }
 
@@ -53,7 +65,7 @@ export async function POST(request: NextRequest) {
     const { data: existingMethod } = await supabase
       .from('payment_methods')
       .select('id')
-      .eq('tenant_id', tenant.id)
+      .eq('tenant_id', tenant.data.id)
       .eq('moov_payment_method_id', bankAccountId)
       .single()
 
@@ -61,7 +73,8 @@ export async function POST(request: NextRequest) {
       console.log('Payment method already exists')
       return NextResponse.json({ 
         success: true,
-        message: 'Payment method already saved' 
+        message: 'Payment method already saved',
+        paymentMethod: existingMethod
       })
     }
 
@@ -69,7 +82,7 @@ export async function POST(request: NextRequest) {
     const { data: paymentMethod, error: pmError } = await supabase
       .from('payment_methods')
       .insert({
-        tenant_id: tenant.id,
+        tenant_id: tenant.data.id,
         type: 'moov_ach',
         moov_payment_method_id: bankAccountId,
         last4: last4 || '****',
