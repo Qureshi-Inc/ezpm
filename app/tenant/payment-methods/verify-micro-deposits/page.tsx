@@ -14,6 +14,7 @@ function VerifyMicroDepositsContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [initiated, setInitiated] = useState(false)
   const [amount1, setAmount1] = useState('')
   const [amount2, setAmount2] = useState('')
   
@@ -54,11 +55,24 @@ function VerifyMicroDepositsContent() {
       })
 
       const data = await response.json()
+      console.log('📥 Verification response:', data)
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to verify micro-deposits')
       }
 
+      // Handle case where micro-deposits were just initiated
+      if (data.initiated) {
+        setInitiated(true)
+        setSuccess(true)
+        setError('') // Clear any previous errors
+        setTimeout(() => {
+          router.push('/tenant/payment-methods')
+        }, 5000) // Give more time to read the message
+        return
+      }
+
+      // Normal verification success
       setSuccess(true)
       setTimeout(() => {
         router.push('/tenant/payment-methods')
@@ -77,9 +91,21 @@ function VerifyMicroDepositsContent() {
         <Card>
           <CardContent className="pt-6">
             <Alert>
-              <AlertDescription className="text-green-600">
-                ✓ Bank account verified successfully! Redirecting...
-              </AlertDescription>
+                          <AlertDescription className="text-green-600">
+              {initiated ? (
+                <>
+                  ✓ Micro-deposits initiated successfully! 
+                  <br />
+                  Please wait 1-2 business days for them to appear in your bank account, then return to verify.
+                  <br />
+                  Redirecting to payment methods...
+                </>
+              ) : (
+                <>
+                  ✓ Bank account verified successfully! Redirecting...
+                </>
+              )}
+            </AlertDescription>
             </Alert>
           </CardContent>
         </Card>

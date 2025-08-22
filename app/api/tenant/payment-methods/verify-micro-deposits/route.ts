@@ -45,8 +45,65 @@ export async function POST(request: NextRequest) {
       amounts
     })
 
-    // Complete micro-deposit verification with Moov
+    // First, check if micro-deposits exist, if not, initiate them
     const authHeader = await getAuthHeader()
+    
+    // Check if micro-deposits exist
+    console.log('🔍 Checking if micro-deposits exist...')
+    const checkResponse = await fetch(
+      `${MOOV_DOMAIN}/accounts/${moovAccountId}/bank-accounts/${bankAccountId}/micro-deposits`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': authHeader,
+        }
+      }
+    )
+    
+    if (checkResponse.status === 404) {
+      console.log('📤 Micro-deposits not found, initiating them...')
+      
+      // Initiate micro-deposits
+      const initiateResponse = await fetch(
+        `${MOOV_DOMAIN}/accounts/${moovAccountId}/bank-accounts/${bankAccountId}/micro-deposits`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json',
+          }
+        }
+      )
+      
+      if (!initiateResponse.ok) {
+        const errorText = await initiateResponse.text()
+        console.error('❌ Failed to initiate micro-deposits:', errorText)
+        return NextResponse.json(
+          { error: 'Failed to initiate micro-deposits. Please try again.' },
+          { status: 500 }
+        )
+      }
+      
+      console.log('✅ Micro-deposits initiated successfully')
+      return NextResponse.json({
+        success: false,
+        message: 'Micro-deposits have been sent to your bank account. Please wait 1-2 business days and try verification again.',
+        initiated: true
+      })
+    }
+    
+    if (!checkResponse.ok) {
+      const errorText = await checkResponse.text()
+      console.error('❌ Error checking micro-deposits:', errorText)
+      return NextResponse.json(
+        { error: 'Error checking micro-deposit status' },
+        { status: 500 }
+      )
+    }
+    
+    console.log('✅ Micro-deposits exist, proceeding with verification...')
+    
+    // Complete micro-deposit verification with Moov
     const response = await fetch(
       `${MOOV_DOMAIN}/accounts/${moovAccountId}/bank-accounts/${bankAccountId}/micro-deposits`,
       {
