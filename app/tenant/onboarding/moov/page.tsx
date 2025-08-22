@@ -213,6 +213,11 @@ export default function MoovOnboardingPage() {
               console.log('✅ Bank account saved successfully!')
               setBankAccountCreated(true)
               setShowFinishButton(true)
+              
+              // Close the Moov dialog
+              if (onboardingRef.current) {
+                onboardingRef.current.open = false
+              }
             } else {
               console.error('❌ Failed to save bank account:', data)
               setError('Failed to save bank account. Please try again.')
@@ -232,8 +237,13 @@ export default function MoovOnboardingPage() {
 
       // Handle cancellation
       onboarding.onCancel = () => {
-        console.log('Onboarding cancelled')
-        router.push('/tenant/payment-methods')
+        // Only handle as cancellation if bank account wasn't created
+        if (!bankAccountCreated) {
+          console.log('Onboarding cancelled by user')
+          router.push('/tenant/payment-methods')
+        } else {
+          console.log('Onboarding dialog closed after success')
+        }
       }
 
       // Handle success
