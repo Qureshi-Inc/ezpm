@@ -197,10 +197,10 @@ export default function MoovOnboardingPage() {
             
             if (response.ok && data.success) {
               console.log('✅ Bank account saved successfully!')
-              setStatus('Bank account saved! Redirecting to payment methods...')
+              console.log('Redirecting to payment methods...')
             } else {
               console.error('❌ Failed to save bank account:', data)
-              setStatus('Bank account created but save failed. You can still verify it from payment methods.')
+              console.log('Bank account created but save may have failed. Redirecting to payment methods...')
             }
             
             // Always navigate to payment methods after a short delay
@@ -209,7 +209,7 @@ export default function MoovOnboardingPage() {
             }, 2000)
           } catch (error) {
             console.error('🚨 Exception while saving bank account:', error)
-            setStatus('Error saving bank account. Redirecting to payment methods...')
+            console.log('Error saving bank account. Redirecting to payment methods...')
             // Still navigate to payment methods
             setTimeout(() => {
               router.push('/tenant/payment-methods')
