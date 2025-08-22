@@ -205,17 +205,29 @@ export default async function PaymentMethodsPage() {
                           <p className="text-sm text-gray-600">
                             ****{method.last4}
                           </p>
-                          {method.is_default && (
-                            <Badge variant="default" className="mt-1 text-xs">
-                              Default
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            {method.is_default && (
+                              <Badge variant="default" className="text-xs">
+                                Default
+                              </Badge>
+                            )}
+                            {method.type === 'moov_ach' && method.is_verified === false && (
+                              <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
+                                Pending Verification
+                              </Badge>
+                            )}
+                            {method.type === 'moov_ach' && method.is_verified === true && (
+                              <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                                Verified
+                              </Badge>
+                            )}
+                          </div>
                           {method.type === 'moov_ach' && !method.is_verified && (
                             <Link 
-                              href={`/tenant/payment-methods/verify-micro-deposits?bankAccountId=${method.moov_payment_method_id}&accountId=${tenant.moov_account_id}&last4=${method.last4}`}
+                              href={`/tenant/payment-methods/verify-micro-deposits?bankAccountId=${method.moov_payment_method_id}&accountId=${tenant.moov_account_id || ''}&last4=${method.last4}`}
                               className="text-xs text-blue-600 hover:underline mt-1 inline-block"
                             >
-                              Verify bank account →
+                              Complete verification →
                             </Link>
                           )}
                         </div>
