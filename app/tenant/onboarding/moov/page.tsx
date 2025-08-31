@@ -11,6 +11,7 @@ import Link from 'next/link'
 export default function MoovOnboardingPage() {
   const router = useRouter()
   const onboardingRef = useRef<any>(null)
+  const accountIdRef = useRef<string | null>(null) // Use ref to avoid stale closure issues
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
@@ -127,6 +128,7 @@ export default function MoovOnboardingPage() {
           console.log('Tenant already has Moov account:', tenantData.moovAccountId)
           setExistingAccountId(tenantData.moovAccountId)
           setNewAccountId(tenantData.moovAccountId) // Also set newAccountId for consistency
+          accountIdRef.current = tenantData.moovAccountId // Store in ref for immediate access
           setAccountCreated(true) // Mark account as already created
         }
       }
@@ -186,6 +188,7 @@ export default function MoovOnboardingPage() {
         if (resourceType === 'account') {
           setAccountCreated(true)
           setNewAccountId(resource.accountID)
+          accountIdRef.current = resource.accountID // Store in ref for immediate access
 
           // Get new token with account-specific scopes
           const accountToken = await getAccountToken(resource.accountID)
@@ -208,12 +211,29 @@ export default function MoovOnboardingPage() {
         // Handle bank account creation
         if (resourceType === 'bankAccount') {
           console.log('Bank account created:', resource)
+          console.log('Full bank account resource:', JSON.stringify(resource, null, 2))
           
           // Save the bank account as a payment method
           try {
-            const moovAccountId = newAccountId || existingAccountId || resource.accountID
+            // Use ref first for most up-to-date value, then fall back to state
+            // Also check if resource has account ID in different fields
+            const moovAccountId = accountIdRef.current || newAccountId || existingAccountId || resource.accountID || resource.account_id
             console.log('Saving bank account with Moov account ID:', moovAccountId)
-            console.log('Account IDs available:', { newAccountId, existingAccountId, resourceAccountId: resource.accountID })
+            console.log('Account IDs available:', { 
+              refAccountId: accountIdRef.current,
+              newAccountId, 
+              existingAccountId, 
+              resourceAccountId: resource.accountID 
+            })
+            
+            // If we still don't have an account ID, we need to handle this
+            if (!moovAccountId) {
+              console.error('ERROR: No Moov account ID available when saving bank account!')
+              console.error('This should not happen - please check the flow')
+              // Try to get it from the resource or show an error
+              setError('Unable to save payment method - missing account information. Please try again.')
+              return
+            }
             
             const response = await fetch('/api/tenant/payment-methods/save-moov-bank', {
               method: 'POST',
@@ -231,7 +251,7 @@ export default function MoovOnboardingPage() {
               console.log('Bank account saved as payment method')
               
               // Redirect to verification page if micro-deposits are needed
-              const accountId = newAccountId || existingAccountId || resource.accountID
+              const accountId = accountIdRef.current || newAccountId || existingAccountId
               if (resource.status === 'new' || resource.status === 'pending') {
                 router.push(`/tenant/payment-methods/verify-micro-deposits?accountId=${accountId}&bankAccountId=${resource.bankAccountID}&last4=${resource.lastFourAccountNumber || '****'}`)
               } else if (resource.status === 'verified') {
