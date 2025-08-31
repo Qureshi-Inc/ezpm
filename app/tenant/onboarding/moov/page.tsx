@@ -16,6 +16,7 @@ export default function MoovOnboardingPage() {
   const [token, setToken] = useState<string | null>(null)
   const [accountCreated, setAccountCreated] = useState(false)
   const [newAccountId, setNewAccountId] = useState<string | null>(null)
+  const [existingAccountId, setExistingAccountId] = useState<string | null>(null)
 
   // Load Moov.js script
   useEffect(() => {
@@ -114,21 +115,55 @@ export default function MoovOnboardingPage() {
   }
 
   const initializeOnboarding = async () => {
+    // First, check if tenant already has a Moov account
+    try {
+      const tenantResponse = await fetch('/api/tenant/moov-account', {
+        method: 'GET',
+      })
+      
+      if (tenantResponse.ok) {
+        const tenantData = await tenantResponse.json()
+        if (tenantData.moovAccountId) {
+          console.log('Tenant already has Moov account:', tenantData.moovAccountId)
+          setExistingAccountId(tenantData.moovAccountId)
+          setNewAccountId(tenantData.moovAccountId) // Also set newAccountId for consistency
+          setAccountCreated(true) // Mark account as already created
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch tenant Moov account:', err)
+    }
+
     const initialToken = await getInitialToken()
     if (!initialToken) return
 
     setToken(initialToken)
 
+    // If we have an existing account, get an account-specific token
+    let finalToken = initialToken
+    if (existingAccountId) {
+      const accountToken = await getAccountToken(existingAccountId)
+      if (accountToken) {
+        finalToken = accountToken
+        setToken(accountToken)
+      }
+    }
+
     if (onboardingRef.current) {
       const onboarding = onboardingRef.current
 
       // Set properties
-      onboarding.token = initialToken
+      onboarding.token = finalToken
       onboarding.facilitatorAccountID = process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID
       onboarding.capabilities = ['transfers', 'send-funds', 'collect-funds', 'wallet'] // ACH capabilities including collect-funds for micro-deposits
       onboarding.paymentMethodTypes = ['bankAccount'] // Only bank accounts for ACH
       onboarding.microDeposits = true // Enable micro-deposit verification
       onboarding.showLogo = false
+      
+      // If we have an existing account, set it
+      if (existingAccountId) {
+        onboarding.accountID = existingAccountId
+      }
 
       // Pre-populate with user data if available
       // You would fetch this from your database
@@ -176,13 +211,17 @@ export default function MoovOnboardingPage() {
           
           // Save the bank account as a payment method
           try {
+            const moovAccountId = newAccountId || existingAccountId || resource.accountID
+            console.log('Saving bank account with Moov account ID:', moovAccountId)
+            console.log('Account IDs available:', { newAccountId, existingAccountId, resourceAccountId: resource.accountID })
+            
             const response = await fetch('/api/tenant/payment-methods/save-moov-bank', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                moovAccountId: newAccountId || resource.accountID,
+                moovAccountId,
                 bankAccountId: resource.bankAccountID,
                 last4: resource.lastFourAccountNumber || '****'
               })
@@ -192,8 +231,9 @@ export default function MoovOnboardingPage() {
               console.log('Bank account saved as payment method')
               
               // Redirect to verification page if micro-deposits are needed
+              const accountId = newAccountId || existingAccountId || resource.accountID
               if (resource.status === 'new' || resource.status === 'pending') {
-                router.push(`/tenant/payment-methods/verify-micro-deposits?accountId=${newAccountId || resource.accountID}&bankAccountId=${resource.bankAccountID}&last4=${resource.lastFourAccountNumber || '****'}`)
+                router.push(`/tenant/payment-methods/verify-micro-deposits?accountId=${accountId}&bankAccountId=${resource.bankAccountID}&last4=${resource.lastFourAccountNumber || '****'}`)
               } else if (resource.status === 'verified') {
                 // If already verified (test accounts), go to payment methods
                 router.push('/tenant/payment-methods')
