@@ -10,12 +10,16 @@ const MOOV_ACCOUNT_ID = process.env.MOOV_ACCOUNT_ID // Facilitator account ID
 // Use OAuth Bearer token for authentication with facilitator pattern
 async function getAuthHeader(accountId?: string) {
   try {
-    // Use wildcard scopes for facilitator to operate on all connected accounts
+    // Use broad scopes for facilitator operations
     const scopes = [
-      '/accounts/**',
-      '/bank-accounts/**', 
-      '/payment-methods/**',
-      '/capabilities/**'
+      '/accounts.read',
+      '/accounts.write',
+      '/bank-accounts.read',
+      '/bank-accounts.write', 
+      '/payment-methods.read',
+      '/payment-methods.write',
+      '/capabilities.read',
+      '/capabilities.write'
     ].join(' ')
     
     const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
@@ -32,7 +36,9 @@ async function getAuthHeader(accountId?: string) {
     })
 
     if (!response.ok) {
+      const errorText = await response.text()
       console.error('Failed to get OAuth token:', response.status, response.statusText)
+      console.error('OAuth error details:', errorText)
       throw new Error('Failed to authenticate with Moov')
     }
 

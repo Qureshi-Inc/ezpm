@@ -151,12 +151,14 @@ export async function createBankAccount(accountId: string, bankData: {
     }
     
     const url = `${MOOV_DOMAIN}/accounts/${accountId}/payment-methods`
-    // Use wildcard scopes for facilitator
+    // Use broad scopes for facilitator operations
     const scopes = [
-      '/accounts/**',
-      '/bank-accounts/**',
-      '/payment-methods/**',
-      '/capabilities/**'
+      '/accounts.read',
+      '/accounts.write',
+      '/bank-accounts.read',
+      '/bank-accounts.write',
+      '/payment-methods.read',
+      '/payment-methods.write'
     ]
     const authHeader = await getAuthHeader(scopes)
     const headers = {
@@ -312,12 +314,14 @@ export async function initiateMicroDeposits(accountId: string, bankAccountId: st
   checkMoovConfig()
   
   try {
-    // Use wildcard scopes for facilitator to operate on all connected accounts
+    // Use broad scopes for facilitator operations
     const scopes = [
-      '/accounts/**',
-      '/bank-accounts/**',
-      '/payment-methods/**',
-      '/capabilities/**'
+      '/accounts.read',
+      '/accounts.write',
+      '/bank-accounts.read',
+      '/bank-accounts.write',
+      '/payment-methods.read',
+      '/payment-methods.write'
     ]
     const authHeader = await getAuthHeader(scopes)
     const url = `${MOOV_DOMAIN}/accounts/${accountId}/bank-accounts/${bankAccountId}/micro-deposits`
