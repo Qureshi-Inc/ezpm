@@ -151,7 +151,14 @@ export async function createBankAccount(accountId: string, bankData: {
     }
     
     const url = `${MOOV_DOMAIN}/accounts/${accountId}/payment-methods`
-    const authHeader = await getAuthHeader()
+    // Use account-specific scopes for the tenant's account
+    const scopes = [
+      `/accounts/${accountId}/bank-accounts.read`,
+      `/accounts/${accountId}/bank-accounts.write`,
+      `/accounts/${accountId}/payment-methods.read`,
+      `/accounts/${accountId}/payment-methods.write`
+    ]
+    const authHeader = await getAuthHeader(scopes)
     const headers = {
       'Authorization': authHeader,
       'Content-Type': 'application/json'
@@ -230,7 +237,14 @@ export async function createTransfer(transferData: {
   checkMoovConfig()
   
   try {
-    const authHeader = await getAuthHeader()
+    // Use scopes for both source and destination accounts
+    const scopes = [
+      `/accounts/${transferData.sourceAccountId}/transfers.read`,
+      `/accounts/${transferData.sourceAccountId}/transfers.write`,
+      `/accounts/${transferData.destinationAccountId}/transfers.read`,
+      `/accounts/${transferData.destinationAccountId}/transfers.write`
+    ]
+    const authHeader = await getAuthHeader(scopes)
     const response = await fetch(`${MOOV_DOMAIN}/transfers`, {
       method: 'POST',
       headers: {
@@ -298,7 +312,13 @@ export async function initiateMicroDeposits(accountId: string, bankAccountId: st
   checkMoovConfig()
   
   try {
-    const authHeader = await getAuthHeader()
+    // Use account-specific scopes for the tenant's account
+    const scopes = [
+      `/accounts/${accountId}/bank-accounts.read`,
+      `/accounts/${accountId}/bank-accounts.write`,
+      `/accounts/${accountId}/profile.read`
+    ]
+    const authHeader = await getAuthHeader(scopes)
     const url = `${MOOV_DOMAIN}/accounts/${accountId}/bank-accounts/${bankAccountId}/micro-deposits`
     
     console.log('Initiating micro-deposits:', { accountId, bankAccountId })
