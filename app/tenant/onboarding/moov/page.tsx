@@ -260,14 +260,15 @@ export default function MoovOnboardingPage() {
             if (response.ok) {
               console.log('Bank account saved as payment method')
               
-              // Redirect to verification page if micro-deposits are needed
-              const accountId = window.__moovAccountId || accountIdRef.current || newAccountId || existingAccountId
-              if (resource.status === 'new' || resource.status === 'pending') {
-                router.push(`/tenant/payment-methods/verify-micro-deposits?accountId=${accountId}&bankAccountId=${resource.bankAccountID}&last4=${resource.lastFourAccountNumber || '****'}`)
-              } else if (resource.status === 'verified') {
-                // If already verified (test accounts), go to payment methods
-                router.push('/tenant/payment-methods')
+              // Store a success message for the payment methods page
+              if (typeof window !== 'undefined' && window.sessionStorage) {
+                window.sessionStorage.setItem('paymentMethodMessage', 
+                  'Bank account added successfully! We\'ve initiated micro-deposits for verification. Please check your bank account in 1-2 business days.')
               }
+              
+              // Always redirect to payment methods page
+              // Users can verify from there when ready
+              router.push('/tenant/payment-methods')
             }
           } catch (error) {
             console.error('Failed to save bank account:', error)
