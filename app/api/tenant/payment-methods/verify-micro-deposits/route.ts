@@ -6,9 +6,40 @@ const MOOV_DOMAIN = process.env.MOOV_DOMAIN || 'https://api.moov.io'
 const MOOV_PUBLIC_KEY = process.env.MOOV_PUBLIC_KEY
 const MOOV_SECRET_KEY = process.env.MOOV_SECRET_KEY
 
-async function getAuthHeader() {
-  const credentials = Buffer.from(`${MOOV_PUBLIC_KEY}:${MOOV_SECRET_KEY}`).toString('base64')
-  return `Basic ${credentials}`
+// Use OAuth Bearer token for authentication
+async function getAuthHeader(accountId?: string) {
+  try {
+    // Use account-specific scopes if account ID is provided
+    const scopes = accountId ? [
+      `/accounts/${accountId}/bank-accounts.read`,
+      `/accounts/${accountId}/bank-accounts.write`,
+      `/accounts/${accountId}/profile.read`
+    ].join(' ') : '/accounts.write /bank-accounts.write /bank-accounts.read'
+    
+    const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: MOOV_PUBLIC_KEY!,
+        client_secret: MOOV_SECRET_KEY!,
+        scope: scopes
+      })
+    })
+
+    if (!response.ok) {
+      console.error('Failed to get OAuth token:', response.status, response.statusText)
+      throw new Error('Failed to authenticate with Moov')
+    }
+
+    const data = await response.json()
+    return `Bearer ${data.access_token}`
+  } catch (error) {
+    console.error('Auth error:', error)
+    throw error
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -36,8 +67,63 @@ export async function POST(request: NextRequest) {
       amounts
     })
 
+    // First check if micro-deposits exist, if not initiate them
+    const authHeader = await getAuthHeader(moovAccountId)
+    
+    // Check if micro-deposits exist
+    console.log('Checking if micro-deposits exist...')
+    const checkResponse = await fetch(
+      `${MOOV_DOMAIN}/accounts/${moovAccountId}/bank-accounts/${bankAccountId}/micro-deposits`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': authHeader,
+        }
+      }
+    )
+    
+    console.log('Check response status:', checkResponse.status)
+    
+    // If micro-deposits don't exist (404), initiate them
+    if (checkResponse.status === 404) {
+      console.log('Micro-deposits not found, initiating them...')
+      
+      const initiateResponse = await fetch(
+        `${MOOV_DOMAIN}/accounts/${moovAccountId}/bank-accounts/${bankAccountId}/micro-deposits`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json',
+          }
+        }
+      )
+      
+      if (initiateResponse.status === 409) {
+        // 409 means micro-deposits already exist
+        console.log('Micro-deposits already exist (409 response)')
+      } else if (!initiateResponse.ok) {
+        const errorText = await initiateResponse.text()
+        console.error('Failed to initiate micro-deposits:', errorText)
+        return NextResponse.json(
+          { error: 'Failed to initiate micro-deposits. Please try again.' },
+          { status: 500 }
+        )
+      } else {
+        console.log('Micro-deposits initiated successfully')
+      }
+      
+      return NextResponse.json({
+        success: false,
+        message: 'Micro-deposits have been initiated. Please check your bank account in 1-2 business days.',
+        initiated: true
+      })
+    }
+    
+    // If we get here, micro-deposits exist, so we can verify them
+    console.log('Micro-deposits exist, proceeding with verification...')
+    
     // Complete micro-deposit verification with Moov
-    const authHeader = await getAuthHeader()
     const response = await fetch(
       `${MOOV_DOMAIN}/accounts/${moovAccountId}/bank-accounts/${bankAccountId}/micro-deposits`,
       {

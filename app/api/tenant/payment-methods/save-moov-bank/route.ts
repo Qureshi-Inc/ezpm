@@ -88,6 +88,18 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Payment method saved:', paymentMethod)
+    
+    // Try to initiate micro-deposits (don't fail if this doesn't work)
+    try {
+      console.log('Attempting to initiate micro-deposits...')
+      const { initiateMicroDeposits } = await import('@/lib/moov-server')
+      const result = await initiateMicroDeposits(moovAccountId, bankAccountId)
+      console.log('Micro-deposits initiation result:', result)
+    } catch (error) {
+      console.log('Could not initiate micro-deposits (this is okay):', error)
+      // Don't fail the whole request if micro-deposits can't be initiated
+      // User can initiate them later during verification
+    }
 
     return NextResponse.json({ 
       success: true,
