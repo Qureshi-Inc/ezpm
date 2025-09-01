@@ -10,17 +10,13 @@ const MOOV_ACCOUNT_ID = process.env.MOOV_ACCOUNT_ID // Facilitator account ID
 // Use OAuth Bearer token for authentication with facilitator pattern
 async function getAuthHeader(accountId?: string) {
   try {
-    // Use facilitator pattern: facilitator account operates on connected accounts
-    // Include both facilitator and connected account scopes
-    const scopes = accountId ? [
-      `/accounts/${MOOV_ACCOUNT_ID}/bank-accounts.read`,
-      `/accounts/${MOOV_ACCOUNT_ID}/bank-accounts.write`,
-      `/accounts/${accountId}/bank-accounts.read`,
-      `/accounts/${accountId}/bank-accounts.write`,
-      `/accounts/${accountId}/profile.read`,
-      '/accounts.read',
-      '/accounts.write'
-    ].join(' ') : '/accounts.write /bank-accounts.write /bank-accounts.read'
+    // Use wildcard scopes for facilitator to operate on all connected accounts
+    const scopes = [
+      '/accounts/**',
+      '/bank-accounts/**', 
+      '/payment-methods/**',
+      '/capabilities/**'
+    ].join(' ')
     
     const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
       method: 'POST',
