@@ -151,12 +151,16 @@ export async function createBankAccount(accountId: string, bankData: {
     }
     
     const url = `${MOOV_DOMAIN}/accounts/${accountId}/payment-methods`
-    // Use account-specific scopes for the tenant's account
+    // Use facilitator pattern to create bank accounts on connected accounts
     const scopes = [
+      `/accounts/${MOOV_ACCOUNT_ID}/bank-accounts.read`,
+      `/accounts/${MOOV_ACCOUNT_ID}/bank-accounts.write`,
       `/accounts/${accountId}/bank-accounts.read`,
       `/accounts/${accountId}/bank-accounts.write`,
       `/accounts/${accountId}/payment-methods.read`,
-      `/accounts/${accountId}/payment-methods.write`
+      `/accounts/${accountId}/payment-methods.write`,
+      '/accounts.read',
+      '/accounts.write'
     ]
     const authHeader = await getAuthHeader(scopes)
     const headers = {
@@ -312,11 +316,15 @@ export async function initiateMicroDeposits(accountId: string, bankAccountId: st
   checkMoovConfig()
   
   try {
-    // Use account-specific scopes for the tenant's account
+    // Use facilitator scopes to operate on connected accounts
+    // The facilitator needs permission to manage the connected account's bank accounts
     const scopes = [
+      `/accounts/${MOOV_ACCOUNT_ID}/bank-accounts.read`,
+      `/accounts/${MOOV_ACCOUNT_ID}/bank-accounts.write`,
       `/accounts/${accountId}/bank-accounts.read`,
       `/accounts/${accountId}/bank-accounts.write`,
-      `/accounts/${accountId}/profile.read`
+      '/accounts.read',
+      '/accounts.write'
     ]
     const authHeader = await getAuthHeader(scopes)
     const url = `${MOOV_DOMAIN}/accounts/${accountId}/bank-accounts/${bankAccountId}/micro-deposits`

@@ -5,15 +5,21 @@ import { createServerSupabaseClient } from '@/lib/supabase'
 const MOOV_DOMAIN = process.env.MOOV_DOMAIN || 'https://api.moov.io'
 const MOOV_PUBLIC_KEY = process.env.MOOV_PUBLIC_KEY
 const MOOV_SECRET_KEY = process.env.MOOV_SECRET_KEY
+const MOOV_ACCOUNT_ID = process.env.MOOV_ACCOUNT_ID // Facilitator account ID
 
-// Use OAuth Bearer token for authentication
+// Use OAuth Bearer token for authentication with facilitator pattern
 async function getAuthHeader(accountId?: string) {
   try {
-    // Use account-specific scopes if account ID is provided
+    // Use facilitator pattern: facilitator account operates on connected accounts
+    // Include both facilitator and connected account scopes
     const scopes = accountId ? [
+      `/accounts/${MOOV_ACCOUNT_ID}/bank-accounts.read`,
+      `/accounts/${MOOV_ACCOUNT_ID}/bank-accounts.write`,
       `/accounts/${accountId}/bank-accounts.read`,
       `/accounts/${accountId}/bank-accounts.write`,
-      `/accounts/${accountId}/profile.read`
+      `/accounts/${accountId}/profile.read`,
+      '/accounts.read',
+      '/accounts.write'
     ].join(' ') : '/accounts.write /bank-accounts.write /bank-accounts.read'
     
     const response = await fetch(`${MOOV_DOMAIN}/oauth2/token`, {
