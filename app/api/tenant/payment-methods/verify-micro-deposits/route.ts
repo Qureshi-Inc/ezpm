@@ -84,9 +84,18 @@ export async function POST(request: NextRequest) {
     
     console.log('Check response status:', checkResponse.status)
     
-    // If micro-deposits don't exist (404), initiate them
-    if (checkResponse.status === 404) {
-      console.log('Micro-deposits not found, initiating them...')
+    // Handle different response statuses
+    if (checkResponse.status === 401 || checkResponse.status === 403) {
+      console.error('Authorization error checking micro-deposits')
+      return NextResponse.json(
+        { error: 'Authorization error. Please try again or contact support.' },
+        { status: 401 }
+      )
+    }
+    
+    // If micro-deposits don't exist (404) or we can't check them, initiate them
+    if (checkResponse.status === 404 || !checkResponse.ok) {
+      console.log('Micro-deposits not found or error checking, initiating them...')
       
       const initiateResponse = await fetch(
         `${MOOV_DOMAIN}/accounts/${moovAccountId}/bank-accounts/${bankAccountId}/micro-deposits`,
