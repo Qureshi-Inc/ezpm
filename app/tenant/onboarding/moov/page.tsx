@@ -8,6 +8,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
+// Declare global to store account ID outside React lifecycle
+declare global {
+  interface Window {
+    __moovAccountId?: string;
+  }
+}
+
 export default function MoovOnboardingPage() {
   const router = useRouter()
   const onboardingRef = useRef<any>(null)
@@ -129,6 +136,7 @@ export default function MoovOnboardingPage() {
           setExistingAccountId(tenantData.moovAccountId)
           setNewAccountId(tenantData.moovAccountId) // Also set newAccountId for consistency
           accountIdRef.current = tenantData.moovAccountId // Store in ref for immediate access
+          window.__moovAccountId = tenantData.moovAccountId // Store globally
           setAccountCreated(true) // Mark account as already created
         }
       }
@@ -186,9 +194,11 @@ export default function MoovOnboardingPage() {
         console.log('Resource created:', resourceType, resource)
 
         if (resourceType === 'account') {
+          console.log('Account created, setting ID:', resource.accountID)
           setAccountCreated(true)
           setNewAccountId(resource.accountID)
           accountIdRef.current = resource.accountID // Store in ref for immediate access
+          window.__moovAccountId = resource.accountID // Store globally for immediate access
 
           // Get new token with account-specific scopes
           const accountToken = await getAccountToken(resource.accountID)
@@ -215,11 +225,11 @@ export default function MoovOnboardingPage() {
           
           // Save the bank account as a payment method
           try {
-            // Use ref first for most up-to-date value, then fall back to state
-            // Also check if resource has account ID in different fields
-            const moovAccountId = accountIdRef.current || newAccountId || existingAccountId || resource.accountID || resource.account_id
+            // Use multiple sources to get the account ID, prioritizing global storage
+            const moovAccountId = window.__moovAccountId || accountIdRef.current || newAccountId || existingAccountId || resource.accountID || resource.account_id
             console.log('Saving bank account with Moov account ID:', moovAccountId)
             console.log('Account IDs available:', { 
+              globalAccountId: window.__moovAccountId,
               refAccountId: accountIdRef.current,
               newAccountId, 
               existingAccountId, 
@@ -251,7 +261,7 @@ export default function MoovOnboardingPage() {
               console.log('Bank account saved as payment method')
               
               // Redirect to verification page if micro-deposits are needed
-              const accountId = accountIdRef.current || newAccountId || existingAccountId
+              const accountId = window.__moovAccountId || accountIdRef.current || newAccountId || existingAccountId
               if (resource.status === 'new' || resource.status === 'pending') {
                 router.push(`/tenant/payment-methods/verify-micro-deposits?accountId=${accountId}&bankAccountId=${resource.bankAccountID}&last4=${resource.lastFourAccountNumber || '****'}`)
               } else if (resource.status === 'verified') {
