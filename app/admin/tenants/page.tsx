@@ -13,15 +13,30 @@ export default async function TenantsPage() {
     const session = await requireAdmin()
     const supabase = createServerSupabaseClient()
 
-    // Get all tenants with their user info and property details
-    const { data: tenants, error } = await supabase
+    // Get all tenants first
+    const { data: rawTenants, error } = await supabase
       .from('tenants')
-      .select(`
-        *,
-        user:users(email),
-        property:properties(address, unit_number, rent_amount)
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
+
+    // Get users and properties separately and join manually
+    let tenants = []
+    if (rawTenants && !error) {
+      const userIds = rawTenants.map(t => t.user_id).filter(Boolean)
+      const propertyIds = rawTenants.map(t => t.property_id).filter(Boolean)
+
+      const [{ data: users }, { data: properties }] = await Promise.all([
+        userIds.length > 0 ? supabase.from('users').select('id, email').in('id', userIds) : { data: [] },
+        propertyIds.length > 0 ? supabase.from('properties').select('id, address, unit_number, rent_amount').in('id', propertyIds) : { data: [] }
+      ])
+
+      // Join the data manually
+      tenants = rawTenants.map(tenant => ({
+        ...tenant,
+        user: users?.find(u => u.id === tenant.user_id),
+        property: properties?.find(p => p.id === tenant.property_id)
+      }))
+    }
 
     if (error) {
       console.error('Error fetching tenants:', error)
