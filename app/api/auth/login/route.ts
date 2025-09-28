@@ -7,7 +7,10 @@ export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
 
+    console.log('Login attempt:', { email, passwordProvided: !!password })
+
     if (!email || !password) {
+      console.log('Missing email or password')
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
@@ -23,7 +26,16 @@ export async function POST(request: NextRequest) {
       .eq('email', email)
       .single()
 
+    console.log('Database query result:', {
+      userFound: !!user,
+      error: userError?.message,
+      userId: user?.id,
+      userRole: user?.role,
+      hasPasswordHash: !!user?.password_hash
+    })
+
     if (userError || !user) {
+      console.log('User not found or database error:', userError)
       return NextResponse.json(
         { error: 'Invalid credentials' },
         { status: 401 }
@@ -33,7 +45,14 @@ export async function POST(request: NextRequest) {
     // Verify password
     const passwordMatch = await bcrypt.compare(password, user.password_hash)
 
+    console.log('Password verification:', {
+      passwordMatch,
+      passwordHashPrefix: user.password_hash?.substring(0, 10),
+      passwordLength: password.length
+    })
+
     if (!passwordMatch) {
+      console.log('Password mismatch - login failed')
       return NextResponse.json(
         { error: 'Invalid credentials' },
         { status: 401 }
