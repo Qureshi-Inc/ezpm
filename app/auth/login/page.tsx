@@ -41,14 +41,19 @@ export default function LoginPage() {
       }
 
       // Redirect based on user role
+      console.log('Login successful, redirecting:', { role: data.role })
+
+      // Use window.location for a hard redirect to ensure session is properly loaded
       if (data.role === 'admin') {
-        router.push('/admin')
+        window.location.href = '/admin'
       } else {
-        router.push('/tenant')
+        window.location.href = '/tenant'
       }
+      // Don't set loading to false - let the redirect happen
+      return
     } catch (err) {
+      console.error('Login error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
       setLoading(false)
     }
   }
