@@ -6,7 +6,11 @@ CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'tenant')),
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    phone VARCHAR(20),
+    role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'property_manager', 'tenant')),
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -14,6 +18,7 @@ CREATE TABLE users (
 -- Create properties table
 CREATE TABLE properties (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     address VARCHAR(500) NOT NULL,
     unit_number VARCHAR(50),
     rent_amount DECIMAL(10, 2) NOT NULL,
@@ -29,6 +34,7 @@ CREATE TABLE tenants (
     last_name VARCHAR(100) NOT NULL,
     phone VARCHAR(20),
     property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
+    payment_due_day INTEGER DEFAULT 1 CHECK (payment_due_day >= 1 AND payment_due_day <= 28),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -36,12 +42,17 @@ CREATE TABLE tenants (
 -- Create payment_methods table
 CREATE TABLE payment_methods (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    stripe_payment_method_id VARCHAR(255) NOT NULL,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('card')),
-    last4 VARCHAR(4) NOT NULL,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    moov_payment_method_id VARCHAR(255),
+    stripe_payment_method_id VARCHAR(255),
+    type VARCHAR(50) NOT NULL CHECK (type IN ('ach', 'card')),
+    last4 VARCHAR(4),
+    bank_name VARCHAR(255),
+    card_brand VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'failed')),
     is_default BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create payments table
@@ -74,9 +85,11 @@ CREATE TABLE auto_payments (
 -- Create indexes
 CREATE INDEX idx_tenants_user_id ON tenants(user_id);
 CREATE INDEX idx_tenants_property_id ON tenants(property_id);
-CREATE INDEX idx_payment_methods_tenant_id ON payment_methods(tenant_id);
+CREATE INDEX idx_properties_user_id ON properties(user_id);
+CREATE INDEX idx_payment_methods_user_id ON payment_methods(user_id);
 CREATE INDEX idx_payments_tenant_id ON payments(tenant_id);
 CREATE INDEX idx_payments_property_id ON payments(property_id);
+CREATE INDEX idx_payments_payment_method_id ON payments(payment_method_id);
 CREATE INDEX idx_payments_status ON payments(status);
 CREATE INDEX idx_payments_due_date ON payments(due_date);
 CREATE INDEX idx_auto_payments_tenant_id ON auto_payments(tenant_id);
@@ -98,6 +111,9 @@ CREATE TRIGGER update_properties_updated_at BEFORE UPDATE ON properties
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_tenants_updated_at BEFORE UPDATE ON tenants
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_payment_methods_updated_at BEFORE UPDATE ON payment_methods
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON payments
