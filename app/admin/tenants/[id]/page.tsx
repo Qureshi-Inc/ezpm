@@ -60,13 +60,24 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
       property: property
     }
 
-    // Get recent payments for this tenant
-    const { data: recentPayments } = await supabase
-      .from('payments')
-      .select('*')
+    // Get recent payments for this tenant through leases
+    // First get the tenant's leases
+    const { data: leases } = await supabase
+      .from('leases')
+      .select('id')
       .eq('tenant_id', id)
-      .order('created_at', { ascending: false })
-      .limit(5)
+
+    let recentPayments = null
+    if (leases && leases.length > 0) {
+      const leaseIds = leases.map(l => l.id)
+      const { data: paymentsData } = await supabase
+        .from('payments')
+        .select('*')
+        .in('lease_id', leaseIds)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      recentPayments = paymentsData
+    }
 
     return (
       <div className="min-h-screen bg-gray-50">
