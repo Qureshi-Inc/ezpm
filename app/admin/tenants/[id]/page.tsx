@@ -24,28 +24,60 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
     // Await params to fix Next.js 15 compatibility
     const { id } = await params
 
-    // Get tenant details with property and user info
-    const { data: tenant, error } = await supabase
+    // Get tenant details (using manual join to avoid foreign key dependency)
+    const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select(`
-        *,
-        user:users(email, created_at),
-        property:properties(address, unit_number, rent_amount)
-      `)
+      .select('*')
       .eq('id', id)
       .single()
 
-    if (error || !tenant) {
+    if (tenantError || !tenant) {
       redirect('/admin/tenants')
     }
 
-    // Get recent payments for this tenant
-    const { data: recentPayments } = await supabase
-      .from('payments')
-      .select('*')
+    // Get user info separately
+    const { data: user } = await supabase
+      .from('users')
+      .select('email, created_at')
+      .eq('id', tenant.user_id)
+      .single()
+
+    // Get property info separately if tenant has a property assigned
+    let property = null
+    if (tenant.property_id) {
+      const { data: propertyData } = await supabase
+        .from('properties')
+        .select('address, unit_number, rent_amount')
+        .eq('id', tenant.property_id)
+        .single()
+      property = propertyData
+    }
+
+    // Merge data for display
+    const tenantWithRelations = {
+      ...tenant,
+      user: user || null,
+      property: property
+    }
+
+    // Get recent payments for this tenant through leases
+    // First get the tenant's leases
+    const { data: leases } = await supabase
+      .from('leases')
+      .select('id')
       .eq('tenant_id', id)
-      .order('created_at', { ascending: false })
-      .limit(5)
+
+    let recentPayments = null
+    if (leases && leases.length > 0) {
+      const leaseIds = leases.map(l => l.id)
+      const { data: paymentsData } = await supabase
+        .from('payments')
+        .select('*')
+        .in('lease_id', leaseIds)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      recentPayments = paymentsData
+    }
 
     return (
       <div className="min-h-screen bg-gray-50">
@@ -61,12 +93,12 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">
-                    {tenant.first_name} {tenant.last_name}
+                    {tenantWithRelations.first_name} {tenantWithRelations.last_name}
                   </h1>
                   <p className="text-gray-600 mt-2">Tenant Details</p>
                 </div>
                 <div className="min-w-[200px]">
-                  <TenantActions tenant={tenant} />
+                  <TenantActions tenant={tenantWithRelations} />
                 </div>
               </div>
             </div>
@@ -85,28 +117,28 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm font-medium text-gray-500">First Name</p>
-                        <p className="text-lg">{tenant.first_name}</p>
+                        <p className="text-lg">{tenantWithRelations.first_name}</p>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-500">Last Name</p>
-                        <p className="text-lg">{tenant.last_name}</p>
+                        <p className="text-lg">{tenantWithRelations.last_name}</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2">
                       <Mail className="w-4 h-4 text-gray-400" />
                       <div>
                         <p className="text-sm font-medium text-gray-500">Email</p>
-                        <p>{tenant.user?.email}</p>
+                        <p>{tenantWithRelations.user?.email}</p>
                       </div>
                     </div>
 
-                    {tenant.phone && (
+                    {tenantWithRelations.phone && (
                       <div className="flex items-center space-x-2">
                         <Phone className="w-4 h-4 text-gray-400" />
                         <div>
                           <p className="text-sm font-medium text-gray-500">Phone</p>
-                          <p>{tenant.phone}</p>
+                          <p>{tenantWithRelations.phone}</p>
                         </div>
                       </div>
                     )}
@@ -115,13 +147,13 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                       <DollarSign className="w-4 h-4 text-gray-400" />
                       <div>
                         <p className="text-sm font-medium text-gray-500">Payment Due Day</p>
-                        <p>{tenant.payment_due_day === 1 ? '1st' : tenant.payment_due_day === 2 ? '2nd' : tenant.payment_due_day === 3 ? '3rd' : `${tenant.payment_due_day}th`} of each month</p>
+                        <p>{tenantWithRelations.payment_due_day === 1 ? '1st' : tenantWithRelations.payment_due_day === 2 ? '2nd' : tenantWithRelations.payment_due_day === 3 ? '3rd' : `${tenantWithRelations.payment_due_day}th`} of each month</p>
                       </div>
                     </div>
 
                     <div>
                       <p className="text-sm font-medium text-gray-500">Account Created</p>
-                      <p>{formatDate(tenant.user?.created_at || tenant.created_at)}</p>
+                      <p>{formatDate(tenantWithRelations.user?.created_at || tenantWithRelations.created_at)}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -135,20 +167,20 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {tenant.property ? (
+                    {tenantWithRelations.property ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium text-gray-900">{tenant.property.address}</p>
-                            {tenant.property.unit_number && (
-                              <p className="text-gray-600">Unit {tenant.property.unit_number}</p>
+                            <p className="font-medium text-gray-900">{tenantWithRelations.property.address}</p>
+                            {tenantWithRelations.property.unit_number && (
+                              <p className="text-gray-600">Unit {tenantWithRelations.property.unit_number}</p>
                             )}
                           </div>
                           <Badge variant="default">Assigned</Badge>
                         </div>
                         <div className="flex items-center space-x-2 text-green-600">
                           <DollarSign className="w-4 h-4" />
-                          <span className="font-medium">{formatCurrency(tenant.property.rent_amount)}/month</span>
+                          <span className="font-medium">{formatCurrency(tenantWithRelations.property.rent_amount)}/month</span>
                         </div>
                       </div>
                     ) : (
@@ -174,7 +206,7 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                   <CardContent className="space-y-2">
                     <Button variant="outline" size="sm" className="w-full justify-start">
                       <Building className="w-4 h-4 mr-2" />
-                      {tenant.property ? 'Change Property' : 'Assign Property'}
+                      {tenantWithRelations.property ? 'Change Property' : 'Assign Property'}
                     </Button>
                     <Button variant="outline" size="sm" className="w-full justify-start">
                       <DollarSign className="w-4 h-4 mr-2" />

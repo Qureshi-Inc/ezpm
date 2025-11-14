@@ -151,7 +151,16 @@ export async function createBankAccount(accountId: string, bankData: {
     }
     
     const url = `${MOOV_DOMAIN}/accounts/${accountId}/payment-methods`
-    const authHeader = await getAuthHeader()
+    // Use broad scopes for facilitator operations
+    const scopes = [
+      '/accounts.read',
+      '/accounts.write',
+      '/bank-accounts.read',
+      '/bank-accounts.write',
+      '/payment-methods.read',
+      '/payment-methods.write'
+    ]
+    const authHeader = await getAuthHeader(scopes)
     const headers = {
       'Authorization': authHeader,
       'Content-Type': 'application/json'
@@ -230,7 +239,14 @@ export async function createTransfer(transferData: {
   checkMoovConfig()
   
   try {
-    const authHeader = await getAuthHeader()
+    // Use scopes for both source and destination accounts
+    const scopes = [
+      `/accounts/${transferData.sourceAccountId}/transfers.read`,
+      `/accounts/${transferData.sourceAccountId}/transfers.write`,
+      `/accounts/${transferData.destinationAccountId}/transfers.read`,
+      `/accounts/${transferData.destinationAccountId}/transfers.write`
+    ]
+    const authHeader = await getAuthHeader(scopes)
     const response = await fetch(`${MOOV_DOMAIN}/transfers`, {
       method: 'POST',
       headers: {
@@ -289,6 +305,62 @@ export async function getTransferStatus(transferId: string) {
     return transfer
   } catch (error) {
     console.error('Failed to get transfer status:', error)
+    throw error
+  }
+}
+
+// Helper function to initiate micro-deposits for bank account verification
+export async function initiateMicroDeposits(accountId: string, bankAccountId: string) {
+  checkMoovConfig()
+  
+  try {
+    // Use broad scopes for facilitator operations
+    const scopes = [
+      '/accounts.read',
+      '/accounts.write',
+      '/bank-accounts.read',
+      '/bank-accounts.write',
+      '/payment-methods.read',
+      '/payment-methods.write'
+    ]
+    const authHeader = await getAuthHeader(scopes)
+    const url = `${MOOV_DOMAIN}/accounts/${accountId}/bank-accounts/${bankAccountId}/micro-deposits`
+    
+    console.log('Initiating micro-deposits:', { accountId, bankAccountId })
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    console.log('Micro-deposit initiation response:', {
+      status: response.status,
+      statusText: response.statusText
+    })
+    
+    if (!response.ok) {
+      if (response.status === 409) {
+        // 409 means micro-deposits already exist - this is not an error
+        console.log('Micro-deposits already exist (409 status) - this is expected')
+        return { 
+          status: 'already_exists', 
+          message: 'Micro-deposits are already pending for this account' 
+        }
+      }
+      
+      const errorText = await response.text()
+      console.error('Failed to initiate micro-deposits:', errorText)
+      throw new Error(`Failed to initiate micro-deposits: ${response.status} ${response.statusText}`)
+    }
+    
+    const result = await response.json()
+    console.log('Micro-deposits initiated successfully:', result)
+    return result
+  } catch (error) {
+    console.error('Failed to initiate micro-deposits:', error)
     throw error
   }
 }

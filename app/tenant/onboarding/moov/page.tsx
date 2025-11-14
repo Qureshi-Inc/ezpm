@@ -8,15 +8,23 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
+// Declare global to store account ID outside React lifecycle
+declare global {
+  interface Window {
+    __moovAccountId?: string;
+  }
+}
+
 export default function MoovOnboardingPage() {
   const router = useRouter()
   const onboardingRef = useRef<any>(null)
-  const accountIdRef = useRef<string | null>(null)
+  const accountIdRef = useRef<string | null>(null) // Use ref to avoid stale closure issues
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [accountCreated, setAccountCreated] = useState(false)
   const [newAccountId, setNewAccountId] = useState<string | null>(null)
+  const [existingAccountId, setExistingAccountId] = useState<string | null>(null)
   const [bankAccountCreated, setBankAccountCreated] = useState(false)
   const [showFinishButton, setShowFinishButton] = useState(false)
 
@@ -117,21 +125,57 @@ export default function MoovOnboardingPage() {
   }
 
   const initializeOnboarding = async () => {
+    // First, check if tenant already has a Moov account
+    try {
+      const tenantResponse = await fetch('/api/tenant/moov-account', {
+        method: 'GET',
+      })
+      
+      if (tenantResponse.ok) {
+        const tenantData = await tenantResponse.json()
+        if (tenantData.moovAccountId) {
+          console.log('Tenant already has Moov account:', tenantData.moovAccountId)
+          setExistingAccountId(tenantData.moovAccountId)
+          setNewAccountId(tenantData.moovAccountId) // Also set newAccountId for consistency
+          accountIdRef.current = tenantData.moovAccountId // Store in ref for immediate access
+          window.__moovAccountId = tenantData.moovAccountId // Store globally
+          setAccountCreated(true) // Mark account as already created
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch tenant Moov account:', err)
+    }
+
     const initialToken = await getInitialToken()
     if (!initialToken) return
 
     setToken(initialToken)
 
+    // If we have an existing account, get an account-specific token
+    let finalToken = initialToken
+    if (existingAccountId) {
+      const accountToken = await getAccountToken(existingAccountId)
+      if (accountToken) {
+        finalToken = accountToken
+        setToken(accountToken)
+      }
+    }
+
     if (onboardingRef.current) {
       const onboarding = onboardingRef.current
 
       // Set properties
-      onboarding.token = initialToken
+      onboarding.token = finalToken
       onboarding.facilitatorAccountID = process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID
       onboarding.capabilities = ['transfers', 'send-funds', 'collect-funds', 'wallet'] // ACH capabilities including collect-funds for micro-deposits
       onboarding.paymentMethodTypes = ['bankAccount'] // Only bank accounts for ACH
       onboarding.microDeposits = true // Enable micro-deposit verification
       onboarding.showLogo = false
+      
+      // If we have an existing account, set it
+      if (existingAccountId) {
+        onboarding.accountID = existingAccountId
+      }
 
       // Pre-populate with user data if available
       // You would fetch this from your database
@@ -152,11 +196,13 @@ export default function MoovOnboardingPage() {
         console.log('Resource created:', resourceType, resource)
 
         if (resourceType === 'account') {
+          console.log('Account created, setting ID:', resource.accountID)
           setAccountCreated(true)
           setNewAccountId(resource.accountID)
           // Store in ref for immediate access
           accountIdRef.current = resource.accountID
-          console.log('📝 Stored account ID in ref:', resource.accountID)
+          window.__moovAccountId = resource.accountID // Store globally for immediate access
+          console.log('📝 Stored account ID in ref and global:', resource.accountID)
 
           // Get new token with account-specific scopes
           const accountToken = await getAccountToken(resource.accountID)
@@ -180,30 +226,35 @@ export default function MoovOnboardingPage() {
         if (resourceType === 'bankAccount') {
           console.log('🏦 Bank account created:', resource)
           
-          // Use the account ID from ref (set when account was created)
-          const moovAccountId = accountIdRef.current
-          console.log('📋 Using Moov Account ID from ref:', moovAccountId)
+          // Use multiple sources to get the account ID, prioritizing global storage
+          const moovAccountId = window.__moovAccountId || accountIdRef.current || newAccountId || existingAccountId || resource.accountID || resource.account_id
+          console.log('📋 Using Moov Account ID:', moovAccountId)
+          console.log('Account IDs available:', { 
+            globalAccountId: window.__moovAccountId,
+            refAccountId: accountIdRef.current,
+            newAccountId, 
+            existingAccountId, 
+            resourceAccountId: resource.accountID 
+          })
           
           if (!moovAccountId) {
             console.error('❌ No Moov Account ID available! Cannot save bank account.')
+            setError('Unable to save payment method - missing account information. Please try again.')
             return
           }
           
           // Save the bank account as a payment method
           try {
-            const saveData = {
-              moovAccountId: moovAccountId,
-              bankAccountId: resource.bankAccountID,
-              last4: resource.lastFourAccountNumber || '****'
-            }
-            console.log('📤 Sending save request:', saveData)
-            
             const response = await fetch('/api/tenant/payment-methods/save-moov-bank', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify(saveData)
+              body: JSON.stringify({
+                moovAccountId,
+                bankAccountId: resource.bankAccountID,
+                last4: resource.lastFourAccountNumber || '****'
+              })
             })
 
             const data = await response.json()
@@ -213,6 +264,12 @@ export default function MoovOnboardingPage() {
               console.log('✅ Bank account saved successfully!')
               setBankAccountCreated(true)
               setShowFinishButton(true)
+              
+              // Store a success message for the payment methods page
+              if (typeof window !== 'undefined' && window.sessionStorage) {
+                window.sessionStorage.setItem('paymentMethodMessage', 
+                  'Bank account added successfully! We\'ve initiated micro-deposits for verification. Please check your bank account in 1-2 business days.')
+              }
               
               // Close the Moov dialog
               if (onboardingRef.current) {

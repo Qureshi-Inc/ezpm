@@ -32,10 +32,14 @@ function validatePassword(password: string): { isValid: boolean; errors: string[
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('Tenant creation request received')
+
     // Verify admin authentication
     await requireAdmin()
-    
+    console.log('Admin authentication verified')
+
     const { email, password, firstName, lastName, phone, propertyId, paymentDueDay } = await request.json()
+    console.log('Request data:', { email, firstName, lastName, phone, propertyId, paymentDueDay, hasPassword: !!password })
 
     if (!email || !password || !firstName || !lastName) {
       return NextResponse.json(
@@ -79,12 +83,15 @@ export async function POST(request: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10)
 
-    // Create user
+    // Create user with required fields
     const { data: newUser, error: userError } = await supabase
       .from('users')
       .insert({
         email,
         password_hash: passwordHash,
+        first_name: firstName,
+        last_name: lastName,
+        phone: phone || null,
         role: 'tenant'
       })
       .select()
@@ -93,10 +100,12 @@ export async function POST(request: NextRequest) {
     if (userError || !newUser) {
       console.error('User creation error:', userError)
       return NextResponse.json(
-        { error: 'Failed to create user account' },
+        { error: `Failed to create user account: ${userError?.message || 'Unknown error'}` },
         { status: 500 }
       )
     }
+
+    console.log('User created successfully:', { id: newUser.id, email: newUser.email })
 
     // Create tenant record
     const tenantData: any = {
@@ -125,10 +134,12 @@ export async function POST(request: NextRequest) {
       // Rollback user creation
       await supabase.from('users').delete().eq('id', newUser.id)
       return NextResponse.json(
-        { error: 'Failed to create tenant profile' },
+        { error: `Failed to create tenant profile: ${tenantError.message}` },
         { status: 500 }
       )
     }
+
+    console.log('Tenant created successfully:', { id: newTenant.id, userId: newTenant.user_id })
 
     // Automatically generate first payment if tenant is assigned to a property
     if (propertyId && propertyId !== 'none') {

@@ -5,9 +5,12 @@ import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, firstName, lastName, phone } = await request.json()
+    const { email, password, firstName, lastName, phone, isAdmin } = await request.json()
+
+    console.log('Registration attempt:', { email, firstName, lastName, isAdmin })
 
     if (!email || !password || !firstName || !lastName) {
+      console.log('Missing required fields')
       return NextResponse.json(
         { error: 'All fields are required' },
         { status: 400 }
@@ -17,11 +20,13 @@ export async function POST(request: NextRequest) {
     const supabase = createServerSupabaseClient()
 
     // Check if user already exists
-    const { data: existingUser } = await supabase
+    const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('id')
       .eq('email', email)
       .single()
+
+    console.log('Existing user check:', { existingUser: !!existingUser, checkError: checkError?.message })
 
     if (existingUser) {
       return NextResponse.json(
@@ -32,6 +37,10 @@ export async function POST(request: NextRequest) {
 
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10)
+    console.log('Password hashed, hash length:', passwordHash.length)
+
+    // Determine role - allow admin creation for testing
+    const role = isAdmin ? 'admin' : 'tenant'
 
     // Create user
     const { data: newUser, error: userError } = await supabase
@@ -39,29 +48,44 @@ export async function POST(request: NextRequest) {
       .insert({
         email,
         password_hash: passwordHash,
-        role: 'tenant'
+        role
       })
       .select()
       .single()
 
+    console.log('User creation result:', {
+      success: !!newUser,
+      error: userError?.message,
+      userId: newUser?.id,
+      userRole: newUser?.role
+    })
+
     if (userError || !newUser) {
-      throw new Error('Failed to create user')
+      console.error('Failed to create user:', userError)
+      throw new Error(`Failed to create user: ${userError?.message || 'Unknown error'}`)
     }
 
-    // Create tenant record
-    const { error: tenantError } = await supabase
-      .from('tenants')
-      .insert({
-        user_id: newUser.id,
-        first_name: firstName,
-        last_name: lastName,
-        phone: phone || null
-      })
+    // Create tenant record only for non-admin users
+    if (role === 'tenant') {
+      const { error: tenantError } = await supabase
+        .from('tenants')
+        .insert({
+          user_id: newUser.id,
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone || null
+        })
 
-    if (tenantError) {
-      // Rollback user creation
-      await supabase.from('users').delete().eq('id', newUser.id)
-      throw new Error('Failed to create tenant profile')
+      console.log('Tenant creation result:', { error: tenantError?.message })
+
+      if (tenantError) {
+        console.error('Failed to create tenant profile:', tenantError)
+        // Rollback user creation
+        await supabase.from('users').delete().eq('id', newUser.id)
+        throw new Error(`Failed to create tenant profile: ${tenantError.message}`)
+      }
+    } else {
+      console.log('Skipping tenant profile creation for admin user')
     }
 
     // Create session token

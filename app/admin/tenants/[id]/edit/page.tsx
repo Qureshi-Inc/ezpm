@@ -21,18 +21,28 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
     // Await params to fix Next.js 15 compatibility
     const { id } = await params
 
-    // Get tenant details
-    const { data: tenant, error } = await supabase
+    // Get tenant details (using manual join to avoid foreign key dependency)
+    const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select(`
-        *,
-        user:users(email)
-      `)
+      .select('*')
       .eq('id', id)
       .single()
 
-    if (error || !tenant) {
+    if (tenantError || !tenant) {
       redirect('/admin/tenants')
+    }
+
+    // Get user email separately
+    const { data: user } = await supabase
+      .from('users')
+      .select('email')
+      .eq('id', tenant.user_id)
+      .single()
+
+    // Merge data for form compatibility
+    const tenantWithUser = {
+      ...tenant,
+      user: user || { email: '' }
     }
 
     // Get all properties for the dropdown
@@ -67,7 +77,7 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <EditTenantForm tenant={tenant} properties={properties} />
+                <EditTenantForm tenant={tenantWithUser} properties={properties} />
               </CardContent>
             </Card>
 
@@ -75,10 +85,10 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
               <CardContent className="pt-6">
                 <h3 className="font-medium text-gray-900 mb-2">Account Information</h3>
                 <div className="text-sm text-gray-600 space-y-1">
-                  <p>• Account ID: {tenant.id}</p>
-                  <p>• User ID: {tenant.user_id}</p>
-                  <p>• Created: {new Date(tenant.created_at).toLocaleDateString()}</p>
-                  <p>• Last Updated: {new Date(tenant.updated_at).toLocaleDateString()}</p>
+                  <p>• Account ID: {tenantWithUser.id}</p>
+                  <p>• User ID: {tenantWithUser.user_id}</p>
+                  <p>• Created: {new Date(tenantWithUser.created_at).toLocaleDateString()}</p>
+                  <p>• Last Updated: {new Date(tenantWithUser.updated_at).toLocaleDateString()}</p>
                 </div>
               </CardContent>
             </Card>
