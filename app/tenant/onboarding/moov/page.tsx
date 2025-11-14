@@ -10,12 +10,6 @@ import { Label } from '@/components/ui/label'
 import { ArrowLeft, CheckCircle, AlertCircle, User, Building2, CreditCard, Shield } from 'lucide-react'
 import Link from 'next/link'
 
-declare global {
-  interface Window {
-    Moov: any;
-  }
-}
-
 type OnboardingStep = 'account' | 'identity' | 'bank' | 'verify' | 'complete'
 
 export default function MoovOnboardingPage() {
@@ -67,7 +61,8 @@ export default function MoovOnboardingPage() {
           script.onload = () => {
             // Wait for Moov to be available
             const checkMoov = () => {
-              if (window.Moov && window.Moov.js) {
+              const moov = (window as any).Moov
+              if (moov && moov.js) {
                 console.log('Moov.js loaded successfully')
                 setMoovReady(true)
                 resolve()
@@ -134,7 +129,8 @@ export default function MoovOnboardingPage() {
       setError(null)
       setLoading(true)
 
-      if (!window.Moov || !window.Moov.js) {
+      const moov = (window as any).Moov
+      if (!moov || !moov.js) {
         throw new Error('Moov.js is not loaded')
       }
 
@@ -146,8 +142,8 @@ export default function MoovOnboardingPage() {
         '/profile-enrichment.read'
       ])
 
-      // Initialize Moov.js with token
-      window.Moov.js(token)
+      // Initialize Moov.js with token (if needed for future use)
+      // moov.js(token)
 
       // Format birth date
       const [year, month, day] = accountData.birthDate.split('-')
