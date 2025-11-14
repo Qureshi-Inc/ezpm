@@ -1,86 +1,113 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ArrowLeft, CheckCircle, AlertCircle, User, Building2, CreditCard, Shield } from 'lucide-react'
 import Link from 'next/link'
 
-// Declare global to store account ID outside React lifecycle
-declare global {
-  interface Window {
-    __moovAccountId?: string;
-  }
+// Moov.js SDK types
+interface MoovJS {
+  loadMoov: (token: string) => Promise<any>;
+  accounts: {
+    create: (data: any) => Promise<any>;
+    get: (accountId: string) => Promise<any>;
+    capabilities: {
+      request: (accountId: string, capabilities: string[]) => Promise<any>;
+      get: (accountId: string, capability: string) => Promise<any>;
+    };
+  };
+  bankAccounts: {
+    link: (accountId: string, data: any) => Promise<any>;
+    list: (accountId: string) => Promise<any[]>;
+    initiateMicroDeposits: (accountId: string, bankAccountId: string) => Promise<any>;
+    completeMicroDeposits: (accountId: string, bankAccountId: string, amounts: number[]) => Promise<any>;
+  };
+  paymentMethods: {
+    list: (accountId: string) => Promise<any[]>;
+  };
 }
+
+type OnboardingStep = 'account' | 'identity' | 'bank' | 'verify' | 'complete'
 
 export default function MoovOnboardingPage() {
   const router = useRouter()
-  const onboardingRef = useRef<any>(null)
-  const accountIdRef = useRef<string | null>(null) // Use ref to avoid stale closure issues
+  const [moov, setMoov] = useState<MoovJS | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [token, setToken] = useState<string | null>(null)
-  const [accountCreated, setAccountCreated] = useState(false)
-  const [newAccountId, setNewAccountId] = useState<string | null>(null)
-  const [existingAccountId, setExistingAccountId] = useState<string | null>(null)
-  const [bankAccountCreated, setBankAccountCreated] = useState(false)
-  const [showFinishButton, setShowFinishButton] = useState(false)
+  const [step, setStep] = useState<OnboardingStep>('account')
+  const [accountId, setAccountId] = useState<string | null>(null)
+  const [bankAccountId, setBankAccountId] = useState<string | null>(null)
+  const [capabilities, setCapabilities] = useState<string[]>([])
+  
+  // Form states
+  const [accountData, setAccountData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    birthDate: '',
+    ssnLast4: ''
+  })
+  
+  const [bankData, setBankData] = useState({
+    accountNumber: '',
+    routingNumber: '',
+    accountType: 'checking' as 'checking' | 'savings'
+  })
+  
+  const [microDeposits, setMicroDeposits] = useState({
+    amount1: '',
+    amount2: ''
+  })
 
-  // Load Moov.js script
+  // Initialize Moov.js
   useEffect(() => {
-    const script = document.createElement('script')
-    script.src = 'https://js.moov.io/'
-    script.async = true
-    script.onload = () => {
-      setLoading(false)
-      initializeOnboarding()
-    }
-    script.onerror = () => {
-      setError('Failed to load Moov onboarding')
-      setLoading(false)
-    }
-    document.head.appendChild(script)
+    const initMoov = async () => {
+      try {
+        // Load Moov.js script with correct version
+        const script = document.createElement('script')
+        script.src = 'https://js.moov.io/v1?min=v0.6.12'
+        script.async = true
+        
+        await new Promise((resolve, reject) => {
+          script.onload = resolve
+          script.onerror = reject
+          document.head.appendChild(script)
+        })
 
-    return () => {
-      document.head.removeChild(script)
+        // Check for existing Moov account
+        const tenantResponse = await fetch('/api/tenant/moov-account')
+        if (tenantResponse.ok) {
+          const tenantData = await tenantResponse.json()
+          if (tenantData.moovAccountId) {
+            setAccountId(tenantData.moovAccountId)
+            setStep('bank') // Skip to bank step if account exists
+          }
+        }
+
+        setLoading(false)
+      } catch (err) {
+        console.error('Failed to initialize Moov:', err)
+        setError('Failed to load Moov.js')
+        setLoading(false)
+      }
     }
+
+    initMoov()
   }, [])
 
-  // Get initial token with facilitator scopes
-  const getInitialToken = async () => {
-    try {
-      const response = await fetch('/api/moov/onboarding-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          scopes: [
-            '/accounts.write',
-            `/accounts/${process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID}/profile.read`,
-            '/fed.read',
-            '/profile-enrichment.read'
-          ]
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to get onboarding token')
-      }
-
-      const data = await response.json()
-      return data.token
-    } catch (err) {
-      console.error('Failed to get initial token:', err)
-      setError('Failed to initialize onboarding')
-      return null
-    }
-  }
-
-  // Get updated token with account-specific scopes
-  const getAccountToken = async (accountId: string) => {
+  // Get Moov token
+  const getMoovToken = async (scopes: string[]) => {
     try {
       const response = await fetch('/api/moov/onboarding-token', {
         method: 'POST',
@@ -89,242 +116,223 @@ export default function MoovOnboardingPage() {
         },
         body: JSON.stringify({
           accountId,
-          scopes: [
-            '/accounts.write',
-            `/accounts/${process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID}/profile.read`,
-            '/fed.read',
-            '/profile-enrichment.read',
-            `/accounts/${accountId}/bank-accounts.read`,
-            `/accounts/${accountId}/bank-accounts.write`,
-            `/accounts/${accountId}/capabilities.read`,
-            `/accounts/${accountId}/capabilities.write`,
-            `/accounts/${accountId}/cards.read`,
-            `/accounts/${accountId}/cards.write`,
-            `/accounts/${accountId}/profile.read`,
-            `/accounts/${accountId}/profile.write`,
-            `/accounts/${accountId}/representatives.read`,
-            `/accounts/${accountId}/representatives.write`,
-            `/accounts/${accountId}/transfers.read`,
-            `/accounts/${accountId}/transfers.write`,
-            `/accounts/${accountId}/wallets.read`,
-            `/accounts/${accountId}/wallets.write`
-          ]
+          scopes
         })
       })
 
       if (!response.ok) {
-        throw new Error('Failed to get account token')
+        throw new Error('Failed to get Moov token')
       }
 
       const data = await response.json()
       return data.token
     } catch (err) {
-      console.error('Failed to get account token:', err)
-      return null
+      console.error('Failed to get token:', err)
+      throw err
     }
   }
 
-  const initializeOnboarding = async () => {
-    // First, check if tenant already has a Moov account
+  // Create Moov account with identity verification
+  const createAccount = async () => {
     try {
-      const tenantResponse = await fetch('/api/tenant/moov-account', {
-        method: 'GET',
-      })
-      
-      if (tenantResponse.ok) {
-        const tenantData = await tenantResponse.json()
-        if (tenantData.moovAccountId) {
-          console.log('Tenant already has Moov account:', tenantData.moovAccountId)
-          setExistingAccountId(tenantData.moovAccountId)
-          setNewAccountId(tenantData.moovAccountId) // Also set newAccountId for consistency
-          accountIdRef.current = tenantData.moovAccountId // Store in ref for immediate access
-          window.__moovAccountId = tenantData.moovAccountId // Store globally
-          setAccountCreated(true) // Mark account as already created
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch tenant Moov account:', err)
-    }
+      setError(null)
+      setLoading(true)
 
-    const initialToken = await getInitialToken()
-    if (!initialToken) return
+      // Get token for account creation
+      const token = await getMoovToken([
+        '/accounts.write',
+        `/accounts/${process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID}/profile.read`,
+        '/fed.read',
+        '/profile-enrichment.read'
+      ])
 
-    setToken(initialToken)
+      // Initialize Moov.js
+      // @ts-ignore - Moov is loaded from script
+      const moovInstance = await window.Moov.loadMoov(token)
+      setMoov(moovInstance)
 
-    // If we have an existing account, get an account-specific token
-    let finalToken = initialToken
-    if (existingAccountId) {
-      const accountToken = await getAccountToken(existingAccountId)
-      if (accountToken) {
-        finalToken = accountToken
-        setToken(accountToken)
-      }
-    }
+      // Format birth date
+      const [year, month, day] = accountData.birthDate.split('-')
 
-    if (onboardingRef.current) {
-      const onboarding = onboardingRef.current
-
-      // Set properties
-      onboarding.token = finalToken
-      onboarding.facilitatorAccountID = process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID
-      onboarding.capabilities = ['transfers', 'send-funds', 'collect-funds', 'wallet'] // ACH capabilities including collect-funds for micro-deposits
-      onboarding.paymentMethodTypes = ['bankAccount'] // Only bank accounts for ACH
-      onboarding.microDeposits = true // Enable micro-deposit verification
-      onboarding.showLogo = false
-      
-      // If we have an existing account, set it
-      if (existingAccountId) {
-        onboarding.accountID = existingAccountId
-      }
-
-      // Pre-populate with user data if available
-      // You would fetch this from your database
-      onboarding.accountData = {
+      // Create account with full identity verification data
+      const account = await moovInstance.accounts.create({
         accountType: 'individual',
         profile: {
           individual: {
-            // These would come from your tenant data
-            // firstName: tenant.firstName,
-            // lastName: tenant.lastName,
-            // email: tenant.email
-          }
-        }
-      }
-
-      // Handle resource creation
-      onboarding.onResourceCreated = async ({ resourceType, resource }: any) => {
-        console.log('Resource created:', resourceType, resource)
-
-        if (resourceType === 'account') {
-          console.log('Account created, setting ID:', resource.accountID)
-          setAccountCreated(true)
-          setNewAccountId(resource.accountID)
-          // Store in ref for immediate access
-          accountIdRef.current = resource.accountID
-          window.__moovAccountId = resource.accountID // Store globally for immediate access
-          console.log('📝 Stored account ID in ref and global:', resource.accountID)
-
-          // Get new token with account-specific scopes
-          const accountToken = await getAccountToken(resource.accountID)
-          if (accountToken) {
-            onboarding.token = accountToken
-          }
-
-          // Save account ID to your database
-          await fetch('/api/tenant/moov-account', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
+            name: {
+              firstName: accountData.firstName,
+              lastName: accountData.lastName
             },
-            body: JSON.stringify({
-              moovAccountId: resource.accountID
-            })
-          })
-        }
-
-        // Handle bank account creation
-        if (resourceType === 'bankAccount') {
-          console.log('🏦 Bank account created:', resource)
-          
-          // Use multiple sources to get the account ID, prioritizing global storage
-          const moovAccountId = window.__moovAccountId || accountIdRef.current || newAccountId || existingAccountId || resource.accountID || resource.account_id
-          console.log('📋 Using Moov Account ID:', moovAccountId)
-          console.log('Account IDs available:', { 
-            globalAccountId: window.__moovAccountId,
-            refAccountId: accountIdRef.current,
-            newAccountId, 
-            existingAccountId, 
-            resourceAccountId: resource.accountID 
-          })
-          
-          if (!moovAccountId) {
-            console.error('❌ No Moov Account ID available! Cannot save bank account.')
-            setError('Unable to save payment method - missing account information. Please try again.')
-            return
-          }
-          
-          // Save the bank account as a payment method
-          try {
-            const response = await fetch('/api/tenant/payment-methods/save-moov-bank', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                moovAccountId,
-                bankAccountId: resource.bankAccountID,
-                last4: resource.lastFourAccountNumber || '****'
-              })
-            })
-
-            const data = await response.json()
-            console.log('📥 Save response:', { status: response.status, data })
-            
-            if (response.ok && data.success) {
-              console.log('✅ Bank account saved successfully!')
-              setBankAccountCreated(true)
-              setShowFinishButton(true)
-              
-              // Store a success message for the payment methods page
-              if (typeof window !== 'undefined' && window.sessionStorage) {
-                window.sessionStorage.setItem('paymentMethodMessage', 
-                  'Bank account added successfully! We\'ve initiated micro-deposits for verification. Please check your bank account in 1-2 business days.')
+            email: accountData.email,
+            phone: accountData.phone ? {
+              number: accountData.phone,
+              countryCode: '1'
+            } : undefined,
+            address: {
+              addressLine1: accountData.addressLine1,
+              addressLine2: accountData.addressLine2 || undefined,
+              city: accountData.city,
+              stateOrProvince: accountData.state,
+              postalCode: accountData.postalCode,
+              country: 'US'
+            },
+            birthDate: {
+              year: parseInt(year),
+              month: parseInt(month),
+              day: parseInt(day)
+            },
+            governmentID: {
+              ssn: {
+                lastFour: accountData.ssnLast4
               }
-              
-              // Close the Moov dialog
-              if (onboardingRef.current) {
-                onboardingRef.current.open = false
-              }
-            } else {
-              console.error('❌ Failed to save bank account:', data)
-              setError('Failed to save bank account. Please try again.')
             }
-          } catch (error) {
-            console.error('🚨 Exception while saving bank account:', error)
-            setError('Error saving bank account. Please try again.')
           }
-        }
-      }
+        },
+        capabilities: ['transfers', 'send-funds', 'collect-funds', 'wallet']
+      })
 
-      // Handle errors
-      onboarding.onError = (error: any) => {
-        console.error('Onboarding error:', error)
-        setError(error.message || 'An error occurred during onboarding')
-      }
+      console.log('Account created:', account)
+      setAccountId(account.accountID)
 
-      // Handle cancellation
-      onboarding.onCancel = () => {
-        // Only handle as cancellation if bank account wasn't created
-        if (!bankAccountCreated) {
-          console.log('Onboarding cancelled by user')
-          router.push('/tenant/payment-methods')
-        } else {
-          console.log('Onboarding dialog closed after success')
-        }
-      }
+      // Save account ID to database
+      await fetch('/api/tenant/moov-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          moovAccountId: account.accountID
+        })
+      })
 
-      // Handle success
-      onboarding.onSuccess = async (account: any) => {
-        console.log('Onboarding successful!', account)
-        
-        // Show success message
-        setError(null)
-        
-        // Redirect after a moment
-        setTimeout(() => {
-          router.push('/tenant/payment-methods')
-        }, 2000)
-      }
+      // Request capabilities
+      await moovInstance.accounts.capabilities.request(account.accountID, [
+        'transfers', 
+        'send-funds', 
+        'collect-funds', 
+        'wallet'
+      ])
+
+      setStep('bank')
+      setLoading(false)
+    } catch (err: any) {
+      console.error('Failed to create account:', err)
+      setError(err.message || 'Failed to create account')
+      setLoading(false)
     }
   }
 
-  const openOnboarding = () => {
-    if (onboardingRef.current) {
-      onboardingRef.current.open = true
+  // Add bank account
+  const addBankAccount = async () => {
+    try {
+      setError(null)
+      setLoading(true)
+
+      if (!accountId) {
+        throw new Error('No account ID found')
+      }
+
+      // Get token with bank account scopes
+      const token = await getMoovToken([
+        `/accounts/${accountId}/bank-accounts.write`,
+        `/accounts/${accountId}/bank-accounts.read`
+      ])
+
+      // Initialize Moov.js if not already initialized
+      // @ts-ignore - Moov is loaded from script
+      const moovInstance = moov || await window.Moov.loadMoov(token)
+      
+      // Link bank account
+      const bankAccount = await moovInstance.bankAccounts.link(accountId, {
+        account: {
+          accountNumber: bankData.accountNumber,
+          routingNumber: bankData.routingNumber,
+          bankAccountType: bankData.accountType,
+          holderName: `${accountData.firstName} ${accountData.lastName}`,
+          holderType: 'individual'
+        }
+      })
+
+      console.log('Bank account linked:', bankAccount)
+      setBankAccountId(bankAccount.bankAccountID)
+
+      // Save bank account to database
+      await fetch('/api/tenant/payment-methods/save-moov-bank', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          moovAccountId: accountId,
+          bankAccountId: bankAccount.bankAccountID,
+          last4: bankData.accountNumber.slice(-4)
+        })
+      })
+
+      // Initiate micro-deposits
+      await moovInstance.bankAccounts.initiateMicroDeposits(accountId, bankAccount.bankAccountID)
+
+      setStep('verify')
+      setLoading(false)
+    } catch (err: any) {
+      console.error('Failed to add bank account:', err)
+      setError(err.message || 'Failed to add bank account')
+      setLoading(false)
     }
   }
 
-  if (loading) {
+  // Verify micro-deposits
+  const verifyMicroDeposits = async () => {
+    try {
+      setError(null)
+      setLoading(true)
+
+      if (!accountId || !bankAccountId) {
+        throw new Error('Missing account or bank account ID')
+      }
+
+      // Get token
+      const token = await getMoovToken([
+        `/accounts/${accountId}/bank-accounts.write`
+      ])
+
+      // Initialize Moov.js
+      // @ts-ignore - Moov is loaded from script
+      const moovInstance = moov || await window.Moov.loadMoov(token)
+
+      // Convert string amounts to cents
+      const amounts = [
+        Math.round(parseFloat(microDeposits.amount1) * 100),
+        Math.round(parseFloat(microDeposits.amount2) * 100)
+      ]
+
+      // Complete micro-deposit verification
+      await moovInstance.bankAccounts.completeMicroDeposits(accountId, bankAccountId, amounts)
+
+      // Update verification status in database
+      await fetch('/api/tenant/payment-methods/verify-micro-deposits', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bankAccountId,
+          amounts
+        })
+      })
+
+      setStep('complete')
+      setLoading(false)
+    } catch (err: any) {
+      console.error('Failed to verify micro-deposits:', err)
+      setError(err.message || 'Failed to verify micro-deposits. Please check the amounts and try again.')
+      setLoading(false)
+    }
+  }
+
+
+  // Render loading state
+  if (loading && !moov) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -348,6 +356,69 @@ export default function MoovOnboardingPage() {
             <p className="text-gray-600 mt-2">Complete your account setup to enable ACH bank transfers</p>
           </div>
 
+          {/* Progress Indicator */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between">
+              <div className={`flex items-center ${step === 'account' ? 'text-blue-600' : 'text-gray-400'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                  step === 'account' ? 'border-blue-600 bg-blue-50' : 
+                  ['identity', 'bank', 'verify', 'complete'].includes(step) ? 'border-green-600 bg-green-50' : 
+                  'border-gray-300'
+                }`}>
+                  {['identity', 'bank', 'verify', 'complete'].includes(step) ? 
+                    <CheckCircle className="w-5 h-5 text-green-600" /> : 
+                    <User className="w-5 h-5" />
+                  }
+                </div>
+                <span className="ml-2 text-sm font-medium">Account Info</span>
+              </div>
+              
+              <div className={`flex-1 h-0.5 mx-4 ${
+                ['identity', 'bank', 'verify', 'complete'].includes(step) ? 'bg-green-600' : 'bg-gray-300'
+              }`} />
+              
+              <div className={`flex items-center ${
+                step === 'bank' ? 'text-blue-600' : 
+                step === 'identity' || step === 'account' ? 'text-gray-400' : 
+                'text-gray-400'
+              }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                  step === 'bank' ? 'border-blue-600 bg-blue-50' : 
+                  ['verify', 'complete'].includes(step) ? 'border-green-600 bg-green-50' : 
+                  'border-gray-300'
+                }`}>
+                  {['verify', 'complete'].includes(step) ? 
+                    <CheckCircle className="w-5 h-5 text-green-600" /> : 
+                    <CreditCard className="w-5 h-5" />
+                  }
+                </div>
+                <span className="ml-2 text-sm font-medium">Bank Account</span>
+              </div>
+              
+              <div className={`flex-1 h-0.5 mx-4 ${
+                ['verify', 'complete'].includes(step) ? 'bg-green-600' : 'bg-gray-300'
+              }`} />
+              
+              <div className={`flex items-center ${
+                step === 'verify' ? 'text-blue-600' : 
+                step === 'complete' ? 'text-gray-400' : 
+                'text-gray-400'
+              }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                  step === 'verify' ? 'border-blue-600 bg-blue-50' : 
+                  step === 'complete' ? 'border-green-600 bg-green-50' : 
+                  'border-gray-300'
+                }`}>
+                  {step === 'complete' ? 
+                    <CheckCircle className="w-5 h-5 text-green-600" /> : 
+                    <Shield className="w-5 h-5" />
+                  }
+                </div>
+                <span className="ml-2 text-sm font-medium">Verify</span>
+              </div>
+            </div>
+          </div>
+
           {error && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
@@ -355,101 +426,312 @@ export default function MoovOnboardingPage() {
             </Alert>
           )}
 
-          {accountCreated && !error && (
-            <Alert className="mb-6 border-green-200 bg-green-50">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">
-                Account created successfully! Continue to add your bank account.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {bankAccountCreated ? (
+          {/* Step 1: Account Creation with Identity Verification */}
+          {step === 'account' && (
             <Card>
               <CardHeader>
-                <CardTitle>Bank Account Added Successfully!</CardTitle>
+                <CardTitle>Create Your Moov Account</CardTitle>
                 <CardDescription>
-                  Your bank account has been added and will need to be verified with micro-deposits.
+                  We need this information to verify your identity and enable ACH payments
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h3 className="font-medium text-green-900 mb-2">Next Steps:</h3>
-                    <ul className="text-sm text-green-800 space-y-2">
-                      <li>1. We'll send two small deposits (less than $1.00) to your bank account</li>
-                      <li>2. These will appear in 1-2 business days (or instantly in test mode)</li>
-                      <li>3. Once you see them, return to verify your account</li>
-                      <li>4. Enter the exact amounts to complete verification</li>
-                    </ul>
+                <form onSubmit={(e) => { e.preventDefault(); createAccount(); }} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="firstName">First Name</Label>
+                      <Input
+                        id="firstName"
+                        value={accountData.firstName}
+                        onChange={(e) => setAccountData({...accountData, firstName: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="lastName">Last Name</Label>
+                      <Input
+                        id="lastName"
+                        value={accountData.lastName}
+                        onChange={(e) => setAccountData({...accountData, lastName: e.target.value})}
+                        required
+                      />
+                    </div>
                   </div>
 
-                  {showFinishButton && (
-                    <Button 
-                      onClick={() => router.push('/tenant/payment-methods')}
-                      className="w-full"
-                      size="lg"
-                    >
-                      Finish Setup
-                    </Button>
-                  )}
-                </div>
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={accountData.email}
+                      onChange={(e) => setAccountData({...accountData, email: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="phone">Phone Number (optional)</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="1234567890"
+                      value={accountData.phone}
+                      onChange={(e) => setAccountData({...accountData, phone: e.target.value})}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="birthDate">Date of Birth</Label>
+                    <Input
+                      id="birthDate"
+                      type="date"
+                      value={accountData.birthDate}
+                      onChange={(e) => setAccountData({...accountData, birthDate: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="ssnLast4">Last 4 Digits of SSN</Label>
+                    <Input
+                      id="ssnLast4"
+                      type="text"
+                      maxLength={4}
+                      pattern="[0-9]{4}"
+                      placeholder="1234"
+                      value={accountData.ssnLast4}
+                      onChange={(e) => setAccountData({...accountData, ssnLast4: e.target.value})}
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Used only for identity verification</p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="addressLine1">Street Address</Label>
+                    <Input
+                      id="addressLine1"
+                      value={accountData.addressLine1}
+                      onChange={(e) => setAccountData({...accountData, addressLine1: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="addressLine2">Apartment, Suite, etc. (optional)</Label>
+                    <Input
+                      id="addressLine2"
+                      value={accountData.addressLine2}
+                      onChange={(e) => setAccountData({...accountData, addressLine2: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        value={accountData.city}
+                        onChange={(e) => setAccountData({...accountData, city: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="state">State</Label>
+                      <Input
+                        id="state"
+                        maxLength={2}
+                        placeholder="CA"
+                        value={accountData.state}
+                        onChange={(e) => setAccountData({...accountData, state: e.target.value.toUpperCase()})}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="postalCode">ZIP Code</Label>
+                    <Input
+                      id="postalCode"
+                      pattern="[0-9]{5}"
+                      placeholder="12345"
+                      value={accountData.postalCode}
+                      onChange={(e) => setAccountData({...accountData, postalCode: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? 'Creating Account...' : 'Continue to Bank Account'}
+                  </Button>
+                </form>
               </CardContent>
             </Card>
-          ) : (
+          )}
+
+          {/* Step 2: Bank Account */}
+          {step === 'bank' && (
             <Card>
               <CardHeader>
-                <CardTitle>Moov Account Setup</CardTitle>
+                <CardTitle>Add Your Bank Account</CardTitle>
                 <CardDescription>
-                  Set up your Moov account to enable ACH payments with no processing fees
+                  Link your bank account for ACH transfers with no processing fees
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <form onSubmit={(e) => { e.preventDefault(); addBankAccount(); }} className="space-y-4">
+                  <div>
+                    <Label htmlFor="routingNumber">Routing Number</Label>
+                    <Input
+                      id="routingNumber"
+                      pattern="[0-9]{9}"
+                      maxLength={9}
+                      placeholder="123456789"
+                      value={bankData.routingNumber}
+                      onChange={(e) => setBankData({...bankData, routingNumber: e.target.value})}
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">9-digit routing number</p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="accountNumber">Account Number</Label>
+                    <Input
+                      id="accountNumber"
+                      type="text"
+                      value={bankData.accountNumber}
+                      onChange={(e) => setBankData({...bankData, accountNumber: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="accountType">Account Type</Label>
+                    <select
+                      id="accountType"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      value={bankData.accountType}
+                      onChange={(e) => setBankData({...bankData, accountType: e.target.value as 'checking' | 'savings'})}
+                    >
+                      <option value="checking">Checking</option>
+                      <option value="savings">Savings</option>
+                    </select>
+                  </div>
+
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="font-medium text-blue-900 mb-2">What you'll need:</h3>
+                    <h4 className="font-medium text-blue-900 mb-2">What happens next?</h4>
                     <ul className="text-sm text-blue-800 space-y-1">
-                      <li>• Your legal name and address</li>
-                      <li>• Date of birth</li>
-                      <li>• Last 4 digits of SSN (for verification)</li>
-                      <li>• Bank account and routing numbers</li>
+                      <li>• We'll send two small deposits to verify your account</li>
+                      <li>• Deposits will appear in 1-2 business days</li>
+                      <li>• You'll enter the amounts to complete verification</li>
                     </ul>
                   </div>
 
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h3 className="font-medium text-green-900 mb-2">Benefits of ACH Payments:</h3>
-                    <ul className="text-sm text-green-800 space-y-1">
-                      <li>• No processing fees - pay exactly your rent amount</li>
-                      <li>• Automatic payments from your bank account</li>
-                      <li>• Secure and reliable transfers</li>
-                      <li>• Typically processes in 1-3 business days</li>
-                    </ul>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? 'Adding Bank Account...' : 'Add Bank Account'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 3: Verify Micro-Deposits */}
+          {step === 'verify' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Verify Your Bank Account</CardTitle>
+                <CardDescription>
+                  Enter the two small deposit amounts we sent to your bank account
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={(e) => { e.preventDefault(); verifyMicroDeposits(); }} className="space-y-4">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <h4 className="font-medium text-yellow-900 mb-2">Check your bank account</h4>
+                    <p className="text-sm text-yellow-800">
+                      We've sent two small deposits (less than $1.00 each) to your bank account. 
+                      They should appear within 1-2 business days with the description "MOOV VERIFICATION".
+                    </p>
                   </div>
 
-                  <Button 
-                    onClick={openOnboarding}
-                    className="w-full"
-                    size="lg"
-                  >
-                    Start Setup
+                  <div>
+                    <Label htmlFor="amount1">First Deposit Amount</Label>
+                    <Input
+                      id="amount1"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max="0.99"
+                      placeholder="0.00"
+                      value={microDeposits.amount1}
+                      onChange={(e) => setMicroDeposits({...microDeposits, amount1: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="amount2">Second Deposit Amount</Label>
+                    <Input
+                      id="amount2"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max="0.99"
+                      placeholder="0.00"
+                      value={microDeposits.amount2}
+                      onChange={(e) => setMicroDeposits({...microDeposits, amount2: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? 'Verifying...' : 'Verify Bank Account'}
                   </Button>
 
                   <p className="text-xs text-gray-500 text-center">
-                    By continuing, you agree to Moov's Terms of Service and Privacy Policy.
-                    Your information is encrypted and securely processed by Moov, a licensed money transmitter.
+                    Haven't received the deposits yet? They typically appear within 1-2 business days.
                   </p>
-                </div>
+                </form>
               </CardContent>
             </Card>
           )}
 
-          {/* Hidden Moov Onboarding element */}
-          {/* @ts-ignore - Moov custom element */}
-          <moov-onboarding
-            ref={onboardingRef}
-            token={token}
-            facilitator-account-id={process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID}
-          />
+          {/* Step 4: Complete */}
+          {step === 'complete' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Setup Complete!</CardTitle>
+                <CardDescription>
+                  Your bank account has been successfully verified and is ready for ACH payments
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <CheckCircle className="w-6 h-6 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-medium text-green-900 mb-2">You're all set!</h3>
+                        <ul className="text-sm text-green-800 space-y-1">
+                          <li>✓ Identity verified</li>
+                          <li>✓ Bank account added</li>
+                          <li>✓ Micro-deposits verified</li>
+                          <li>✓ Ready for ACH payments with no fees</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button 
+                    onClick={() => router.push('/tenant/payment-methods')}
+                    className="w-full"
+                    size="lg"
+                  >
+                    Go to Payment Methods
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>
