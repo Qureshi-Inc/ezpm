@@ -255,10 +255,10 @@ export default function MoovOnboardingPage() {
         throw new Error('Missing account or bank account ID')
       }
 
-      // Convert string amounts to cents
+      // Convert string amounts to numbers (Moov expects dollar amounts, not cents)
       const amounts = [
-        Math.round(parseFloat(microDeposits.amount1) * 100),
-        Math.round(parseFloat(microDeposits.amount2) * 100)
+        Number(microDeposits.amount1),
+        Number(microDeposits.amount2)
       ]
 
       // Complete micro-deposit verification through our backend
@@ -632,7 +632,7 @@ export default function MoovOnboardingPage() {
                       id="amount1"
                       type="number"
                       step="0.01"
-                      min="0.01"
+                      min="0"
                       max="0.99"
                       placeholder="0.00"
                       value={microDeposits.amount1}
@@ -647,7 +647,7 @@ export default function MoovOnboardingPage() {
                       id="amount2"
                       type="number"
                       step="0.01"
-                      min="0.01"
+                      min="0"
                       max="0.99"
                       placeholder="0.00"
                       value={microDeposits.amount2}
