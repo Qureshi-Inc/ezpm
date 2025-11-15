@@ -28,9 +28,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get OAuth token with bank account scopes
-    // Use tenant-specific bank-accounts.write scope for the child account
-    const tokenScope = `/accounts/${accountId}/bank-accounts.write`
+    // Get OAuth token with general facilitator scopes (account-specific scopes cause "invalid scope" errors)
+    // Use the same scope pattern that works for account creation and verification
+    const tokenScope = [
+      '/accounts.write',
+      `/accounts/${facilitatorId}/profile.read`,
+      '/fed.read',
+      '/profile-enrichment.read'
+    ].join(' ')
     console.log('Requesting OAuth token with scope:', tokenScope)
     console.log('Using facilitator ID:', facilitatorId)
     console.log('Environment check:', {
@@ -74,7 +79,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Verify the token has the correct scope
-    const expectedScope = `/accounts/${accountId}/bank-accounts.write`
+    const expectedScope = '/accounts.write'
     const hasCorrectScope = tokenData.scope && tokenData.scope.includes(expectedScope)
     console.log('Token scope verification:', {
       expectedScope,
@@ -163,7 +168,7 @@ export async function POST(request: NextRequest) {
     const bankAccount = await bankResponse.json()
     console.log('Bank account linked successfully:', bankAccount.bankAccountID)
 
-    // Automatically initiate micro-deposits
+    // Automatically initiate micro-deposits using same token and scopes as bank account creation
     try {
       const microDepositResponse = await fetch(
         `https://api.moov.io/accounts/${accountId}/bank-accounts/${bankAccount.bankAccountID}/micro-deposits`,
@@ -173,7 +178,7 @@ export async function POST(request: NextRequest) {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json',
             'x-moov-version': 'v2024.01.00',
-            'X-Account-Id': facilitatorId  // Try with facilitator ID since no header caused 401
+            'X-Account-Id': facilitatorId  // Use facilitator ID for child account operations
           }
         }
       )
