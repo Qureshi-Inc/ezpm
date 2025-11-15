@@ -56,15 +56,15 @@ export default function MoovOnboardingPage() {
         console.log('Starting Moov initialization...')
         
         // Load Moov.js script with correct version
-        const script = document.createElement('script')
+    const script = document.createElement('script')
         script.src = 'https://js.moov.io/v1'
-        script.async = true
+    script.async = true
         
         const scriptLoadPromise = new Promise<void>((resolve, reject) => {
           let checkCount = 0
           const maxChecks = 50 // 5 seconds max wait
           
-          script.onload = () => {
+    script.onload = () => {
             console.log('Moov.js script loaded, checking for Moov object...')
             
             // Wait for Moov to be available with timeout
@@ -96,8 +96,8 @@ export default function MoovOnboardingPage() {
           }
         })
         
-        document.head.appendChild(script)
-        
+    document.head.appendChild(script)
+
         // Add timeout to prevent infinite loading
         await Promise.race([
           scriptLoadPromise,
@@ -188,14 +188,6 @@ export default function MoovOnboardingPage() {
 
       console.log('Creating Moov account...')
 
-      // Get token for account creation
-      const token = await getMoovToken([
-        '/accounts.write',
-        `/accounts/${process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID}/profile.read`,
-        '/fed.read',
-        '/profile-enrichment.read'
-      ])
-
       // Format birth date
       const [year, month, day] = accountData.birthDate.split('-')
 
@@ -236,13 +228,11 @@ export default function MoovOnboardingPage() {
         capabilities: ['transfers', 'send-funds', 'collect-funds', 'wallet']
       }
 
-      // Create account using Moov API directly
-      const response = await fetch('https://api.moov.io/accounts', {
+      // Create account through our backend API
+      const response = await fetch('/api/moov/accounts', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'X-Moov-Account-ID': process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID || ''
         },
         body: JSON.stringify(accountPayload)
       })
@@ -256,32 +246,21 @@ export default function MoovOnboardingPage() {
       console.log('Account created:', account)
       setAccountId(account.accountID)
 
-      // Save account ID to database
-      await fetch('/api/tenant/moov-account', {
-        method: 'POST',
+      // Request capabilities through our backend
+      const capabilitiesResponse = await fetch('/api/moov/accounts', {
+        method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          moovAccountId: account.accountID
-        })
-      })
-
-      // Request capabilities using API
-      const capabilitiesToken = await getMoovToken([
-        `/accounts/${account.accountID}/capabilities.write`
-      ])
-      
-      await fetch(`https://api.moov.io/accounts/${account.accountID}/capabilities`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${capabilitiesToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          accountId: account.accountID,
           capabilities: ['transfers', 'send-funds', 'collect-funds', 'wallet']
         })
       })
+
+      if (!capabilitiesResponse.ok) {
+        console.warn('Failed to request capabilities:', await capabilitiesResponse.text())
+      }
 
       setStep('bank')
       setLoading(false)
@@ -301,14 +280,8 @@ export default function MoovOnboardingPage() {
       if (!accountId) {
         throw new Error('No account ID found')
       }
-
-      // Get token with bank account scopes
-      const token = await getMoovToken([
-        `/accounts/${accountId}/bank-accounts.write`,
-        `/accounts/${accountId}/bank-accounts.read`
-      ])
       
-      // Link bank account using API
+      // Link bank account through our backend
       const bankAccountPayload = {
         account: {
           accountNumber: bankData.accountNumber,
@@ -319,14 +292,15 @@ export default function MoovOnboardingPage() {
         }
       }
 
-      const response = await fetch(`https://api.moov.io/accounts/${accountId}/bank-accounts`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'X-Wait-For': 'payment-method'
-        },
-        body: JSON.stringify(bankAccountPayload)
+      const response = await fetch('/api/moov/bank-accounts', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+          accountId,
+          bankAccountData: bankAccountPayload
+        })
       })
 
       if (!response.ok) {
@@ -340,32 +314,16 @@ export default function MoovOnboardingPage() {
 
       // Save bank account to database
       await fetch('/api/tenant/payment-methods/save-moov-bank', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
           moovAccountId: accountId,
           bankAccountId: bankAccount.bankAccountID,
           last4: bankData.accountNumber.slice(-4)
         })
       })
-
-      // Initiate micro-deposits using API
-      const microDepositResponse = await fetch(
-        `https://api.moov.io/accounts/${accountId}/bank-accounts/${bankAccount.bankAccountID}/micro-deposits`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      )
-
-      if (!microDepositResponse.ok) {
-        console.warn('Failed to initiate micro-deposits, will need to do manually')
-      }
 
       setStep('verify')
       setLoading(false)
@@ -386,29 +344,24 @@ export default function MoovOnboardingPage() {
         throw new Error('Missing account or bank account ID')
       }
 
-      // Get token
-      const token = await getMoovToken([
-        `/accounts/${accountId}/bank-accounts.write`
-      ])
-
       // Convert string amounts to cents
       const amounts = [
         Math.round(parseFloat(microDeposits.amount1) * 100),
         Math.round(parseFloat(microDeposits.amount2) * 100)
       ]
 
-      // Complete micro-deposit verification using API
-      const response = await fetch(
-        `https://api.moov.io/accounts/${accountId}/bank-accounts/${bankAccountId}/micro-deposits`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ amounts })
-        }
-      )
+      // Complete micro-deposit verification through our backend
+      const response = await fetch('/api/moov/bank-accounts', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          accountId,
+          bankAccountId,
+          amounts
+        })
+      })
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -692,7 +645,7 @@ export default function MoovOnboardingPage() {
 
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? 'Creating Account...' : 'Continue to Bank Account'}
-                  </Button>
+                    </Button>
                 </form>
               </CardContent>
             </Card>
@@ -841,12 +794,12 @@ export default function MoovOnboardingPage() {
                       <CheckCircle className="w-6 h-6 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-medium text-green-900 mb-2">You're all set!</h3>
-                        <ul className="text-sm text-green-800 space-y-1">
+                    <ul className="text-sm text-green-800 space-y-1">
                           <li>✓ Identity verified</li>
                           <li>✓ Bank account added</li>
                           <li>✓ Micro-deposits verified</li>
                           <li>✓ Ready for ACH payments with no fees</li>
-                        </ul>
+                    </ul>
                       </div>
                     </div>
                   </div>

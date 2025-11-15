@@ -1,0 +1,177 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
+
+// Link a bank account to a Moov account
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const { accountId, bankAccountData } = await request.json()
+    console.log('Linking bank account for account:', accountId)
+
+    // Get OAuth token with bank account scopes
+    const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(`${process.env.MOOV_PUBLIC_KEY}:${process.env.MOOV_SECRET_KEY}`).toString('base64')}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: `/accounts/${accountId}/bank-accounts.write /accounts/${accountId}/bank-accounts.read`
+      })
+    })
+
+    if (!tokenResponse.ok) {
+      const error = await tokenResponse.text()
+      console.error('Failed to get Moov token:', error)
+      return NextResponse.json(
+        { error: 'Failed to authenticate with Moov' },
+        { status: 500 }
+      )
+    }
+
+    const tokenData = await tokenResponse.json()
+    const token = tokenData.access_token
+
+    // Link bank account with Moov
+    const bankResponse = await fetch(
+      `https://api.moov.io/accounts/${accountId}/bank-accounts`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Wait-For': 'payment-method'
+        },
+        body: JSON.stringify(bankAccountData)
+      }
+    )
+
+    if (!bankResponse.ok) {
+      const errorData = await bankResponse.text()
+      console.error('Failed to link bank account:', errorData)
+      return NextResponse.json(
+        { error: 'Failed to link bank account', details: errorData },
+        { status: bankResponse.status }
+      )
+    }
+
+    const bankAccount = await bankResponse.json()
+    console.log('Bank account linked successfully:', bankAccount.bankAccountID)
+
+    // Automatically initiate micro-deposits
+    try {
+      const microDepositResponse = await fetch(
+        `https://api.moov.io/accounts/${accountId}/bank-accounts/${bankAccount.bankAccountID}/micro-deposits`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        }
+      )
+
+      if (!microDepositResponse.ok) {
+        console.warn('Failed to initiate micro-deposits (will need manual initiation):', await microDepositResponse.text())
+      } else {
+        console.log('Micro-deposits initiated successfully')
+      }
+    } catch (error) {
+      console.warn('Error initiating micro-deposits:', error)
+    }
+
+    return NextResponse.json(bankAccount)
+
+  } catch (error: any) {
+    console.error('Error linking bank account:', error)
+    return NextResponse.json(
+      { error: 'Internal server error', details: error.message },
+      { status: 500 }
+    )
+  }
+}
+
+// Verify micro-deposits
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const { accountId, bankAccountId, amounts } = await request.json()
+    console.log('Verifying micro-deposits for bank account:', bankAccountId)
+
+    // Get OAuth token
+    const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(`${process.env.MOOV_PUBLIC_KEY}:${process.env.MOOV_SECRET_KEY}`).toString('base64')}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: `/accounts/${accountId}/bank-accounts.write`
+      })
+    })
+
+    if (!tokenResponse.ok) {
+      const error = await tokenResponse.text()
+      console.error('Failed to get Moov token:', error)
+      return NextResponse.json(
+        { error: 'Failed to authenticate with Moov' },
+        { status: 500 }
+      )
+    }
+
+    const tokenData = await tokenResponse.json()
+    const token = tokenData.access_token
+
+    // Verify micro-deposits
+    const verifyResponse = await fetch(
+      `https://api.moov.io/accounts/${accountId}/bank-accounts/${bankAccountId}/micro-deposits`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ amounts })
+      }
+    )
+
+    if (!verifyResponse.ok) {
+      const errorData = await verifyResponse.text()
+      console.error('Failed to verify micro-deposits:', errorData)
+      return NextResponse.json(
+        { error: 'Failed to verify micro-deposits', details: errorData },
+        { status: verifyResponse.status }
+      )
+    }
+
+    const result = await verifyResponse.json()
+    console.log('Micro-deposits verified successfully')
+    return NextResponse.json(result)
+
+  } catch (error: any) {
+    console.error('Error verifying micro-deposits:', error)
+    return NextResponse.json(
+      { error: 'Internal server error', details: error.message },
+      { status: 500 }
+    )
+  }
+}
