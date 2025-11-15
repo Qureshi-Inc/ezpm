@@ -153,8 +153,8 @@ export async function PUT(request: NextRequest) {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
-          // Removed X-Account-Id - not needed when URL already has account ID
+          'Accept': 'application/json',
+          'X-Account-Id': process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID || process.env.MOOV_ACCOUNT_ID || ''  // Act as facilitator for child account
         },
         body: JSON.stringify({ capabilities })
       }
