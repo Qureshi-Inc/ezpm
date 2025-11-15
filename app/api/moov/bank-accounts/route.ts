@@ -15,15 +15,25 @@ export async function POST(request: NextRequest) {
     const { accountId, bankAccountData } = await request.json()
     console.log('Linking bank account for account:', accountId)
 
-    if (!process.env.MOOV_PUBLIC_KEY || !process.env.MOOV_SECRET_KEY) {
-      console.error('Missing Moov credentials in environment variables')
+    const facilitatorId = process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID || process.env.MOOV_ACCOUNT_ID
+    
+    if (!process.env.MOOV_PUBLIC_KEY || !process.env.MOOV_SECRET_KEY || !facilitatorId) {
+      console.error('Missing Moov configuration in environment variables')
+      console.error('MOOV_PUBLIC_KEY:', process.env.MOOV_PUBLIC_KEY ? 'Set' : 'Missing')
+      console.error('MOOV_SECRET_KEY:', process.env.MOOV_SECRET_KEY ? 'Set' : 'Missing')  
+      console.error('MOOV_FACILITATOR_ACCOUNT_ID:', facilitatorId || 'Missing')
       return NextResponse.json(
-        { error: 'Server configuration error - missing Moov credentials' },
+        { error: 'Server configuration error - missing Moov credentials or facilitator ID' },
         { status: 500 }
       )
     }
 
-    // Get OAuth token with bank account scopes - use general scope
+    // Get OAuth token with bank account scopes
+    // When acting as facilitator, use the specific account's bank-accounts scope
+    const tokenScope = `/accounts/${accountId}/bank-accounts.write /accounts/${accountId}/bank-accounts.read`
+    console.log('Requesting OAuth token with scope:', tokenScope)
+    console.log('Using facilitator ID:', facilitatorId)
+    
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
       method: 'POST',
       headers: {
@@ -32,7 +42,7 @@ export async function POST(request: NextRequest) {
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        scope: '/accounts.write'  // Use general scope for facilitator to manage child accounts
+        scope: tokenScope
       })
     })
 
@@ -68,16 +78,19 @@ export async function POST(request: NextRequest) {
 
     if (!bankResponse.ok) {
       const errorData = await bankResponse.text()
-      console.error('Failed to link bank account - Moov error:', errorData)
+      console.error('Failed to link bank account - Raw Moov error:', errorData || '(empty response)')
       console.error('Bank response status:', bankResponse.status)
+      console.error('Bank response headers:', Object.fromEntries(bankResponse.headers.entries()))
       console.error('Bank account data:', JSON.stringify(bankAccountData, null, 2))
       console.error('Account ID:', accountId)
-      console.error('Facilitator ID:', process.env.MOOV_FACILITATOR_ACCOUNT_ID)
+      console.error('Facilitator ID:', facilitatorId)
       
       // Try to parse error for more details
       try {
-        const errorJson = JSON.parse(errorData)
-        console.error('Parsed error:', JSON.stringify(errorJson, null, 2))
+        if (errorData && errorData.trim().startsWith('{')) {
+          const errorJson = JSON.parse(errorData)
+          console.error('Parsed error:', JSON.stringify(errorJson, null, 2))
+        }
       } catch (e) {
         // Not JSON, already logged as text
       }
@@ -140,7 +153,10 @@ export async function PUT(request: NextRequest) {
     const { accountId, bankAccountId, amounts } = await request.json()
     console.log('Verifying micro-deposits for bank account:', bankAccountId)
 
-    // Get OAuth token - use general scope
+    // Get OAuth token for micro-deposit verification
+    const tokenScope = `/accounts/${accountId}/bank-accounts.write`
+    console.log('Requesting OAuth token for verification with scope:', tokenScope)
+    
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
       method: 'POST',
       headers: {
@@ -149,7 +165,7 @@ export async function PUT(request: NextRequest) {
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        scope: '/accounts.write'  // Use general scope for facilitator
+        scope: tokenScope
       })
     })
 

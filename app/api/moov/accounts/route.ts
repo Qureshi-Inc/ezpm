@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
         grant_type: 'client_credentials',
         scope: [
           '/accounts.write',
-          `/accounts/${process.env.MOOV_FACILITATOR_ACCOUNT_ID}/profile.read`,
+          `/accounts/${process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID || process.env.MOOV_ACCOUNT_ID}/profile.read`,
           '/fed.read',
           '/profile-enrichment.read'
         ].join(' ')
@@ -115,7 +115,10 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Get OAuth token - use facilitator account scope for managing child accounts
+    // Get OAuth token for capabilities - use specific account scope
+    const tokenScope = `/accounts/${accountId}/capabilities.write`
+    console.log('Requesting OAuth token for capabilities with scope:', tokenScope)
+    
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
       method: 'POST',
       headers: {
@@ -124,7 +127,7 @@ export async function PUT(request: NextRequest) {
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        scope: `/accounts.write`  // Use general accounts.write scope
+        scope: tokenScope
       })
     })
 
