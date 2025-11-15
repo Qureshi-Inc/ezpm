@@ -115,8 +115,14 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Get OAuth token for capabilities - use general scope for facilitator
-    const tokenScope = '/accounts.write'
+    // Get OAuth token for capabilities - use same scopes as bank account creation
+    const facilitatorId = process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID || process.env.MOOV_ACCOUNT_ID
+    const tokenScope = [
+      '/accounts.write',
+      `/accounts/${facilitatorId}/profile.read`,
+      '/fed.read',
+      '/profile-enrichment.read'
+    ].join(' ')
     console.log('Requesting OAuth token for capabilities with scope:', tokenScope)
     
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {

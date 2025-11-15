@@ -162,29 +162,10 @@ export default function MoovOnboardingPage() {
       console.log('Account created:', account)
       setAccountId(account.accountID)
 
-      // Request capabilities required for bank account operations
-      console.log('Requesting capabilities for bank account operations')
-      try {
-        const capResponse = await fetch('/api/moov/accounts', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accountId: account.accountID,
-            capabilities: ['transfers', 'send-funds', 'collect-funds', 'wallet']
-          })
-        })
-
-        if (!capResponse.ok) {
-          const capError = await capResponse.text()
-          console.warn('Capabilities request failed:', capError)
-          // Continue anyway - may still work
-        } else {
-          console.log('Capabilities requested successfully')
-        }
-      } catch (capErr) {
-        console.warn('Error requesting capabilities:', capErr)
-        // Continue anyway - may still work
-      }
+      // Capabilities are automatically requested during account creation
+      // Wait a moment for Moov to process the account and capabilities
+      console.log('Waiting for Moov to process account and capabilities...')
+      await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds
 
       setStep('bank')
       setLoading(false)
