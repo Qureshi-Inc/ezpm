@@ -14,14 +14,11 @@ type OnboardingStep = 'account' | 'identity' | 'bank' | 'verify' | 'complete'
 
 export default function MoovOnboardingPage() {
   const router = useRouter()
-  const [moovReady, setMoovReady] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [showContinueButton, setShowContinueButton] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState<OnboardingStep>('account')
   const [accountId, setAccountId] = useState<string | null>(null)
   const [bankAccountId, setBankAccountId] = useState<string | null>(null)
-  const [capabilities, setCapabilities] = useState<string[]>([])
   
   // Form states
   const [accountData, setAccountData] = useState({
@@ -49,67 +46,12 @@ export default function MoovOnboardingPage() {
     amount2: ''
   })
 
-  // Initialize Moov.js
+  // Initialize page
   useEffect(() => {
-    const initMoov = async () => {
+    const initPage = async () => {
       try {
-        console.log('Starting Moov initialization...')
+        console.log('Initializing Moov onboarding page...')
         
-        // Load Moov.js script with correct version
-    const script = document.createElement('script')
-        script.src = 'https://js.moov.io/v1'
-    script.async = true
-        
-        const scriptLoadPromise = new Promise<void>((resolve, reject) => {
-          let checkCount = 0
-          const maxChecks = 50 // 5 seconds max wait
-          
-    script.onload = () => {
-            console.log('Moov.js script loaded, checking for Moov object...')
-            
-            // Wait for Moov to be available with timeout
-            const checkMoov = () => {
-              checkCount++
-              const moov = (window as any).Moov
-              
-              if (moov && moov.js) {
-                console.log('✅ Moov.js is ready')
-                setMoovReady(true)
-                resolve()
-              } else if (checkCount >= maxChecks) {
-                console.warn('⚠️ Moov.js object not found after timeout, proceeding anyway')
-                setMoovReady(true) // Proceed anyway since we're using direct API calls
-                resolve()
-              } else {
-                console.log(`Waiting for Moov.js... (attempt ${checkCount}/${maxChecks})`)
-                setTimeout(checkMoov, 100)
-              }
-            }
-            checkMoov()
-          }
-          
-          script.onerror = (error) => {
-            console.error('❌ Failed to load Moov.js script:', error)
-            // Don't reject, proceed with direct API calls
-            setMoovReady(true)
-            resolve()
-          }
-        })
-        
-    document.head.appendChild(script)
-
-        // Add timeout to prevent infinite loading
-        await Promise.race([
-          scriptLoadPromise,
-          new Promise<void>((resolve) => {
-            setTimeout(() => {
-              console.warn('⏱️ Script load timeout, proceeding without Moov.js')
-              setMoovReady(true)
-              resolve()
-            }, 10000) // 10 second timeout
-          })
-        ])
-
         console.log('Checking for existing Moov account...')
         
         // Check for existing Moov account
@@ -130,55 +72,18 @@ export default function MoovOnboardingPage() {
           // Continue anyway
         }
 
-        console.log('✅ Moov initialization complete')
+        console.log('✅ Page initialization complete')
         setLoading(false)
       } catch (err) {
-        console.error('❌ Critical error during Moov initialization:', err)
+        console.error('❌ Error during initialization:', err)
         setError('Unable to initialize payment system. Please try again or use a different payment method.')
-        setMoovReady(true) // Set to true to allow manual progression
         setLoading(false)
       }
     }
 
-    initMoov()
+    initPage()
   }, [])
 
-  // Show continue button after delay when loading
-  useEffect(() => {
-    if (loading && !moovReady) {
-      const timer = setTimeout(() => {
-        setShowContinueButton(true)
-      }, 5000) // Show after 5 seconds
-      
-      return () => clearTimeout(timer)
-    }
-  }, [loading, moovReady])
-
-  // Get Moov token
-  const getMoovToken = async (scopes: string[]) => {
-    try {
-      const response = await fetch('/api/moov/onboarding-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          accountId,
-          scopes
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to get Moov token')
-      }
-
-      const data = await response.json()
-      return data.token
-    } catch (err) {
-      console.error('Failed to get token:', err)
-      throw err
-    }
-  }
 
   // Create Moov account with identity verification
   const createAccount = async () => {
@@ -390,37 +295,16 @@ export default function MoovOnboardingPage() {
   }
 
 
-  // Render loading state with timeout fallback
-  if (loading && !moovReady) {
+  // Render loading state
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
           <div>
             <p className="text-lg font-medium">Loading payment system...</p>
-            <p className="text-sm text-gray-500 mt-2">This may take a few seconds...</p>
+            <p className="text-sm text-gray-500 mt-2">Please wait...</p>
           </div>
-          
-          {showContinueButton && (
-            <div className="space-y-2">
-              <p className="text-sm text-amber-600">
-                Taking longer than expected...
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  console.log('Manual continue clicked - bypassing Moov.js load')
-                  setMoovReady(true)
-                  setLoading(false)
-                }}
-              >
-                Continue Without Waiting
-              </Button>
-              <p className="text-xs text-gray-500">
-                The payment system will still work using direct API calls
-              </p>
-            </div>
-          )}
         </div>
       </div>
     )

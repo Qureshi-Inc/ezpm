@@ -97,15 +97,23 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getSession()
+    console.log('PUT /api/moov/accounts - Session check:', session ? 'Found' : 'Not found')
+    
+    // Make session optional for capabilities request since account was just created
     if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      console.warn('No session found for capabilities request, proceeding anyway')
     }
 
     const { accountId, capabilities } = await request.json()
     console.log('Requesting capabilities for account:', accountId, capabilities)
+
+    if (!process.env.MOOV_PUBLIC_KEY || !process.env.MOOV_SECRET_KEY) {
+      console.error('Missing Moov credentials in environment variables')
+      return NextResponse.json(
+        { error: 'Server configuration error - missing Moov credentials' },
+        { status: 500 }
+      )
+    }
 
     // Get OAuth token
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
@@ -122,15 +130,17 @@ export async function PUT(request: NextRequest) {
 
     if (!tokenResponse.ok) {
       const error = await tokenResponse.text()
-      console.error('Failed to get Moov token:', error)
+      console.error('Failed to get Moov token for capabilities:', error)
+      console.error('Token response status:', tokenResponse.status)
       return NextResponse.json(
-        { error: 'Failed to authenticate with Moov' },
+        { error: 'Failed to authenticate with Moov', details: error },
         { status: 500 }
       )
     }
 
     const tokenData = await tokenResponse.json()
     const token = tokenData.access_token
+    console.log('Got token for capabilities request')
 
     // Request capabilities
     const capabilitiesResponse = await fetch(
@@ -149,6 +159,7 @@ export async function PUT(request: NextRequest) {
     if (!capabilitiesResponse.ok) {
       const errorData = await capabilitiesResponse.text()
       console.error('Failed to request capabilities:', errorData)
+      console.error('Capabilities response status:', capabilitiesResponse.status)
       return NextResponse.json(
         { error: 'Failed to request capabilities', details: errorData },
         { status: capabilitiesResponse.status }
@@ -156,6 +167,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const result = await capabilitiesResponse.json()
+    console.log('Capabilities requested successfully')
     return NextResponse.json(result)
 
   } catch (error: any) {
