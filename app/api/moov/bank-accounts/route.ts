@@ -172,8 +172,8 @@ export async function POST(request: NextRequest) {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json',
-            'x-moov-version': 'v2024.01.00'
-            // No X-Account-Id per Moov docs - may be causing 401 for micro-deposits
+            'x-moov-version': 'v2024.01.00',
+            'X-Account-Id': facilitatorId  // Try with facilitator ID since no header caused 401
           }
         }
       )
@@ -220,8 +220,14 @@ export async function PUT(request: NextRequest) {
     console.log('Verifying micro-deposits for bank account:', bankAccountId)
 
     // Get OAuth token for micro-deposit verification
-    // Use tenant-specific bank-accounts.write scope
-    const tokenScope = `/accounts/${accountId}/bank-accounts.write`
+    // Use general scopes like account creation since account-specific scope fails
+    const facilitatorId = process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID || process.env.MOOV_ACCOUNT_ID
+    const tokenScope = [
+      '/accounts.write',
+      `/accounts/${facilitatorId}/profile.read`,
+      '/fed.read',
+      '/profile-enrichment.read'
+    ].join(' ')
     console.log('Requesting OAuth token for verification with scope:', tokenScope)
     
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
@@ -257,8 +263,8 @@ export async function PUT(request: NextRequest) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'x-moov-version': 'v2024.01.00'
-          // No X-Account-Id per Moov docs - using facilitator ID may cause 401
+          'x-moov-version': 'v2024.01.00',
+          'X-Account-Id': facilitatorId || ''  // Act as facilitator since using general scopes
         },
         body: JSON.stringify({ amounts })
       }
