@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Get OAuth token with bank account scopes
-    // When acting as facilitator, use the specific account's bank-accounts scope
-    const tokenScope = `/accounts/${accountId}/bank-accounts.write /accounts/${accountId}/bank-accounts.read`
+    // Use general scope for facilitator to manage child accounts
+    const tokenScope = '/accounts.write'
     console.log('Requesting OAuth token with scope:', tokenScope)
     console.log('Using facilitator ID:', facilitatorId)
     
@@ -154,7 +154,8 @@ export async function PUT(request: NextRequest) {
     console.log('Verifying micro-deposits for bank account:', bankAccountId)
 
     // Get OAuth token for micro-deposit verification
-    const tokenScope = `/accounts/${accountId}/bank-accounts.write`
+    // Use general scope for facilitator to manage child accounts
+    const tokenScope = '/accounts.write'
     console.log('Requesting OAuth token for verification with scope:', tokenScope)
     
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {

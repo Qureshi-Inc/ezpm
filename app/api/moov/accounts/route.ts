@@ -115,8 +115,8 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Get OAuth token for capabilities - use specific account scope
-    const tokenScope = `/accounts/${accountId}/capabilities.write`
+    // Get OAuth token for capabilities - use general scope for facilitator
+    const tokenScope = '/accounts.write'
     console.log('Requesting OAuth token for capabilities with scope:', tokenScope)
     
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
