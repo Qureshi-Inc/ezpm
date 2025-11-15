@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get OAuth token with bank account scopes
+    // Get OAuth token with bank account scopes - use general scope
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
       method: 'POST',
       headers: {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        scope: `/accounts/${accountId}/bank-accounts.write /accounts/${accountId}/bank-accounts.read`
+        scope: '/accounts.write'  // Use general scope for facilitator to manage child accounts
       })
     })
 
@@ -59,7 +59,8 @@ export async function POST(request: NextRequest) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Wait-For': 'payment-method'
+          'X-Wait-For': 'payment-method',
+          'X-Account-Id': process.env.MOOV_FACILITATOR_ACCOUNT_ID || ''  // Act as facilitator
         },
         body: JSON.stringify(bankAccountData)
       }
@@ -88,7 +89,8 @@ export async function POST(request: NextRequest) {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'X-Account-Id': process.env.MOOV_FACILITATOR_ACCOUNT_ID || ''  // Act as facilitator
           }
         }
       )
@@ -127,7 +129,7 @@ export async function PUT(request: NextRequest) {
     const { accountId, bankAccountId, amounts } = await request.json()
     console.log('Verifying micro-deposits for bank account:', bankAccountId)
 
-    // Get OAuth token
+    // Get OAuth token - use general scope
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
       method: 'POST',
       headers: {
@@ -136,7 +138,7 @@ export async function PUT(request: NextRequest) {
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        scope: `/accounts/${accountId}/bank-accounts.write`
+        scope: '/accounts.write'  // Use general scope for facilitator
       })
     })
 
@@ -160,7 +162,8 @@ export async function PUT(request: NextRequest) {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'X-Account-Id': process.env.MOOV_FACILITATOR_ACCOUNT_ID || ''  // Act as facilitator
         },
         body: JSON.stringify({ amounts })
       }

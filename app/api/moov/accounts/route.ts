@@ -115,7 +115,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Get OAuth token
+    // Get OAuth token - use facilitator account scope for managing child accounts
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
       method: 'POST',
       headers: {
@@ -124,7 +124,7 @@ export async function PUT(request: NextRequest) {
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        scope: `/accounts/${accountId}/capabilities.write`
+        scope: `/accounts.write`  // Use general accounts.write scope
       })
     })
 
@@ -150,7 +150,8 @@ export async function PUT(request: NextRequest) {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'X-Account-Id': process.env.MOOV_FACILITATOR_ACCOUNT_ID || ''  // Act as facilitator
         },
         body: JSON.stringify({ capabilities })
       }
