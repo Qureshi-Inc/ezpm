@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     const { data: existingMethod, error: checkError } = await supabase
       .from('payment_methods')
       .select('id')
-      .eq('tenant_id', tenantId)
+      .eq('user_id', session.userId)
       .eq('moov_payment_method_id', bankAccountId)
       .single()
 
@@ -105,16 +105,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Save the new payment method
-    console.log('💾 Saving new payment method for tenant:', tenantId)
+    console.log('💾 Saving new payment method for user:', session.userId)
     const { data: paymentMethod, error: pmError } = await supabase
       .from('payment_methods')
       .insert({
-        tenant_id: tenantId,
-        type: 'moov_ach',
+        user_id: session.userId,
+        type: 'ach',
         moov_payment_method_id: bankAccountId,
         last4: last4 || '****',
         is_default: false,
-        is_verified: false // Bank accounts need verification before use
+        status: 'pending' // Bank accounts need verification before use
       })
       .select()
       .single()
