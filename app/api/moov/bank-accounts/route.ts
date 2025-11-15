@@ -83,11 +83,36 @@ export async function POST(request: NextRequest) {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'Origin': 'https://api.moov.io', // Match account creation pattern
       'X-Wait-For': 'payment-method',
       'X-Account-Id': facilitatorId  // Act as facilitator for child account
     }
     console.log('Bank account request headers:', JSON.stringify(headers, null, 2))
     console.log('Request URL:', `https://api.moov.io/accounts/${accountId}/bank-accounts`)
+
+    // First, check account capabilities to ensure it's ready for bank account linking
+    try {
+      const capabilitiesResponse = await fetch(
+        `https://api.moov.io/accounts/${accountId}/capabilities`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'X-Account-Id': facilitatorId
+          }
+        }
+      )
+
+      if (capabilitiesResponse.ok) {
+        const capabilities = await capabilitiesResponse.json()
+        console.log('Account capabilities before bank account creation:', JSON.stringify(capabilities, null, 2))
+      } else {
+        console.warn('Could not fetch capabilities:', capabilitiesResponse.status)
+      }
+    } catch (capError) {
+      console.warn('Error checking capabilities:', capError)
+    }
 
     // Link bank account with Moov
     const bankResponse = await fetch(
