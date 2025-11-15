@@ -29,13 +29,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Get OAuth token with bank account scopes
-    // Use same scopes as account creation for facilitator to manage child accounts
-    const tokenScope = [
-      '/accounts.write',
-      `/accounts/${facilitatorId}/profile.read`,
-      '/fed.read',
-      '/profile-enrichment.read'
-    ].join(' ')
+    // Use tenant-specific bank-accounts.write scope for the child account
+    const tokenScope = `/accounts/${accountId}/bank-accounts.write`
     console.log('Requesting OAuth token with scope:', tokenScope)
     console.log('Using facilitator ID:', facilitatorId)
     console.log('Environment check:', {
@@ -76,6 +71,15 @@ export async function POST(request: NextRequest) {
       expiresIn: tokenData.expires_in,
       scope: tokenData.scope,
       tokenPrefix: token.substring(0, 20) + '...'
+    })
+
+    // Verify the token has the correct scope
+    const expectedScope = `/accounts/${accountId}/bank-accounts.write`
+    const hasCorrectScope = tokenData.scope && tokenData.scope.includes(expectedScope)
+    console.log('Token scope verification:', {
+      expectedScope,
+      receivedScope: tokenData.scope,
+      hasCorrectScope
     })
 
     // Prepare headers for debugging
@@ -126,31 +130,53 @@ export async function POST(request: NextRequest) {
 
     if (!bankResponse.ok) {
       const errorData = await bankResponse.text()
-      console.error('Failed to link bank account - Raw Moov error:', errorData || '(empty response)')
-      console.error('Bank response status:', bankResponse.status)
-      console.error('Bank response headers:', Object.fromEntries(bankResponse.headers.entries()))
-      console.error('Bank account data:', JSON.stringify(bankAccountData, null, 2))
+      console.error('Failed to link bank account:')
+      console.error('Status:', bankResponse.status)
+      console.error('Body:', errorData || '(empty response)')
+      console.error('Headers:', Object.fromEntries(bankResponse.headers.entries()))
+      console.error('Request data:', JSON.stringify(bankAccountData, null, 2))
       console.error('Account ID:', accountId)
       console.error('Facilitator ID:', facilitatorId)
-      
-      // Try to parse error for more details
+
+      // Parse Moov error response
+      let moovError = null
+      let errorMessage = 'Failed to link bank account'
+
       try {
         if (errorData && errorData.trim().startsWith('{')) {
-          const errorJson = JSON.parse(errorData)
-          console.error('Parsed error:', JSON.stringify(errorJson, null, 2))
+          moovError = JSON.parse(errorData)
+          console.error('Parsed Moov error:', JSON.stringify(moovError, null, 2))
+
+          // Use Moov's error message if available
+          if (moovError.error) {
+            errorMessage = moovError.error
+          } else if (moovError.message) {
+            errorMessage = moovError.message
+          } else if (moovError.description) {
+            errorMessage = moovError.description
+          }
         }
       } catch (e) {
-        // Not JSON, already logged as text
+        console.error('Could not parse error response as JSON')
       }
 
-      // Provide more helpful error message for 403 (likely capabilities issue)
-      let errorMessage = 'Failed to link bank account'
-      if (bankResponse.status === 403) {
-        errorMessage = 'Account capabilities not yet approved. Please wait a few minutes and try again, or contact support if the issue persists.'
+      // Fallback messages for common status codes
+      if (!moovError) {
+        if (bankResponse.status === 401) {
+          errorMessage = 'Authentication failed. Please check your account configuration.'
+        } else if (bankResponse.status === 403) {
+          errorMessage = 'Account capabilities not yet approved. Please wait a few minutes and try again.'
+        } else if (bankResponse.status === 422) {
+          errorMessage = 'Invalid bank account information. Please check your account number and routing number.'
+        }
       }
 
       return NextResponse.json(
-        { error: errorMessage, details: errorData, status: bankResponse.status },
+        {
+          error: errorMessage,
+          moovError: moovError,
+          status: bankResponse.status
+        },
         { status: bankResponse.status }
       )
     }
@@ -208,14 +234,8 @@ export async function PUT(request: NextRequest) {
     console.log('Verifying micro-deposits for bank account:', bankAccountId)
 
     // Get OAuth token for micro-deposit verification
-    // Use same scopes as account creation for facilitator to manage child accounts
-    const facilitatorId = process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID || process.env.MOOV_ACCOUNT_ID
-    const tokenScope = [
-      '/accounts.write',
-      `/accounts/${facilitatorId}/profile.read`,
-      '/fed.read',
-      '/profile-enrichment.read'
-    ].join(' ')
+    // Use tenant-specific bank-accounts.write scope
+    const tokenScope = `/accounts/${accountId}/bank-accounts.write`
     console.log('Requesting OAuth token for verification with scope:', tokenScope)
     
     const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {

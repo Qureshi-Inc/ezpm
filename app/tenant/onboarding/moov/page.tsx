@@ -141,7 +141,7 @@ export default function MoovOnboardingPage() {
             }
           }
         },
-        capabilities: ['transfers', 'send-funds', 'collect-funds', 'wallet']
+        capabilities: ['transfers']
       }
 
       // Create account through our backend API
@@ -215,6 +215,7 @@ export default function MoovOnboardingPage() {
 
       if (!response.ok) {
         const errorData = await response.json()
+        console.error('Bank account creation failed:', errorData)
         throw new Error(errorData.error || 'Failed to add bank account')
       }
 
