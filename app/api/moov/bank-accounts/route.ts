@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Wait-For': 'payment-method',
-          'X-Account-Id': process.env.MOOV_FACILITATOR_ACCOUNT_ID || ''  // Act as facilitator
+          'X-Wait-For': 'payment-method'
+          // Removed X-Account-Id - not needed when URL already has account ID
         },
         body: JSON.stringify(bankAccountData)
       }
@@ -68,9 +68,20 @@ export async function POST(request: NextRequest) {
 
     if (!bankResponse.ok) {
       const errorData = await bankResponse.text()
-      console.error('Failed to link bank account:', errorData)
+      console.error('Failed to link bank account - Moov error:', errorData)
       console.error('Bank response status:', bankResponse.status)
       console.error('Bank account data:', JSON.stringify(bankAccountData, null, 2))
+      console.error('Account ID:', accountId)
+      console.error('Facilitator ID:', process.env.MOOV_FACILITATOR_ACCOUNT_ID)
+      
+      // Try to parse error for more details
+      try {
+        const errorJson = JSON.parse(errorData)
+        console.error('Parsed error:', JSON.stringify(errorJson, null, 2))
+      } catch (e) {
+        // Not JSON, already logged as text
+      }
+      
       return NextResponse.json(
         { error: 'Failed to link bank account', details: errorData },
         { status: bankResponse.status }
@@ -89,8 +100,8 @@ export async function POST(request: NextRequest) {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-Account-Id': process.env.MOOV_FACILITATOR_ACCOUNT_ID || ''  // Act as facilitator
+            'Accept': 'application/json'
+            // Removed X-Account-Id - not needed when URL already has account ID
           }
         }
       )
@@ -162,8 +173,8 @@ export async function PUT(request: NextRequest) {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Account-Id': process.env.MOOV_FACILITATOR_ACCOUNT_ID || ''  // Act as facilitator
+          'Accept': 'application/json'
+          // Removed X-Account-Id - not needed when URL already has account ID
         },
         body: JSON.stringify({ amounts })
       }

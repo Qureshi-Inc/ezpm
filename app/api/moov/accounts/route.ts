@@ -150,8 +150,8 @@ export async function PUT(request: NextRequest) {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Account-Id': process.env.MOOV_FACILITATOR_ACCOUNT_ID || ''  // Act as facilitator
+          'Accept': 'application/json'
+          // Removed X-Account-Id - not needed when URL already has account ID
         },
         body: JSON.stringify({ capabilities })
       }
