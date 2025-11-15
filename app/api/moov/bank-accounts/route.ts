@@ -178,8 +178,15 @@ export async function POST(request: NextRequest) {
         }
       )
 
+      const microDepositResponseText = await microDepositResponse.text()
+      console.log('Micro-deposit initiation response:', {
+        status: microDepositResponse.status,
+        statusText: microDepositResponse.statusText,
+        body: microDepositResponseText
+      })
+
       if (!microDepositResponse.ok) {
-        console.warn('Failed to initiate micro-deposits (will need manual initiation):', await microDepositResponse.text())
+        console.warn('Failed to initiate micro-deposits (will need manual initiation)')
       } else {
         console.log('Micro-deposits initiated successfully')
       }
@@ -258,7 +265,12 @@ export async function PUT(request: NextRequest) {
 
     if (!verifyResponse.ok) {
       const errorData = await verifyResponse.text()
-      console.error('Failed to verify micro-deposits:', errorData)
+      console.error('Moov verification failed:')
+      console.error('Status:', verifyResponse.status)
+      console.error('StatusText:', verifyResponse.statusText)
+      console.error('Body:', errorData)
+      console.error('Amounts sent:', amounts)
+
       return NextResponse.json(
         { error: 'Failed to verify micro-deposits', details: errorData },
         { status: verifyResponse.status }

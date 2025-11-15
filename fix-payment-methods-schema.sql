@@ -50,6 +50,26 @@ BEGIN
     ) THEN
         ALTER TABLE payment_methods ADD COLUMN bank_name text;
     END IF;
+
+    -- Add provider if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'payment_methods'
+        AND column_name = 'provider'
+        AND table_schema = 'public'
+    ) THEN
+        ALTER TABLE payment_methods ADD COLUMN provider text;
+    END IF;
+
+    -- Add provider_payment_method_id if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'payment_methods'
+        AND column_name = 'provider_payment_method_id'
+        AND table_schema = 'public'
+    ) THEN
+        ALTER TABLE payment_methods ADD COLUMN provider_payment_method_id text;
+    END IF;
 END $$;
 
 -- Show final schema

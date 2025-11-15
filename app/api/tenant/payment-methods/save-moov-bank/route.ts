@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       .from('payment_methods')
       .select('id')
       .eq('user_id', session.userId)
-      .eq('moov_payment_method_id', bankAccountId)
+      .or(`provider_payment_method_id.eq.${bankAccountId},moov_payment_method_id.eq.${bankAccountId}`)
       .single()
 
     if (checkError && checkError.code !== 'PGRST116') {
@@ -111,7 +111,9 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: session.userId,
         type: 'ach',
-        moov_payment_method_id: bankAccountId,
+        provider: 'moov',
+        provider_payment_method_id: bankAccountId,
+        moov_payment_method_id: bankAccountId, // Keep for backwards compatibility
         last4: last4 || '****',
         is_default: false,
         status: 'pending' // Bank accounts need verification before use
