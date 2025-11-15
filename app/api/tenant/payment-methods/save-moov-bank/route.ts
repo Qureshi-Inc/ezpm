@@ -106,13 +106,26 @@ export async function POST(request: NextRequest) {
 
     if (!tenantId) {
       console.error('❌ Critical: Could not determine tenant ID for saving payment method.')
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
         error: 'Could not link bank account to a tenant. Please ensure you are logged in.'
       }, { status: 500 })
     }
 
     console.log('📊 Final tenant state:', { tenantId, tenantMoovAccountId })
+
+    // Additional validation before payment method insert
+    if (!session.userId || !tenantId || !bankAccountId) {
+      console.error('❌ Missing required fields for payment method insert:', {
+        userId: session.userId,
+        tenantId: tenantId,
+        bankAccountId: bankAccountId
+      })
+      return NextResponse.json({
+        error: 'Missing required information for saving payment method',
+        details: 'User ID, tenant ID, or bank account ID is missing'
+      }, { status: 400 })
+    }
 
     // Check if this payment method already exists
     console.log('🔍 Checking for existing payment method...')
@@ -137,18 +150,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Save the new payment method
-    console.log('💾 Saving new payment method for user:', session.userId)
+    console.log('💾 Saving new payment method:', {
+      userId: session.userId,
+      tenantId: tenantId,
+      bankAccountId: bankAccountId,
+      last4: last4 || '****'
+    })
+
     const { data: paymentMethod, error: pmError } = await supabase
       .from('payment_methods')
       .insert({
-        user_id: session.userId,
-        type: 'ach',
-        provider: 'moov',
-        provider_payment_method_id: bankAccountId,
-        moov_payment_method_id: bankAccountId, // Keep for backwards compatibility
-        last4: last4 || '****',
-        is_default: false,
-        status: 'pending' // Bank accounts need verification before use
+        user_id: session.userId,                    // checked against public.users
+        tenant_id: tenantId,                        // multi-tenant link
+
+        type: 'ach',                               // bank account type
+        provider: 'moov',                          // payment provider
+        provider_payment_method_id: bankAccountId, // provider's ID
+
+        moov_payment_method_id: bankAccountId,     // backwards compatibility
+        last4: last4 || '****',                   // last 4 digits
+        last_four: last4 || '****',               // legacy field if exists
+        bank_name: 'Test Bank',                    // could be real name from Moov
+
+        is_default: true,                          // first bank account is default
+        is_active: true,                           // active by default
+        is_verified: false,                        // needs micro-deposit verification
+        status: 'pending'                          // pending verification
       })
       .select()
       .single()
