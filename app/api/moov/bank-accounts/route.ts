@@ -142,9 +142,15 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         // Not JSON, already logged as text
       }
-      
+
+      // Provide more helpful error message for 403 (likely capabilities issue)
+      let errorMessage = 'Failed to link bank account'
+      if (bankResponse.status === 403) {
+        errorMessage = 'Account capabilities not yet approved. Please wait a few minutes and try again, or contact support if the issue persists.'
+      }
+
       return NextResponse.json(
-        { error: 'Failed to link bank account', details: errorData },
+        { error: errorMessage, details: errorData, status: bankResponse.status },
         { status: bankResponse.status }
       )
     }
