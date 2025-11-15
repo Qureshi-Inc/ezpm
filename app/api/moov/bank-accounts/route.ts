@@ -171,9 +171,9 @@ export async function POST(request: NextRequest) {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'X-Account-Id': facilitatorId  // Act as facilitator for child account
+            'x-moov-version': 'v2024.01.00'
+            // No X-Account-Id per Moov docs - may be causing 401 for micro-deposits
           }
         }
       )
@@ -257,7 +257,8 @@ export async function PUT(request: NextRequest) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Account-Id': process.env.NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID || process.env.MOOV_ACCOUNT_ID || ''  // Act as facilitator for child account
+          'x-moov-version': 'v2024.01.00'
+          // No X-Account-Id per Moov docs - using facilitator ID may cause 401
         },
         body: JSON.stringify({ amounts })
       }

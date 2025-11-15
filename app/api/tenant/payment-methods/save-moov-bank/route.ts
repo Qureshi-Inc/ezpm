@@ -30,7 +30,39 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('👤 Session user ID:', session.userId)
-    
+
+    // First verify the user exists in the users table
+    const { data: userCheck, error: userCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', session.userId)
+      .single()
+
+    if (userCheckError || !userCheck) {
+      console.error('❌ User not found in users table:', {
+        userId: session.userId,
+        error: userCheckError
+      })
+
+      // Debug: Show what users do exist (first few for debugging)
+      const { data: allUsers, error: allUsersError } = await supabase
+        .from('users')
+        .select('id, email')
+        .limit(5)
+
+      console.log('🔍 Debug - First 5 users in database:', {
+        users: allUsers,
+        error: allUsersError
+      })
+
+      return NextResponse.json({
+        error: 'User not found in database. Please contact support.',
+        details: 'Session user ID does not exist in users table'
+      }, { status: 400 })
+    }
+
+    console.log('✅ User exists in users table')
+
     // Strategy: Find tenant by session first, then update moov_account_id if needed
     let tenantId: string | null = null
     let tenantMoovAccountId: string | null = null
