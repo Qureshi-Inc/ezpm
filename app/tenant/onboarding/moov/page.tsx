@@ -62,6 +62,17 @@ export default function MoovOnboardingPage() {
             if (tenantData.moovAccountId) {
               console.log('Found existing Moov account:', tenantData.moovAccountId)
               setAccountId(tenantData.moovAccountId)
+              
+              // Populate account data with tenant info for bank account holder name
+              if (tenantData.firstName && tenantData.lastName) {
+                setAccountData(prev => ({
+                  ...prev,
+                  firstName: tenantData.firstName,
+                  lastName: tenantData.lastName,
+                  email: tenantData.email || prev.email
+                }))
+              }
+              
               setStep('bank') // Skip to bank step if account exists
             } else {
               console.log('No existing Moov account found')
@@ -175,12 +186,17 @@ export default function MoovOnboardingPage() {
       }
       
       // Link bank account through our backend
+      // Use account holder name or fallback to "Account Holder" if not available
+      const holderName = accountData.firstName && accountData.lastName
+        ? `${accountData.firstName} ${accountData.lastName}`.trim()
+        : 'Account Holder'
+        
       const bankAccountPayload = {
         account: {
           accountNumber: bankData.accountNumber,
           routingNumber: bankData.routingNumber,
           bankAccountType: bankData.accountType,
-          holderName: `${accountData.firstName} ${accountData.lastName}`,
+          holderName: holderName,
           holderType: 'individual'
         }
       }
