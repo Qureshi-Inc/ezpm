@@ -40,7 +40,9 @@ export default function MoovDropsPage() {
           console.log('No Moov account ID found, redirecting to setup...')
           setRedirecting(true)
           setLoading(false) // Stop loading before redirect
-          router.push('/tenant/onboarding/moov')
+
+          // Use window.location for immediate redirect
+          window.location.href = '/tenant/onboarding/moov'
           return
         }
 
