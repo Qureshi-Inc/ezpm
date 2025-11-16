@@ -63,13 +63,16 @@ export default function MoovPaymentMethodsDrop({ moovAccountId }: PaymentMethods
       setError(null)
     }
 
-    // Optional: Configure Plaid for instant verification
-    el.plaid = {
-      env: 'sandbox', // Change to undefined for production
-      onSuccess: (...args: any[]) => console.log('Plaid success', ...args),
-      onExit: (...args: any[]) => console.log('Plaid exit', ...args),
-      onEvent: (...args: any[]) => console.log('Plaid event', ...args),
-    }
+    // Optional: Configure Plaid for instant verification (requires additional setup)
+    // For now, disable Plaid to avoid configuration errors
+    // el.plaid = {
+    //   env: 'sandbox',
+    //   accountID: moovAccountId,
+    //   redirectURL: window.location.origin + '/tenant/payment-methods',
+    //   onSuccess: (...args: any[]) => console.log('Plaid success', ...args),
+    //   onExit: (...args: any[]) => console.log('Plaid exit', ...args),
+    //   onEvent: (...args: any[]) => console.log('Plaid event', ...args),
+    // }
 
   }, [token, moovAccountId])
 
