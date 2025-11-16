@@ -1,26 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase'
 
 export async function GET(request: NextRequest) {
   try {
-    // Session validation using cookies (same pattern as save endpoint)
-    const cookie = request.headers.get('cookie')
-    const sessionCookie = cookie?.split(';')
-      .find(c => c.trim().startsWith('session='))
-      ?.split('=')[1]
+    const session = await getSession()
 
-    if (!sessionCookie) {
-      return NextResponse.json({ error: 'No session found' }, { status: 401 })
-    }
-
-    let session
-    try {
-      session = JSON.parse(decodeURIComponent(sessionCookie))
-    } catch (err) {
-      return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
-    }
-
-    if (!session.userId || session.role !== 'tenant') {
+    if (!session || session.role !== 'tenant') {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -61,24 +47,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Session validation using cookies (same pattern as save endpoint)
-    const cookie = request.headers.get('cookie')
-    const sessionCookie = cookie?.split(';')
-      .find(c => c.trim().startsWith('session='))
-      ?.split('=')[1]
+    const session = await getSession()
 
-    if (!sessionCookie) {
-      return NextResponse.json({ error: 'No session found' }, { status: 401 })
-    }
-
-    let session
-    try {
-      session = JSON.parse(decodeURIComponent(sessionCookie))
-    } catch (err) {
-      return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
-    }
-
-    if (!session.userId || session.role !== 'tenant') {
+    if (!session || session.role !== 'tenant') {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

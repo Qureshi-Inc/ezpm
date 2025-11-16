@@ -21,23 +21,14 @@ export default function MoovDropsPage() {
       try {
         console.log('Initializing Moov Drops...')
 
-        // Check for existing Moov account or create one
-        const tenantResponse = await fetch('/api/tenant/moov-account')
-        let moovAccountId = null
-
-        if (tenantResponse.ok) {
-          const tenantData = await tenantResponse.json()
-          moovAccountId = tenantData.moovAccountId
-        }
-
-        // If no account exists, we need to create one first
-        if (!moovAccountId) {
-          setError('You need to complete account setup first. Redirecting to account creation...')
-          setTimeout(() => {
-            router.push('/tenant/onboarding/moov')
-          }, 2000)
-          return
-        }
+        // For now, bypass the account check and redirect to manual setup
+        // This ensures users can complete setup via the working manual flow
+        console.log('Redirecting to manual Moov setup...')
+        setError('Redirecting to account setup...')
+        setTimeout(() => {
+          router.push('/tenant/onboarding/moov')
+        }, 1000)
+        return
 
         console.log('Using Moov account:', moovAccountId)
         setAccountId(moovAccountId)
