@@ -8,28 +8,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'moov-payment-methods': React.DetailedHTMLProps<React.HTMLAttributes<any>, any> & {
-        token?: string
-        accountID?: string
-        paymentMethodTypes?: string[]
-        open?: boolean
-        onSuccess?: (data: any) => void
-        onError?: (data: any) => void
-        onCancel?: () => void
-        plaid?: {
-          env?: string
-          onSuccess?: (...args: any[]) => void
-          onExit?: (...args: any[]) => void
-          onEvent?: (...args: any[]) => void
-        }
-      }
-    }
-  }
-}
-
 export default function MoovDropsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -247,6 +225,7 @@ export default function MoovDropsPage() {
             </CardHeader>
             <CardContent>
               {/* Moov Payment Methods Drop */}
+              {/* @ts-ignore - Custom Moov.js element */}
               <moov-payment-methods
                 id="moov-payment-methods"
                 ref={dropRef}
