@@ -13,10 +13,16 @@ export default function MoovDropsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [accountId, setAccountId] = useState<string | null>(null)
+  const [redirecting, setRedirecting] = useState(false)
 
   useEffect(() => {
     const initMoovDrops = async () => {
       try {
+        if (redirecting) {
+          console.log('Already redirecting, skipping...')
+          return
+        }
+
         console.log('Initializing Moov Drops page...')
 
         // Check if user has an existing Moov account
@@ -28,8 +34,12 @@ export default function MoovDropsPage() {
         }
 
         const data = await response.json()
+        console.log('Moov account response data:', data)
+
         if (!data.success || !data.moovAccountId) {
           console.log('No Moov account ID found, redirecting to setup...')
+          setRedirecting(true)
+          setLoading(false) // Stop loading before redirect
           router.push('/tenant/onboarding/moov')
           return
         }
@@ -46,7 +56,7 @@ export default function MoovDropsPage() {
     }
 
     initMoovDrops()
-  }, [router])
+  }, [router, redirecting])
 
   if (loading) {
     return (
