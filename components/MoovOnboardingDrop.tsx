@@ -45,69 +45,64 @@ export default function MoovOnboardingDrop({
           throw new Error('Failed to get initial onboarding token')
         }
 
-        // Wait for the onboarding Drop element to be available in the DOM
-        const el = await new Promise<any>((resolve, reject) => {
-          const checkElement = () => {
-            const element = dropRef.current
-            if (element) {
-              resolve(element)
-            } else {
-              // Check again after a short delay
-              setTimeout(checkElement, 100)
+        // Configure the onboarding Drop
+        setTimeout(() => {
+          const el = dropRef.current
+          if (!el) {
+            setError('Onboarding Drop element not found')
+            setLoading(false)
+            return
+          }
+
+          console.log('Configuring onboarding Drop')
+
+          el.token = initialToken
+          el.facilitatorAccountID = facilitatorAccountId
+          el.capabilities = ['send-funds', 'collect-funds'] // For rent payments
+          el.paymentMethodTypes = ['bankAccount'] // Focus on ACH
+          el.showLogo = true
+
+          // Handle resource creation (account, payment methods, etc.)
+          el.onResourceCreated = async ({ resourceType, resource }: any) => {
+            console.log('Resource created:', resourceType, resource)
+
+            if (resourceType === 'account') {
+              const newAccountId = resource.accountID
+              console.log('New account created:', newAccountId)
+              setCurrentAccountId(newAccountId)
+
+              // Get new token with account-specific scopes
+              const accountToken = await getOnboardingToken('account', newAccountId)
+              if (accountToken) {
+                el.token = accountToken
+                console.log('Updated token with account scopes')
+              }
             }
           }
-          checkElement()
 
-          // Timeout after 5 seconds
-          setTimeout(() => reject(new Error('Onboarding Drop element not found after 5 seconds')), 5000)
-        })
-
-        el.token = initialToken
-        el.facilitatorAccountID = facilitatorAccountId
-        el.capabilities = ['send-funds', 'collect-funds'] // For rent payments
-        el.paymentMethodTypes = ['bankAccount'] // Focus on ACH
-        el.showLogo = true
-
-        // Handle resource creation (account, payment methods, etc.)
-        el.onResourceCreated = async ({ resourceType, resource }: any) => {
-          console.log('Resource created:', resourceType, resource)
-
-          if (resourceType === 'account') {
-            const newAccountId = resource.accountID
-            console.log('New account created:', newAccountId)
-            setCurrentAccountId(newAccountId)
-
-            // Get new token with account-specific scopes
-            const accountToken = await getOnboardingToken('account', newAccountId)
-            if (accountToken) {
-              el.token = accountToken
-              console.log('Updated token with account scopes')
+          el.onSuccess = (result: any) => {
+            console.log('Onboarding completed successfully:', result)
+            if (currentAccountId) {
+              onSuccess(currentAccountId)
             }
           }
-        }
 
-        el.onSuccess = (result: any) => {
-          console.log('Onboarding completed successfully:', result)
-          if (currentAccountId) {
-            onSuccess(currentAccountId)
+          el.onError = ({ errorType, error: dropError }: any) => {
+            console.error('Onboarding Drop error:', errorType, dropError)
+            const errorMessage = `Onboarding failed: ${dropError?.message || errorType}`
+            setError(errorMessage)
+            onError?.(errorMessage)
           }
-        }
 
-        el.onError = ({ errorType, error: dropError }: any) => {
-          console.error('Onboarding Drop error:', errorType, dropError)
-          const errorMessage = `Onboarding failed: ${dropError?.message || errorType}`
-          setError(errorMessage)
-          onError?.(errorMessage)
-        }
+          el.onCancel = () => {
+            console.log('User canceled onboarding')
+            setError(null)
+          }
 
-        el.onCancel = () => {
-          console.log('User canceled onboarding')
-          setError(null)
-        }
-
-        // Open the onboarding dialog
-        el.open = true
-        setLoading(false)
+          // This is critical - it actually opens/shows the Drop
+          el.open = true
+          setLoading(false)
+        }, 500) // Give a small delay for the element to be ready
 
       } catch (err: any) {
         console.error('Error initializing onboarding:', err)
