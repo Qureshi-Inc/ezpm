@@ -6,7 +6,12 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getSession()
 
+    console.log('Moov account GET request:', {
+      session: session ? { userId: session.userId, role: session.role } : null
+    })
+
     if (!session || session.role !== 'tenant') {
+      console.log('Unauthorized access attempt:', { session })
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -22,7 +27,16 @@ export async function GET(request: NextRequest) {
       .eq('user_id', session.userId)
       .single()
 
+    console.log('Tenant lookup result:', {
+      userId: session.userId,
+      tenant,
+      tenantError,
+      hasError: !!tenantError,
+      hasTenant: !!tenant
+    })
+
     if (tenantError || !tenant) {
+      console.log('Tenant not found:', { tenantError, tenant })
       return NextResponse.json(
         { error: 'Tenant not found' },
         { status: 404 }
