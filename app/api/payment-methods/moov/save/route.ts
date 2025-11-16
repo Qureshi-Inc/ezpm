@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServerSupabaseClient } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
     console.log('Saving Moov Drop payment method:', JSON.stringify(paymentMethod, null, 2))
 
     // Get tenant info for database record
+    const supabase = createServerSupabaseClient()
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('id')
