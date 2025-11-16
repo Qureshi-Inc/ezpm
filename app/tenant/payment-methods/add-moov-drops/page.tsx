@@ -37,11 +37,22 @@ export default function MoovDropsPage() {
       const { token } = await tokenResponse.json()
       console.log('Got payment methods token')
 
-      // Configure the Moov Drop
-      const dropElement = dropRef.current
-      if (!dropElement) {
-        throw new Error('Drop element not found')
-      }
+      // Wait for the Drop element to be available in the DOM
+      const dropElement = await new Promise<any>((resolve, reject) => {
+        const checkElement = () => {
+          const element = dropRef.current
+          if (element) {
+            resolve(element)
+          } else {
+            // Check again after a short delay
+            setTimeout(checkElement, 100)
+          }
+        }
+        checkElement()
+
+        // Timeout after 5 seconds
+        setTimeout(() => reject(new Error('Drop element not found after 5 seconds')), 5000)
+      })
 
       dropElement.token = token
       dropElement.accountID = moovAccountId
