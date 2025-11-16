@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,31 +16,7 @@ export default function MoovDropsPage() {
   const [accountId, setAccountId] = useState<string | null>(null)
   const dropRef = useRef<any>(null)
 
-  useEffect(() => {
-    const initMoovDrops = async () => {
-      try {
-        console.log('Initializing Moov Drops...')
-
-        // For now, bypass the account check and redirect to manual setup
-        // This ensures users can complete setup via the working manual flow
-        console.log('Redirecting to manual Moov setup...')
-        setError('Redirecting to account setup...')
-        setTimeout(() => {
-          router.push('/tenant/onboarding/moov')
-        }, 1000)
-        return
-
-      } catch (err) {
-        console.error('Error initializing Moov Drops:', err)
-        setError('Failed to initialize payment system. Please try again.')
-        setLoading(false)
-      }
-    }
-
-    initMoovDrops()
-  }, [router])
-
-  const setupMoovDrop = async (moovAccountId: string) => {
+  const setupMoovDrop = useCallback(async (moovAccountId: string) => {
     try {
       console.log('Setting up Moov Drop for account:', moovAccountId)
 
@@ -135,7 +111,43 @@ export default function MoovDropsPage() {
       setError(err.message || 'Failed to setup payment method widget')
       setLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    const initMoovDrops = async () => {
+      try {
+        console.log('Initializing Moov Drops...')
+
+        // Check if user has an existing Moov account
+        const response = await fetch('/api/tenant/moov-account')
+        if (!response.ok) {
+          console.log('No existing Moov account, redirecting to setup...')
+          router.push('/tenant/onboarding/moov')
+          return
+        }
+
+        const data = await response.json()
+        if (!data.success || !data.moovAccountId) {
+          console.log('No Moov account ID found, redirecting to setup...')
+          router.push('/tenant/onboarding/moov')
+          return
+        }
+
+        console.log('Found existing Moov account:', data.moovAccountId)
+        setAccountId(data.moovAccountId)
+
+        // Setup the Moov Drop for payment methods
+        await setupMoovDrop(data.moovAccountId)
+
+      } catch (err) {
+        console.error('Error initializing Moov Drops:', err)
+        setError('Failed to initialize payment system. Please try again.')
+        setLoading(false)
+      }
+    }
+
+    initMoovDrops()
+  }, [router, setupMoovDrop])
 
   if (loading) {
     return (
