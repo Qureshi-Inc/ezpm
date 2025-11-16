@@ -129,6 +129,22 @@ export default function MoovDropsPage() {
       try {
         console.log('Initializing Moov Drops...')
 
+        // Wait for Moov.js to load and register custom elements
+        await new Promise<void>((resolve, reject) => {
+          const checkMoov = () => {
+            if (typeof window !== 'undefined' && window.customElements && window.customElements.get('moov-payment-methods')) {
+              console.log('Moov.js loaded and payment-methods element registered')
+              resolve()
+            } else {
+              setTimeout(checkMoov, 100)
+            }
+          }
+          checkMoov()
+
+          // Timeout after 10 seconds
+          setTimeout(() => reject(new Error('Moov.js failed to load')), 10000)
+        })
+
         // Check if user has an existing Moov account
         const response = await fetch('/api/tenant/moov-account')
         if (!response.ok) {
