@@ -40,8 +40,8 @@ export default function AddPaymentMethodPage() {
         'Direct bank transfer',
         'Processes in 1-3 days'
       ],
-      action: () => router.push('/tenant/onboarding/moov'),
-      buttonText: 'Set Up ACH Payments (No Fees)',
+      action: () => router.push('/tenant/payment-methods/add-moov-drops'),
+      buttonText: 'Add Bank Account (No Fees)',
       buttonVariant: 'default' as const,
       recommended: true
     }

@@ -325,6 +325,17 @@ export default function MoovOnboardingPage() {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Payment Methods
             </Link>
+
+            <Alert className="mb-4 border-blue-200 bg-blue-50">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800">
+                <strong>New:</strong> Try our{' '}
+                <Link href="/tenant/payment-methods/add-moov-drops" className="underline font-medium">
+                  simplified bank account setup
+                </Link>
+                {' '}for a faster experience, or continue with the manual process below.
+              </AlertDescription>
+            </Alert>
             <h1 className="text-3xl font-bold text-gray-900">Set Up ACH Payments</h1>
             <p className="text-gray-600 mt-2">Complete your account setup to enable ACH bank transfers</p>
           </div>
