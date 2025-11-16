@@ -15,5 +15,24 @@ declare namespace JSX {
         onEvent?: (...args: any[]) => void
       }
     }
+
+    'moov-onboarding': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+      ref?: React.Ref<any>
+      token?: string
+      facilitatorAccountID?: string
+      accountData?: any
+      capabilities?: string[]
+      open?: boolean
+      onResourceCreated?: (data: { resourceType: string; resource: any }) => void
+      onSuccess?: (result: any) => void
+      onError?: (error: any) => void
+      onCancel?: () => void
+      plaid?: any
+      onPlaidRedirect?: (data: any) => void
+      paymentMethodTypes?: string[]
+      allowedCardBrands?: string[]
+      microDeposits?: boolean
+      showLogo?: boolean
+    }
   }
 }
