@@ -23,17 +23,44 @@ export default function MoovOnboardingDrop({
       try {
         console.log('Initializing Moov Onboarding Drop...')
 
+        // Wait for Moov.js to load and register custom elements
+        await new Promise<void>((resolve, reject) => {
+          const checkMoov = () => {
+            if (typeof window !== 'undefined' && window.customElements && window.customElements.get('moov-onboarding')) {
+              console.log('Moov.js loaded and onboarding element registered')
+              resolve()
+            } else {
+              setTimeout(checkMoov, 100)
+            }
+          }
+          checkMoov()
+
+          // Timeout after 10 seconds
+          setTimeout(() => reject(new Error('Moov.js failed to load')), 10000)
+        })
+
         // Get initial token with onboarding scopes
         const initialToken = await getOnboardingToken('initial')
         if (!initialToken) {
           throw new Error('Failed to get initial onboarding token')
         }
 
-        // Configure the onboarding Drop
-        const el = dropRef.current
-        if (!el) {
-          throw new Error('Onboarding Drop element not found')
-        }
+        // Wait for the onboarding Drop element to be available in the DOM
+        const el = await new Promise<any>((resolve, reject) => {
+          const checkElement = () => {
+            const element = dropRef.current
+            if (element) {
+              resolve(element)
+            } else {
+              // Check again after a short delay
+              setTimeout(checkElement, 100)
+            }
+          }
+          checkElement()
+
+          // Timeout after 5 seconds
+          setTimeout(() => reject(new Error('Onboarding Drop element not found after 5 seconds')), 5000)
+        })
 
         el.token = initialToken
         el.facilitatorAccountID = facilitatorAccountId
