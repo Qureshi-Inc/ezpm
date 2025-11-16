@@ -48,6 +48,9 @@ export default function MoovPaymentMethodsDrop({ moovAccountId }: PaymentMethods
     el.accountID = moovAccountId
     el.paymentMethodTypes = ['bankAccount'] // Focus on ACH for now
 
+    // This is critical - it actually opens/shows the Drop
+    el.open = true
+
     el.onSuccess = (result: any) => {
       console.log('Moov Drop onSuccess:', result)
       // TODO: Save to database via /api/payment-methods/moov/save
