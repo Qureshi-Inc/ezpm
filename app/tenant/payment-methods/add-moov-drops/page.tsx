@@ -30,33 +30,6 @@ export default function MoovDropsPage() {
         }, 1000)
         return
 
-        console.log('Using Moov account:', moovAccountId)
-        setAccountId(moovAccountId)
-
-        // Wait for Moov.js to load
-        if (typeof window !== 'undefined') {
-          let attempts = 0
-          const maxAttempts = 50 // 5 seconds max wait
-
-          const waitForMoov = () => {
-            attempts++
-            if (document.querySelector('moov-payment-methods') && attempts < maxAttempts) {
-              setTimeout(waitForMoov, 100)
-              return
-            }
-
-            if (attempts >= maxAttempts) {
-              setError('Moov.js failed to load. Please refresh the page.')
-              setLoading(false)
-              return
-            }
-
-            setupMoovDrop(moovAccountId)
-          }
-
-          waitForMoov()
-        }
-
       } catch (err) {
         console.error('Error initializing Moov Drops:', err)
         setError('Failed to initialize payment system. Please try again.')
