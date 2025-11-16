@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     // Get the current tenant with their Moov account ID and personal info
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('id, moov_account_id, first_name, last_name, email')
+      .select('id, moov_account_id, first_name, last_name')
       .eq('user_id', session.userId)
       .single()
 
@@ -43,12 +43,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       moovAccountId: tenant.moov_account_id,
       firstName: tenant.first_name,
       lastName: tenant.last_name,
-      email: tenant.email
+      email: session.email
     })
   } catch (error) {
     console.error('Failed to get Moov account:', error)
