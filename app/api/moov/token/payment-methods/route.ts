@@ -1,4 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const accountId = request.nextUrl.searchParams.get('accountId')
+    if (!accountId) {
+      return NextResponse.json({ error: 'Missing accountId' }, { status: 400 })
+    }
+
+    // Generate OAuth token with payment methods scopes for Moov Drops
+    const tokenScope = [
+      '/fed.read',
+      `/accounts/${accountId}/cards.read`,
+      `/accounts/${accountId}/cards.write`,
+      `/accounts/${accountId}/bank-accounts.read`,
+      `/accounts/${accountId}/bank-accounts.write`
+    ].join(' ')
+
+    console.log('Requesting payment methods token with scope:', tokenScope)
+    console.log('For account:', accountId)
+
+    const tokenResponse = await fetch('https://api.moov.io/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(`${process.env.MOOV_PUBLIC_KEY}:${process.env.MOOV_SECRET_KEY}`).toString('base64')}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: tokenScope
+      })
+    })
+
+    if (!tokenResponse.ok) {
+      const error = await tokenResponse.text()
+      console.error('Failed to get Moov payment methods token:', error)
+      return NextResponse.json(
+        { error: 'Failed to authenticate with Moov for payment methods' },
+        { status: 500 }
+      )
+    }
+
+    const tokenData = await tokenResponse.json()
+
+    console.log('Payment methods token generated successfully')
+    console.log('Token scopes:', tokenData.scope)
+
+    return NextResponse.json({ token: tokenData.access_token })
+  } catch (error) {
+    console.error('Error generating payment methods token:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
