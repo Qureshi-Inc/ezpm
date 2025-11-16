@@ -99,6 +99,7 @@ export default function MoovPaymentMethodsDrop({ moovAccountId }: PaymentMethods
       </div>
 
       {/* This is the actual Drop element */}
+      {/* @ts-ignore - Custom Moov.js web component */}
       <moov-payment-methods ref={dropRef} />
     </div>
   )
