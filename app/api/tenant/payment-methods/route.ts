@@ -76,18 +76,23 @@ export async function POST(request: NextRequest) {
     // 1. Stripe Customer (idempotent)
     const stripeCustomerId = await ensureStripeCustomer(tenant.id)
 
-    // 2. Attach the PM (idempotent — Stripe no-ops if already attached)
-    try {
-      await stripe.paymentMethods.attach(stripePaymentMethodId, {
-        customer: stripeCustomerId,
-      })
-    } catch (err) {
-      if (err instanceof Error && !/already been attached/i.test(err.message)) {
-        console.error('Failed to attach PaymentMethod:', err)
-        return NextResponse.json(
-          { error: 'Failed to attach payment method' },
-          { status: 500 },
-        )
+    // 2. Attach the PM. SKIP this for microdeposit-pending us_bank_account
+    //    PMs — Stripe explicitly rejects manual attach for those and auto-
+    //    attaches them when stripe.setupIntents.verifyMicrodeposits succeeds.
+    //    For cards + Financial-Connections ACH, attach is idempotent.
+    if (verStatus !== 'pending_microdeposits') {
+      try {
+        await stripe.paymentMethods.attach(stripePaymentMethodId, {
+          customer: stripeCustomerId,
+        })
+      } catch (err) {
+        if (err instanceof Error && !/already been attached/i.test(err.message)) {
+          console.error('Failed to attach PaymentMethod:', err)
+          return NextResponse.json(
+            { error: 'Failed to attach payment method' },
+            { status: 500 },
+          )
+        }
       }
     }
 

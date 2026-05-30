@@ -104,11 +104,15 @@ function PaymentElementForm({ stripeCustomerId }: { stripeCustomerId: string }) 
     }
 
     // Retrieve the PM to grab last4 / brand / bank_name for the local mirror.
-    // (PaymentElement doesn't surface these from confirmSetup directly.)
+    // For microdeposit-pending PMs the PM isn't attached to the customer yet,
+    // so we look it up via the SetupIntent (which always has the customer set).
     const pmDetailsResp = await fetch('/api/tenant/payment-methods/details', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentMethodId }),
+      body: JSON.stringify({
+        paymentMethodId,
+        setupIntentId: setupIntent.id,
+      }),
     })
     const pmDetails = await pmDetailsResp.json()
     if (!pmDetailsResp.ok) {
