@@ -176,7 +176,15 @@ CREATE OR REPLACE FUNCTION provision_user_from_zitadel(
     p_last_name       TEXT,
     p_lock_key        BIGINT
 )
-RETURNS TABLE (user_id UUID, role TEXT)
+-- OUT parameters renamed with `out_` prefix to avoid ambiguity with the
+-- tenants.user_id and users.role columns inside the function body. Postgres
+-- otherwise can't tell whether `WHERE user_id IS NULL` refers to the OUT
+-- param or the column, and errors with `column reference "user_id" is
+-- ambiguous`. The Supabase client unpacks the result by COLUMN NAME so
+-- the .rpc() call still works after the rename; supabase-js maps
+-- `out_user_id` -> data[0].out_user_id, so lib/provision.ts also gets
+-- updated to read those names.
+RETURNS TABLE (out_user_id UUID, out_role TEXT)
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -194,7 +202,9 @@ BEGIN
     WHERE u.zitadel_subject = p_zitadel_subject;
 
     IF v_new_user_id IS NOT NULL THEN
-        RETURN QUERY SELECT v_new_user_id, v_role;
+        out_user_id := v_new_user_id;
+        out_role    := v_role;
+        RETURN NEXT;
         RETURN;
     END IF;
 
@@ -212,25 +222,29 @@ BEGIN
 
     -- Defense-in-depth: mark the bootstrap as done so any future
     -- provisioning logic can short-circuit the empty-check.
-    UPDATE system_settings
+    UPDATE system_settings ss
        SET value = 'true'::jsonb
-     WHERE key = 'admin_bootstrapped'
-       AND value::text = 'false';
+     WHERE ss.key = 'admin_bootstrapped'
+       AND ss.value::text = 'false';
 
     -- If tenant, link to a pre-staged tenants row by email (admin creates
     -- these rows when inviting tenants via /admin/tenants/create).
+    -- Columns explicitly qualified with the table alias to avoid any
+    -- ambiguity with OUT parameters or local variables.
     IF v_role = 'tenant' THEN
-        UPDATE tenants
+        UPDATE tenants t
            SET user_id = v_new_user_id
-         WHERE email = p_email
-           AND user_id IS NULL;
+         WHERE t.email = p_email
+           AND t.user_id IS NULL;
         -- Note: it's OK if no row exists (e.g. an unrecognized email that
         -- somehow got through Zitadel's invite-only policy). The provisioning
         -- still succeeds; the user just has no tenant record to charge until
         -- admin creates one.
     END IF;
 
-    RETURN QUERY SELECT v_new_user_id, v_role;
+    out_user_id := v_new_user_id;
+    out_role    := v_role;
+    RETURN NEXT;
 END;
 $$;
 

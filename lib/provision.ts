@@ -75,10 +75,13 @@ export async function provisionUserFromZitadel(claims: {
     throw new Error(`Provisioning returned no row for ${claims.email}`)
   }
 
-  // Supabase RPC returning SETOF wraps results in an array.
+  // Supabase RPC returning SETOF wraps results in an array. The RPC returns
+  // out_user_id / out_role (renamed from user_id/role to avoid postgres column
+  // ambiguity inside the function body — see provision_user_from_zitadel in
+  // supabase/schema.sql for the why).
   const row = Array.isArray(provisioned) ? provisioned[0] : provisioned
   return {
-    user_id: row.user_id as string,
-    role: row.role as 'admin' | 'tenant',
+    user_id: row.out_user_id as string,
+    role: row.out_role as 'admin' | 'tenant',
   }
 }
