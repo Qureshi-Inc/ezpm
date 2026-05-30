@@ -170,11 +170,16 @@ export interface SendInvitationResult {
  * MFA/branding features of the hosted UI.
  */
 export async function sendInvitation(input: SendInvitationInput): Promise<SendInvitationResult> {
+  // applicationName MUST be inside sendCode — Zitadel silently ignores it at
+  // the root level and the email shows the default "Zitadel Login" instead.
+  // Verified by probing the live API; HTTP 200 either way, only the rendered
+  // template differs.
   await call(`/v2/users/${encodeURIComponent(input.userId)}/invite_code`, {
     method: 'POST',
     body: JSON.stringify({
-      sendCode: {},
-      applicationName: input.applicationName ?? 'EZPM',
+      sendCode: {
+        applicationName: input.applicationName ?? 'EZPM',
+      },
     }),
   })
   return { sent: true }
