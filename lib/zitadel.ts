@@ -172,21 +172,36 @@ export async function sendInvitation(input: SendInvitationInput): Promise<SendIn
 }
 
 // ──────────────────────────────────────────────────────────────
-// 3. Verify email with invitation code (tenant clicked the link)
+// 3. Verify invite code (tenant clicked the link)
 // ──────────────────────────────────────────────────────────────
 
-export interface VerifyEmailInput {
+export interface VerifyInviteCodeInput {
   userId: string
   code: string  // the {{.Code}} value from the invite link
 }
 
-export async function verifyEmailWithCode(input: VerifyEmailInput): Promise<void> {
-  await call(`/v2/users/${encodeURIComponent(input.userId)}/email/verify`, {
+/**
+ * Verifies a Zitadel invite code via the invite_code/verify endpoint.
+ *
+ * IMPORTANT: this is NOT the same as /email/verify. The invite_code endpoint
+ * generates a separate code from the email verification code, and they must
+ * be verified via different endpoints. Using /email/verify against an invite
+ * code yields "Code is invalid (COMMAND-eis9R)".
+ *
+ * Success: marks the user's email as verified AND consumes the invite code.
+ */
+export async function verifyInviteCode(input: VerifyInviteCodeInput): Promise<void> {
+  await call(`/v2/users/${encodeURIComponent(input.userId)}/invite_code/verify`, {
     method: 'POST',
     body: JSON.stringify({
       verificationCode: input.code,
     }),
   })
+}
+
+/** @deprecated Use verifyInviteCode. Kept as a thin alias for older callers. */
+export async function verifyEmailWithCode(input: VerifyInviteCodeInput): Promise<void> {
+  return verifyInviteCode(input)
 }
 
 // ──────────────────────────────────────────────────────────────

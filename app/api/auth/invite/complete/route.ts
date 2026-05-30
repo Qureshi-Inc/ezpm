@@ -50,11 +50,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: pwErr }, { status: 400 })
     }
 
-    // Step 1: verify the email + invitation code in one call.
-    // Zitadel marks the email verified and consumes the code; replays
-    // throw "code already used" or "invalid".
+    // Step 1: verify the invite code in one call.
+    // Zitadel marks the email verified AND consumes the code; replays throw
+    // "Code is invalid". Must hit /invite_code/verify, NOT /email/verify —
+    // invite codes are a separate credential from email-verification codes.
     try {
-      await zitadel.verifyEmailWithCode({ userId, code })
+      await zitadel.verifyInviteCode({ userId, code })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed'
       return NextResponse.json(
