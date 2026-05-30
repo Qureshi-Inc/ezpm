@@ -77,6 +77,17 @@ CREATE TABLE payment_methods (
     bank_name                 VARCHAR(255),
     card_brand                VARCHAR(50),
     is_default                BOOLEAN DEFAULT FALSE,
+    -- Verification state. 'verified' is the default because:
+    --   - Cards are always 'verified' on attach (Stripe handles auth via 3DS).
+    --   - us_bank_account via Financial Connections is verified instantly.
+    -- The 'pending_microdeposits' state applies only to manual-entry ACH
+    -- accounts: tenant typed routing+account → Stripe sent 2 micro-deposits →
+    -- tenant must come back and enter the amounts to verify. We stash the
+    -- SetupIntent id so we can call stripe.setupIntents.verifyMicrodeposits
+    -- when the tenant submits the amounts.
+    verification_status       VARCHAR(50) NOT NULL DEFAULT 'verified'
+                              CHECK (verification_status IN ('verified', 'pending_microdeposits', 'failed')),
+    setup_intent_id           VARCHAR(255),
     created_at                TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at                TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, type, last4)

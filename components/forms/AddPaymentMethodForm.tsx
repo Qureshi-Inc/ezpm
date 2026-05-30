@@ -72,8 +72,24 @@ function PaymentElementForm({ stripeCustomerId }: { stripeCustomerId: string }) 
       setIsSubmitting(false)
       return
     }
-    if (!setupIntent || setupIntent.status !== 'succeeded') {
-      setError(`Payment method setup did not succeed (status: ${setupIntent?.status})`)
+    if (!setupIntent) {
+      setError('No setup intent returned from Stripe')
+      setIsSubmitting(false)
+      return
+    }
+
+    // Two acceptable terminal states:
+    //   succeeded          → instant (card; us_bank_account via Financial Connections)
+    //   requires_action +  → us_bank_account via manual routing/account entry.
+    //   verify_with_micro    The PM is attached and a SetupIntent is "live"; tenant
+    //   deposits             must come back and enter 2 cent amounts to verify.
+    const isInstantSuccess = setupIntent.status === 'succeeded'
+    const isPendingMicrodeposits =
+      setupIntent.status === 'requires_action' &&
+      setupIntent.next_action?.type === 'verify_with_microdeposits'
+
+    if (!isInstantSuccess && !isPendingMicrodeposits) {
+      setError(`Payment method setup did not succeed (status: ${setupIntent.status})`)
       setIsSubmitting(false)
       return
     }
@@ -110,6 +126,8 @@ function PaymentElementForm({ stripeCustomerId }: { stripeCustomerId: string }) 
         last4: pmDetails.last4,
         brand: pmDetails.brand,
         bankName: pmDetails.bankName,
+        verificationStatus: isPendingMicrodeposits ? 'pending_microdeposits' : 'verified',
+        setupIntentId: isPendingMicrodeposits ? setupIntent.id : undefined,
       }),
     })
     const persistData = await persistResp.json()
@@ -119,7 +137,12 @@ function PaymentElementForm({ stripeCustomerId }: { stripeCustomerId: string }) 
       return
     }
 
-    router.push('/tenant/payment-methods')
+    // Manual-entry ACH → bounce to the verify page instead of the list.
+    if (persistData.requiresVerification && persistData.paymentMethod?.id) {
+      router.push(`/tenant/payment-methods/${persistData.paymentMethod.id}/verify`)
+    } else {
+      router.push('/tenant/payment-methods')
+    }
     router.refresh()
   }
 

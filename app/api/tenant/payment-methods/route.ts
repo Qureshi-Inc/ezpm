@@ -3,13 +3,14 @@
  * (created client-side via Stripe Elements or Financial Connections) to
  * their Stripe Customer + persists a local mirror row.
  *
- * Side effects:
- * 1. Ensures the tenant has a Stripe Customer (creates one if missing).
- * 2. Attaches the PM to the customer.
- * 3. If this is the tenant's first payment method AND the tenant has an
- *    assigned property with a rent amount, creates a Stripe Subscription
- *    so monthly auto-charges start firing.
- * 4. Marks this PM as default if it's the first.
+ * Verification states:
+ *   - 'verified' (default): card OR us_bank_account via Financial Connections.
+ *     Set as default if it's the first PM; subscription auto-created if first
+ *     verified PM and tenant has a property assigned.
+ *   - 'pending_microdeposits': us_bank_account via manual routing+account entry.
+ *     The PM is attached to the customer but cannot be charged until the tenant
+ *     enters the two microdeposit amounts (see /verify-microdeposits route).
+ *     Never set as default and never used to create a subscription until verified.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -28,7 +29,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { stripePaymentMethodId, type, last4, brand, bankName } = await request.json()
+    const {
+      stripePaymentMethodId,
+      type,
+      last4,
+      brand,
+      bankName,
+      verificationStatus,  // 'verified' (default) or 'pending_microdeposits'
+      setupIntentId,       // required if verificationStatus === 'pending_microdeposits'
+    } = await request.json()
+
     if (!stripePaymentMethodId || !type) {
       return NextResponse.json(
         { error: 'Stripe payment method ID and type are required' },
@@ -42,10 +52,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const verStatus: 'verified' | 'pending_microdeposits' =
+      verificationStatus === 'pending_microdeposits' ? 'pending_microdeposits' : 'verified'
+
+    if (verStatus === 'pending_microdeposits' && !setupIntentId) {
+      return NextResponse.json(
+        { error: 'setupIntentId is required when verificationStatus is pending_microdeposits' },
+        { status: 400 },
+      )
+    }
+
     const supabase = createServerSupabaseClient()
 
-    // Look up the tenant from the session's user_id (not a tenantId param,
-    // which would let one tenant attach a PM to another).
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('id, property_id, payment_due_day, first_name, last_name, email')
@@ -55,11 +73,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
     }
 
-    // 1. Stripe Customer (creates if missing, idempotent if not)
+    // 1. Stripe Customer (idempotent)
     const stripeCustomerId = await ensureStripeCustomer(tenant.id)
 
-    // 2. Attach the PM. Stripe is also idempotent here — attaching an
-    //    already-attached PM is a no-op.
+    // 2. Attach the PM (idempotent — Stripe no-ops if already attached)
     try {
       await stripe.paymentMethods.attach(stripePaymentMethodId, {
         customer: stripeCustomerId,
@@ -74,12 +91,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Local mirror row
-    const { data: existingMethods } = await supabase
+    // 3. Local mirror row.
+    // Default-PM rules: only mark default if (a) verified AND (b) no other
+    // verified PM exists. Unverified PMs are never default — they can't
+    // be charged so they can't back a subscription.
+    const { data: existingVerified } = await supabase
       .from('payment_methods')
       .select('id')
       .eq('tenant_id', tenant.id)
-    const isFirstMethod = !existingMethods || existingMethods.length === 0
+      .eq('verification_status', 'verified')
+    const isFirstVerified = (!existingVerified || existingVerified.length === 0) && verStatus === 'verified'
 
     const { data: newPaymentMethod, error: insertError } = await supabase
       .from('payment_methods')
@@ -90,7 +111,9 @@ export async function POST(request: NextRequest) {
         last4: last4 || null,
         card_brand: brand || null,
         bank_name: bankName || null,
-        is_default: isFirstMethod,
+        is_default: isFirstVerified,
+        verification_status: verStatus,
+        setup_intent_id: verStatus === 'pending_microdeposits' ? setupIntentId : null,
       })
       .select()
       .single()
@@ -103,10 +126,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 4. If this is the tenant's first PM AND they're assigned to a property,
-    //    spin up the Stripe Subscription so auto-pay starts firing.
+    // 4. If this is the first VERIFIED PM AND tenant has a property,
+    //    spin up the Stripe Subscription so monthly auto-charges start.
+    //    Unverified PMs skip this — subscription is created later when the
+    //    microdeposit verification succeeds.
     let subscriptionCreated = false
-    if (isFirstMethod && tenant.property_id) {
+    if (isFirstVerified && tenant.property_id) {
       const { data: property } = await supabase
         .from('properties')
         .select('rent_amount')
@@ -138,14 +163,20 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `${type === 'card' ? 'Card' : 'Bank account'} added`,
+      message: verStatus === 'pending_microdeposits'
+        ? 'Bank account saved. Stripe sent two small test deposits — check your account in 1-2 business days, then come back to verify.'
+        : `${type === 'card' ? 'Card' : 'Bank account'} added`,
       paymentMethod: {
         id: newPaymentMethod.id,
         type: newPaymentMethod.type,
         last4: newPaymentMethod.last4,
         is_default: newPaymentMethod.is_default,
+        verification_status: newPaymentMethod.verification_status,
       },
       subscriptionCreated,
+      // Frontend uses this to redirect to /tenant/payment-methods/<id>/verify
+      // when verification is pending.
+      requiresVerification: verStatus === 'pending_microdeposits',
     })
   } catch (error) {
     console.error('Add payment method error:', error)

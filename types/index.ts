@@ -43,6 +43,8 @@ export interface Property {
   updated_at: string
 }
 
+export type PaymentMethodVerificationStatus = 'verified' | 'pending_microdeposits' | 'failed'
+
 export interface PaymentMethod {
   id: string
   tenant_id: string
@@ -52,6 +54,8 @@ export interface PaymentMethod {
   bank_name: string | null
   card_brand: string | null
   is_default: boolean
+  verification_status: PaymentMethodVerificationStatus
+  setup_intent_id: string | null
   created_at: string
   updated_at: string
 }

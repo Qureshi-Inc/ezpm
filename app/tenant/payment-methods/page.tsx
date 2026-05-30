@@ -19,7 +19,7 @@ export default async function PaymentMethodsPage() {
 
   const { data: paymentMethods, error } = await supabase
     .from('payment_methods')
-    .select('*')
+    .select('id, type, last4, bank_name, card_brand, is_default, verification_status')
     .eq('tenant_id', tenant.id)
     .order('is_default', { ascending: false })
     .order('created_at', { ascending: false })
