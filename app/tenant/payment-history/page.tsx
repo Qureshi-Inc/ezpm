@@ -31,7 +31,9 @@ export default async function PaymentHistoryPage() {
   const totalPaid = payments?.filter(p => p.status === 'succeeded')
     .reduce((sum, p) => sum + Number(p.amount), 0) || 0
   
-  const pendingAmount = payments?.filter(p => p.status === 'pending')
+  // 'open' is Stripe's not-yet-paid invoice; 'failed' is a previous attempt
+  // that needs retry. 'processing' is ACH in flight.
+  const pendingAmount = payments?.filter(p => ['open', 'failed', 'processing'].includes(p.status))
     .reduce((sum, p) => sum + Number(p.amount), 0) || 0
 
   const thisYear = new Date().getFullYear()
@@ -47,7 +49,8 @@ export default async function PaymentHistoryPage() {
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'succeeded': return 'default'
-      case 'failed': return 'destructive'
+      case 'failed':
+      case 'uncollectible': return 'destructive'
       case 'processing': return 'secondary'
       default: return 'secondary'
     }
@@ -56,9 +59,11 @@ export default async function PaymentHistoryPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'succeeded': return '✅'
-      case 'failed': return '❌'
+      case 'failed':
+      case 'uncollectible': return '❌'
       case 'processing': return '🔄'
-      default: return '⏳'
+      case 'void': return '⛔'
+      default: return '⏳' // open
     }
   }
 
@@ -194,7 +199,7 @@ export default async function PaymentHistoryPage() {
                   </div>
                   <div className="flex items-center space-x-2">
                     <span>⏳</span>
-                    <span className="text-gray-600">Pending - Awaiting payment</span>
+                    <span className="text-gray-600">Open - Awaiting auto-charge or manual pay</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span>🔄</span>

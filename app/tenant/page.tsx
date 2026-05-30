@@ -9,55 +9,46 @@ import Link from 'next/link'
 
 export default async function TenantDashboard() {
   const tenant = await getCurrentTenant()
-  
   if (!tenant) {
     redirect('/api/auth/signin')
   }
 
   const supabase = createServerSupabaseClient()
 
-  // Get next payment due
+  // Next open invoice (Stripe-driven, replaces the old 'pending' status).
   const { data: nextPayment } = await supabase
     .from('payments')
-    .select('*')
+    .select('id, amount, due_date, status')
     .eq('tenant_id', tenant.id)
-    .eq('status', 'pending')
+    .in('status', ['open', 'failed', 'processing'])
     .order('due_date', { ascending: true })
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  // Get recent payments
   const { data: recentPayments } = await supabase
     .from('payments')
-    .select('*')
+    .select('id, amount, status, due_date, paid_at, created_at')
     .eq('tenant_id', tenant.id)
     .order('created_at', { ascending: false })
     .limit(5)
 
-  // Get payment methods count
   const { count: paymentMethodsCount } = await supabase
     .from('payment_methods')
     .select('*', { count: 'exact', head: true })
     .eq('tenant_id', tenant.id)
 
-  // Get auto payment status
-  const { data: autoPayment } = await supabase
-    .from('auto_payments')
-    .select('*')
-    .eq('tenant_id', tenant.id)
-    .single()
+  const autoPayActive = !!tenant.stripe_subscription_id
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation role="tenant" userName={tenant.first_name} />
-      
+
       <main className="max-w-7xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
         <div className="py-3 sm:py-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 sm:mb-8">
             Welcome back, {tenant.first_name}!
           </h1>
 
-          {/* Property Info */}
           {tenant.property && (
             <Card className="mb-6">
               <CardHeader>
@@ -68,18 +59,15 @@ export default async function TenantDashboard() {
                 {tenant.property.unit_number && (
                   <p className="text-gray-600">Unit {tenant.property.unit_number}</p>
                 )}
-                <p className="text-2xl font-bold mt-2">
-                  {formatCurrency(tenant.property.rent_amount)}/month
-                </p>
+                <p className="text-2xl font-bold mt-2">{formatCurrency(tenant.property.rent_amount)}/month</p>
                 <p className="text-sm text-gray-600 mt-2">
-                  Payment due: {tenant.payment_due_day === 1 ? '1st' : tenant.payment_due_day === 2 ? '2nd' : tenant.payment_due_day === 3 ? '3rd' : `${tenant.payment_due_day}th`} of each month
+                  Payment due: {ordinal(tenant.payment_due_day)} of each month
                 </p>
               </CardContent>
             </Card>
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {/* Next Payment Due */}
             <Card>
               <CardHeader>
                 <CardTitle>Next Payment Due</CardTitle>
@@ -97,16 +85,15 @@ export default async function TenantDashboard() {
                   </>
                 ) : (
                   <>
-                    <p className="text-gray-500 mb-4">You're all caught up!</p>
+                    <p className="text-gray-500 mb-4">You&apos;re all caught up.</p>
                     <Link href="/tenant/pay">
-                      <Button variant="outline" className="w-full">Make a Payment</Button>
+                      <Button variant="outline" className="w-full">View open invoice</Button>
                     </Link>
                   </>
                 )}
               </CardContent>
             </Card>
 
-            {/* Payment Methods */}
             <Card>
               <CardHeader>
                 <CardTitle>Payment Methods</CardTitle>
@@ -116,43 +103,41 @@ export default async function TenantDashboard() {
               </CardHeader>
               <CardContent>
                 <Link href="/tenant/payment-methods">
-                  <Button variant="outline" className="w-full">
-                    Manage Payment Methods
-                  </Button>
+                  <Button variant="outline" className="w-full">Manage Payment Methods</Button>
                 </Link>
               </CardContent>
             </Card>
 
-            {/* Auto Pay Status */}
             <Card>
               <CardHeader>
                 <CardTitle>Auto Pay</CardTitle>
-                <CardDescription>
-                  {autoPayment?.is_active ? 'Enabled' : 'Disabled'}
-                </CardDescription>
+                <CardDescription>{autoPayActive ? 'Active' : 'Not active yet'}</CardDescription>
               </CardHeader>
               <CardContent>
-                {autoPayment?.is_active ? (
+                {autoPayActive ? (
                   <p className="text-sm text-gray-600">
-                    Payments will be processed automatically on day {autoPayment.day_of_month} of each month
+                    Your default payment method is charged automatically on the {ordinal(tenant.payment_due_day)} of each
+                    month by Stripe. No action needed.
                   </p>
                 ) : (
-                  <Link href="/tenant/auto-pay/setup">
-                    <Button variant="outline" className="w-full">
-                      Set Up Auto Pay
-                    </Button>
-                  </Link>
+                  <>
+                    <p className="text-sm text-gray-600 mb-3">
+                      Add a payment method to enable monthly auto-charge.
+                    </p>
+                    <Link href="/tenant/payment-methods/add">
+                      <Button variant="outline" className="w-full">Add Payment Method</Button>
+                    </Link>
+                  </>
                 )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Recent Payments */}
           {recentPayments && recentPayments.length > 0 && (
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle>Recent Payments</CardTitle>
-                <CardDescription>Your last 5 payments</CardDescription>
+                <CardDescription>Your last 5 invoices</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -164,12 +149,8 @@ export default async function TenantDashboard() {
                       </div>
                       <div className="text-right">
                         <p className="font-medium">{formatCurrency(payment.amount)}</p>
-                        <p className={`text-sm ${
-                          payment.status === 'succeeded' ? 'text-green-600' : 
-                          payment.status === 'failed' ? 'text-red-600' : 
-                          'text-yellow-600'
-                        }`}>
-                          {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                        <p className={statusColor(payment.status)}>
+                          {capitalize(payment.status)}
                         </p>
                       </div>
                     </div>
@@ -187,4 +168,22 @@ export default async function TenantDashboard() {
       </main>
     </div>
   )
-} 
+}
+
+function ordinal(n: number): string {
+  if (n === 1) return '1st'
+  if (n === 2) return '2nd'
+  if (n === 3) return '3rd'
+  return `${n}th`
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function statusColor(status: string): string {
+  if (status === 'succeeded') return 'text-sm text-green-600'
+  if (status === 'failed' || status === 'uncollectible') return 'text-sm text-red-600'
+  if (status === 'processing') return 'text-sm text-blue-600'
+  return 'text-sm text-yellow-600' // open / void
+}

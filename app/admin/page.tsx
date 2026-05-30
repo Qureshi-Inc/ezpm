@@ -30,7 +30,7 @@ export default async function AdminDashboard() {
       supabase
         .from('payments')
         .select('amount')
-        .eq('status', 'pending')
+        .in('status', ['open', 'failed', 'processing'])
     ])
 
     const monthlyRevenue = monthlyPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0

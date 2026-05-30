@@ -43,7 +43,7 @@ export default async function PaymentsPage() {
       supabase
         .from('payments')
         .select('amount')
-        .eq('status', 'pending'),
+        .in('status', ['open', 'failed', 'processing']),
       supabase
         .from('payments')
         .select('amount')
