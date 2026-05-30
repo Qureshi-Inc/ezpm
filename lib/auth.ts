@@ -15,19 +15,23 @@ import { createServerSupabaseClient } from './supabase'
 
 export interface SessionUser {
   userId: string
-  email: string
+  // Email is nullable: Zitadel doesn't always include the `email` claim in
+  // the ID token (depends on the org's "Token Settings" + user profile
+  // completeness). Don't gate auth on it — we already linked the user by
+  // zitadel_subject and the email lives in the users table if we need it.
+  email: string | null
   role: 'admin' | 'tenant'
   zitadel_subject: string
 }
 
 export async function getSession(): Promise<SessionUser | null> {
   const session = await auth()
-  if (!session?.user?.id || !session.user.email) {
+  if (!session?.user?.id) {
     return null
   }
   return {
     userId: session.user.id,
-    email: session.user.email,
+    email: session.user.email ?? null,
     role: session.user.role,
     zitadel_subject: session.user.zitadel_subject,
   }
