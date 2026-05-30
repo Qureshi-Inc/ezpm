@@ -145,8 +145,7 @@ export async function findUserByEmail(email: string): Promise<{ userId: string }
 
 export interface SendInvitationInput {
   userId: string
-  urlTemplate: string  // e.g. https://rent.qureshi.io/auth/invite?code={{.Code}}&userId={{.UserID}}
-  applicationName?: string  // shown in the email body
+  applicationName?: string  // shown in the email body, e.g. "EZPM Rent Portal"
 }
 
 export interface SendInvitationResult {
@@ -156,15 +155,25 @@ export interface SendInvitationResult {
   sent: true
 }
 
+/**
+ * Triggers Zitadel to email the user an invitation with a verification code.
+ *
+ * We intentionally do NOT pass a urlTemplate — Zitadel's hosted login UI
+ * handles the full verify + password setup + MFA flow at
+ * /ui/v2/login/verify, then redirects the user back to the EZPM OIDC client
+ * (rent.qureshi.io) when they finish. This keeps us out of the password
+ * lifecycle entirely (Zitadel owns password policy, complexity rules, MFA).
+ *
+ * If you ever want to brand the password page yourself, add back a
+ * urlTemplate of the form "https://your.app/auth/invite?code={{.Code}}&userId={{.UserID}}"
+ * and implement verify + setPassword endpoints — but you give up the free
+ * MFA/branding features of the hosted UI.
+ */
 export async function sendInvitation(input: SendInvitationInput): Promise<SendInvitationResult> {
-  // Zitadel v4 path is /invite_code (not /invitation_code which 404s).
-  // applicationName moved to a sibling field of sendCode.
   await call(`/v2/users/${encodeURIComponent(input.userId)}/invite_code`, {
     method: 'POST',
     body: JSON.stringify({
-      sendCode: {
-        urlTemplate: input.urlTemplate,
-      },
+      sendCode: {},
       applicationName: input.applicationName ?? 'EZPM',
     }),
   })
@@ -172,58 +181,7 @@ export async function sendInvitation(input: SendInvitationInput): Promise<SendIn
 }
 
 // ──────────────────────────────────────────────────────────────
-// 3. Verify invite code (tenant clicked the link)
-// ──────────────────────────────────────────────────────────────
-
-export interface VerifyInviteCodeInput {
-  userId: string
-  code: string  // the {{.Code}} value from the invite link
-}
-
-/**
- * Verifies a Zitadel invite code via the invite_code/verify endpoint.
- *
- * IMPORTANT: this is NOT the same as /email/verify. The invite_code endpoint
- * generates a separate code from the email verification code, and they must
- * be verified via different endpoints. Using /email/verify against an invite
- * code yields "Code is invalid (COMMAND-eis9R)".
- *
- * Success: marks the user's email as verified AND consumes the invite code.
- */
-export async function verifyInviteCode(input: VerifyInviteCodeInput): Promise<void> {
-  await call(`/v2/users/${encodeURIComponent(input.userId)}/invite_code/verify`, {
-    method: 'POST',
-    body: JSON.stringify({
-      verificationCode: input.code,
-    }),
-  })
-}
-
-/** @deprecated Use verifyInviteCode. Kept as a thin alias for older callers. */
-export async function verifyEmailWithCode(input: VerifyInviteCodeInput): Promise<void> {
-  return verifyInviteCode(input)
-}
-
-// ──────────────────────────────────────────────────────────────
-// 4. Set password (admin sets without requiring old password)
-// ──────────────────────────────────────────────────────────────
-
-export interface SetPasswordInput {
-  userId: string
-  newPassword: string
-}
-
-export async function setPassword(input: SetPasswordInput): Promise<void> {
-  await call(`/v2/users/${encodeURIComponent(input.userId)}/password`, {
-    method: 'POST',
-    body: JSON.stringify({
-      newPassword: { password: input.newPassword },
-    }),
-  })
-}
-
-// ──────────────────────────────────────────────────────────────
-// 5. Quick capability check (for graceful degradation)
+// 3. Quick capability check (for graceful degradation)
 // ──────────────────────────────────────────────────────────────
 
 export function isConfigured(): boolean {

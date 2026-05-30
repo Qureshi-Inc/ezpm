@@ -161,7 +161,7 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
         <ol className="list-decimal pl-4 space-y-1">
           <li>A tenant record is created and linked to this property.</li>
           <li>A Zitadel user is created with this email, and an invitation email is sent automatically.</li>
-          <li>The tenant clicks the email link, sets their password, and is taken to the rent portal.</li>
+          <li>The tenant clicks the email link, sets their password through Zitadel, and lands on the rent portal automatically.</li>
         </ol>
         <p className="mt-2 text-xs text-blue-700">
           If Zitadel auto-invite is not configured (no service token), the form will show a fallback

@@ -76,10 +76,14 @@ export async function POST(request: NextRequest) {
     // first adds a payment method (handled in lib/stripe-subscriptions.ts,
     // T4). No charge until they pay something.
 
-    // Zitadel invite (D15): create + invite the user automatically. Failures
-    // are non-fatal — the tenant row is already saved and admin can fall
-    // back to manual invite via Zitadel admin UI. We surface the status in
-    // the response so the form can warn the admin.
+    // Zitadel invite: create + invite the user automatically. Zitadel sends
+    // the email and handles the verify + password setup flow in its hosted
+    // login UI (auth.kainban.com/ui/v2/login/verify). The tenant ends up
+    // back at rent.qureshi.io via the OIDC callback once they're done.
+    //
+    // Failures are non-fatal — the tenant row is already saved and admin
+    // can fall back to manual invite via Zitadel admin UI. We surface the
+    // status in the response so the form can warn the admin.
     let zitadelStatus: 'invited' | 'manual_fallback' | 'disabled' = 'disabled'
     let zitadelMessage: string | undefined
     if (zitadel.isConfigured()) {
@@ -89,10 +93,8 @@ export async function POST(request: NextRequest) {
           firstName,
           lastName,
         })
-        const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://rent.qureshi.io').replace(/\/$/, '')
         await zitadel.sendInvitation({
           userId: created.userId,
-          urlTemplate: `${appUrl}/auth/invite?code={{.Code}}&userId={{.UserID}}`,
           applicationName: 'EZPM Rent Portal',
         })
         zitadelStatus = 'invited'

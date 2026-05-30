@@ -165,8 +165,8 @@ Restart the container. From the next "Create Tenant" submit, ezpm will:
 
 - Create the user in Zitadel
 - Generate an invitation code
-- Have Zitadel email the tenant a link to `https://rent.qureshi.io/auth/invite?code=...&userId=...`
+- Have Zitadel email the tenant a link to Zitadel's hosted login UI (`https://auth.kainban.com/ui/v2/login/verify?...`)
 
-The tenant clicks → sets password on YOUR branded page → signs in → lands at `/tenant`.
+The tenant clicks → enters the 6-char code from the email → sets password in Zitadel's hosted UI (gets your org's password policy + optional MFA enrollment for free) → Zitadel finishes the OIDC flow and lands them on `/tenant`.
 
 If the env vars are missing, tenant creation still works — it just falls back to a "Invite this email manually in Zitadel admin" message in the response.
