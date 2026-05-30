@@ -89,6 +89,6 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
       </div>
     )
   } catch (error) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 } 

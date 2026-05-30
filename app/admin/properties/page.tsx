@@ -146,6 +146,6 @@ export default async function PropertiesPage() {
       </div>
     )
   } catch (error) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 } 

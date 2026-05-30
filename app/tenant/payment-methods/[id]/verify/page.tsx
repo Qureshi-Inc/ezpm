@@ -14,7 +14,7 @@ interface VerifyPageProps {
 export default async function VerifyMicrodepositsPage({ params }: VerifyPageProps) {
   const tenant = await getCurrentTenant()
   if (!tenant) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 
   const { id } = await params

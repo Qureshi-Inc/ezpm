@@ -12,7 +12,7 @@ export default async function PaymentMethodsPage() {
   const tenant = await getCurrentTenant()
 
   if (!tenant) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 
   const supabase = createServerSupabaseClient()

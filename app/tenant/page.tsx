@@ -10,7 +10,7 @@ import Link from 'next/link'
 export default async function TenantDashboard() {
   const tenant = await getCurrentTenant()
   if (!tenant) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 
   const supabase = createServerSupabaseClient()

@@ -248,6 +248,6 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
       </div>
     )
   } catch (error) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 } 

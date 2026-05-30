@@ -64,6 +64,6 @@ export default async function CreateTenantPage() {
       </div>
     )
   } catch (error) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 } 

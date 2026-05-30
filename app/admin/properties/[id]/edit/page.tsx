@@ -28,6 +28,6 @@ export default async function EditPropertyPage({ params }: { params: Promise<{ i
       </div>
     )
   } catch (error) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 }

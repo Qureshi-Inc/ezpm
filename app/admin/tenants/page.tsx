@@ -155,6 +155,6 @@ export default async function TenantsPage() {
       </div>
     )
   } catch (error) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 } 

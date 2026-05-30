@@ -12,7 +12,7 @@ import { CreditCard, ArrowLeft, AlertCircle } from 'lucide-react'
 export default async function PayPage() {
   const tenant = await getCurrentTenant()
   if (!tenant) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 
   const supabase = createServerSupabaseClient()

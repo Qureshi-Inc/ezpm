@@ -9,7 +9,7 @@ import { ArrowLeft } from 'lucide-react'
 export default async function AddPaymentMethodPage() {
   const tenant = await getCurrentTenant()
   if (!tenant) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 
   return (

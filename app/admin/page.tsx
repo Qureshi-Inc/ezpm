@@ -136,6 +136,6 @@ export default async function AdminDashboard() {
       </div>
     )
   } catch (error) {
-    redirect('/api/auth/signin')
+    redirect('/auth/start')
   }
 } 

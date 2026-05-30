@@ -22,9 +22,11 @@ export default auth((req) => {
   const isAdminRoute = path.startsWith('/admin')
   const isTenantRoute = path.startsWith('/tenant')
 
-  // Unauthenticated → bounce to Auth.js sign-in (which redirects to Zitadel).
+  // Unauthenticated → bounce to /auth/start which initiates OIDC server-side
+  // (no button-click intermediary). For users with an existing Zitadel session
+  // (e.g. just finished invite flow), this silent-SSOs them through.
   if ((isAdminRoute || isTenantRoute) && !isAuthed) {
-    const signInUrl = new URL('/api/auth/signin', req.nextUrl.origin)
+    const signInUrl = new URL('/auth/start', req.nextUrl.origin)
     signInUrl.searchParams.set('callbackUrl', req.nextUrl.pathname)
     return NextResponse.redirect(signInUrl)
   }
