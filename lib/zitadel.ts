@@ -8,7 +8,7 @@
  * for the one-time setup.
  *
  * Env vars (all required for invite-flow integration):
- *   AUTH_ZITADEL_ISSUER  - already set (https://auth.kainban.com)
+ *   AUTH_ZITADEL_ISSUER  - already set (https://auth.getezpm.com)
  *   ZITADEL_SERVICE_TOKEN - the PAT from the ezpm-svc machine user
  *   ZITADEL_ORG_ID       - the ezpm org ID (numeric, find in admin UI URL
  *                          when on the org settings page)
@@ -17,7 +17,7 @@
  * the admin tenant-create flow can fall back to manual invite gracefully.
  */
 
-const BASE_URL = (process.env.AUTH_ZITADEL_ISSUER || 'https://auth.kainban.com').replace(/\/$/, '')
+const BASE_URL = (process.env.AUTH_ZITADEL_ISSUER || 'https://auth.getezpm.com').replace(/\/$/, '')
 const TOKEN = process.env.ZITADEL_SERVICE_TOKEN
 const ORG_ID = process.env.ZITADEL_ORG_ID
 
@@ -161,7 +161,7 @@ export interface SendInvitationResult {
  * We intentionally do NOT pass a urlTemplate — Zitadel's hosted login UI
  * handles the full verify + password setup + MFA flow at
  * /ui/v2/login/verify, then redirects the user back to the EZPM OIDC client
- * (rent.qureshi.io) when they finish. This keeps us out of the password
+ * (app.getezpm.com) when they finish. This keeps us out of the password
  * lifecycle entirely (Zitadel owns password policy, complexity rules, MFA).
  *
  * If you ever want to brand the password page yourself, add back a

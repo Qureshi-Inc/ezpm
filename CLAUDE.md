@@ -4,7 +4,7 @@
 
 **EZPM (EZ Property Manager)** — rent-collection platform for a small portfolio of properties. Tenants log in via Zitadel OIDC, save a card or bank account, and Stripe Subscriptions auto-charges them on their monthly due date. Admin manages tenants/properties through a web UI.
 
-Production: https://rent.qureshi.io (Coolify auto-deploy on push to main).
+Production: https://app.getezpm.com (Coolify auto-deploy on push to main).
 
 ## Technology Stack
 
@@ -21,8 +21,8 @@ Production: https://rent.qureshi.io (Coolify auto-deploy on push to main).
 AUTH_SECRET=<openssl rand -base64 32>
 AUTH_ZITADEL_ID=<client_id from Zitadel app, e.g. 12345...@ezpm-web>
 AUTH_ZITADEL_SECRET=<client_secret from Zitadel app>
-AUTH_ZITADEL_ISSUER=https://auth.kainban.com
-NEXTAUTH_URL=https://rent.qureshi.io     # prod (or http://localhost:3000 for dev)
+AUTH_ZITADEL_ISSUER=https://auth.getezpm.com
+NEXTAUTH_URL=https://app.getezpm.com     # prod (or http://localhost:3000 for dev)
 
 # Stripe
 STRIPE_SECRET_KEY=sk_live_...
@@ -37,7 +37,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...   # JWT signed with JWT_SECRET in ezpm-db/.
 SUPABASE_SERVICE_ROLE_KEY=eyJ...        # JWT signed with same secret, role=service_role
 
 # App
-NEXT_PUBLIC_APP_URL=https://rent.qureshi.io
+NEXT_PUBLIC_APP_URL=https://app.getezpm.com
 ```
 
 ## Database Schema (`supabase/schema.sql`)
@@ -55,7 +55,7 @@ NEXT_PUBLIC_APP_URL=https://rent.qureshi.io
 ### Auth
 1. User hits `/admin` or `/tenant` → middleware sees no session → redirects to `/api/auth/signin`.
 2. Auth.js builds the PKCE authorization URL and redirects to Zitadel.
-3. Tenant logs in at `auth.kainban.com` (ezpm org login).
+3. Tenant logs in at `auth.getezpm.com` (ezpm org login).
 4. Zitadel redirects to `/api/auth/callback/zitadel` with the auth code.
 5. Auth.js exchanges code for tokens; the `jwt()` callback calls `lib/provision.ts` → `provision_user_from_zitadel` RPC.
 6. RPC takes the advisory lock, inserts the user (admin if first, else tenant), and links the pre-staged `tenants` row by email.
@@ -81,9 +81,9 @@ NEXT_PUBLIC_APP_URL=https://rent.qureshi.io
 ## Key Integrations
 
 ### Zitadel
-- Instance: `https://auth.kainban.com` (Zitadel v4.15, Login V2)
+- Instance: `https://auth.getezpm.com` (Zitadel v4.15, Login V2)
 - Org: `ezpm` (or whatever you named it — see `scripts/zitadel-setup-runbook.md`)
-- App: `rent.qureshi.io`, Auth method **CODE** (Authorization Code + PKCE)
+- App: `app.getezpm.com`, Auth method **CODE** (Authorization Code + PKCE)
 - Self-registration: **OFF** (invite-only by design — closes the first-user-becomes-admin exploit)
 - Dev mode: ON (allows http://localhost:3000 redirect for local dev — D8 in the eng review)
 

@@ -78,8 +78,8 @@ export async function POST(request: NextRequest) {
 
     // Zitadel invite: create + invite the user automatically. Zitadel sends
     // the email and handles the verify + password setup flow in its hosted
-    // login UI (auth.kainban.com/ui/v2/login/verify). The tenant ends up
-    // back at rent.qureshi.io via the OIDC callback once they're done.
+    // login UI (auth.getezpm.com/ui/v2/login/verify). The tenant ends up
+    // back at app.getezpm.com via the OIDC callback once they're done.
     //
     // Failures are non-fatal — the tenant row is already saved and admin
     // can fall back to manual invite via Zitadel admin UI. We surface the

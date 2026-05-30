@@ -4,14 +4,14 @@ Performed by the operator (you) before code deploy. ~10 minutes in the browser.
 
 ## Prerequisites
 
-- Access to https://auth.kainban.com/ui/console as an existing Zitadel admin
+- Access to https://auth.getezpm.com/ui/console as an existing Zitadel admin
 - Your owner email address handy (the email you want to use as the first / admin user of ezpm)
 
 ## Steps
 
 ### 1. Create the organization
 
-1. Log into https://auth.kainban.com/ui/console as the existing Zitadel admin.
+1. Log into https://auth.getezpm.com/ui/console as the existing Zitadel admin.
 2. Top-right org switcher → **Add Organization**.
 3. Name: `ezpm` (or `Qureshi Rentals` — your call).
 4. Click **Create**. Switch into the new org.
@@ -33,7 +33,7 @@ Performed by the operator (you) before code deploy. ~10 minutes in the browser.
 ### 4. Create the OIDC application
 
 1. Inside the `ezpm-web` project → **Applications** tab → **+ New Application**.
-2. Name: `rent.qureshi.io`.
+2. Name: `app.getezpm.com`.
 3. Type: **Web**.
 4. Click **Continue**.
 5. Auth method: **CODE** (Authorization Code + PKCE).
@@ -41,12 +41,12 @@ Performed by the operator (you) before code deploy. ~10 minutes in the browser.
 7. **Redirect URIs** — add BOTH on separate lines:
    ```
    http://localhost:3000/api/auth/callback/zitadel
-   https://rent.qureshi.io/api/auth/callback/zitadel
+   https://app.getezpm.com/api/auth/callback/zitadel
    ```
 8. **Post Logout Redirect URIs** — add BOTH:
    ```
    http://localhost:3000
-   https://rent.qureshi.io
+   https://app.getezpm.com
    ```
 9. Click **Continue** → **Create**.
 10. **COPY THE CLIENT SECRET** that appears in the success dialog — Zitadel shows it only once. Save it somewhere safe (you'll paste it to the agent + into Coolify env vars later).
@@ -54,7 +54,7 @@ Performed by the operator (you) before code deploy. ~10 minutes in the browser.
 
 ### 5. Enable dev mode + ID token claims
 
-1. Open the `rent.qureshi.io` app you just created.
+1. Open the `app.getezpm.com` app you just created.
 2. **Redirect Settings** section → toggle **Development Mode** to **ON** (required because we registered an http://localhost URL per D8).
 3. **Token Settings** section:
    - **User Roles inside ID Token** = ON
@@ -67,7 +67,7 @@ From the app detail page:
 
 - **Client ID** (looks like `123456789012345678@ezpm-web`): copy it.
 - **Client Secret**: you copied this in step 4.10 — if you lost it, click **Regenerate Secret** and copy the new one.
-- **Issuer URL**: this is always `https://auth.kainban.com` (already known).
+- **Issuer URL**: this is always `https://auth.getezpm.com` (already known).
 
 ### 7. Invite yourself as the first member
 
@@ -82,15 +82,15 @@ From the app detail page:
 In a terminal:
 
 ```bash
-curl -s https://auth.kainban.com/.well-known/openid-configuration | jq '.issuer, .authorization_endpoint, .token_endpoint'
+curl -s https://auth.getezpm.com/.well-known/openid-configuration | jq '.issuer, .authorization_endpoint, .token_endpoint'
 ```
 
 Expected output:
 
 ```json
-"https://auth.kainban.com"
-"https://auth.kainban.com/oauth/v2/authorize"
-"https://auth.kainban.com/oauth/v2/token"
+"https://auth.getezpm.com"
+"https://auth.getezpm.com/oauth/v2/authorize"
+"https://auth.getezpm.com/oauth/v2/token"
 ```
 
 If those URLs come back as expected, Zitadel is ready.
@@ -103,7 +103,7 @@ AUTH_ZITADEL_SECRET=<client_secret from step 4.10 or 6>
 AUTH_SECRET=<run: openssl rand -base64 32>
 ```
 
-(The `AUTH_ZITADEL_ISSUER` is always `https://auth.kainban.com` so I'll hardcode it in the example .env.)
+(The `AUTH_ZITADEL_ISSUER` is always `https://auth.getezpm.com` so I'll hardcode it in the example .env.)
 
 ---
 
@@ -147,7 +147,7 @@ Actually — for org-scoped user management, the cleaner path is:
 In the Zitadel admin URL when you're viewing the ezpm org's settings, the URL looks like:
 
 ```
-https://auth.kainban.com/ui/console/orgs/375198905173803523
+https://auth.getezpm.com/ui/console/orgs/375198905173803523
 ```
 
 The number at the end is your `ZITADEL_ORG_ID`.
@@ -165,7 +165,7 @@ Restart the container. From the next "Create Tenant" submit, ezpm will:
 
 - Create the user in Zitadel
 - Generate an invitation code
-- Have Zitadel email the tenant a link to Zitadel's hosted login UI (`https://auth.kainban.com/ui/v2/login/verify?...`)
+- Have Zitadel email the tenant a link to Zitadel's hosted login UI (`https://auth.getezpm.com/ui/v2/login/verify?...`)
 
 The tenant clicks → enters the 6-char code from the email → sets password in Zitadel's hosted UI (gets your org's password policy + optional MFA enrollment for free) → Zitadel finishes the OIDC flow and lands them on `/tenant`.
 

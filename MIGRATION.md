@@ -59,8 +59,8 @@ The hostname `ezpm-db-caddy` resolves over the `coolify` Docker network. The new
 AUTH_SECRET=<openssl rand -base64 32 output>
 AUTH_ZITADEL_ID=<client id from Zitadel app, e.g. 375204933076517379>
 AUTH_ZITADEL_SECRET=<client secret from Zitadel app>
-AUTH_ZITADEL_ISSUER=https://auth.kainban.com
-NEXTAUTH_URL=https://rent.qureshi.io
+AUTH_ZITADEL_ISSUER=https://auth.getezpm.com
+NEXTAUTH_URL=https://app.getezpm.com
 ```
 
 **Keep (no change):**
@@ -82,7 +82,7 @@ If you ever want to consult the old data again, take an on-demand backup in Supa
 
 In the Stripe Dashboard → Developers → Webhooks:
 
-- Endpoint URL: `https://rent.qureshi.io/api/webhooks/stripe`
+- Endpoint URL: `https://app.getezpm.com/api/webhooks/stripe`
 - Events to send:
   - `invoice.created`
   - `invoice.finalized`
@@ -108,8 +108,8 @@ If the build fails on `npm run build`, the deploy stops and the old container ke
 
 ### 5. Self-bootstrap as admin
 
-- Open `https://rent.qureshi.io/admin` in a fresh incognito window.
-- Should redirect to `auth.kainban.com` (Zitadel ezpm org login UI).
+- Open `https://app.getezpm.com/admin` in a fresh incognito window.
+- Should redirect to `auth.getezpm.com` (Zitadel ezpm org login UI).
 - Log in with the Zitadel account you invited yourself to in the runbook.
 - After the OIDC callback you should land on `/admin` as the ezpm admin (first-user-wins bootstrap).
 
@@ -133,8 +133,8 @@ For each tenant:
 
 1. **In ezpm admin** → Properties → Create (if you haven't already since the schema is fresh).
 2. **In ezpm admin** → Tenants → Add New Tenant. Fill in their email + property + due day. Submit.
-3. **In Zitadel admin UI** (`auth.kainban.com/ui/console` → ezpm org → Users → New), invite the same email. Zitadel sends them the invite link.
-4. **Tenant** accepts the invite, sets a Zitadel password, logs into `rent.qureshi.io`. Provisioning route auto-links them to the tenants row by email.
+3. **In Zitadel admin UI** (`auth.getezpm.com/ui/console` → ezpm org → Users → New), invite the same email. Zitadel sends them the invite link.
+4. **Tenant** accepts the invite, sets a Zitadel password, logs into `app.getezpm.com`. Provisioning route auto-links them to the tenants row by email.
 5. **Tenant** adds a payment method (card or bank) at `/tenant/payment-methods/add`. On successful add, the Stripe Customer + Subscription are auto-created. The first invoice will land on the next payment_due_day.
 
 ### 7. Sanity check

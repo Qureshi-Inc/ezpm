@@ -2,12 +2,12 @@
 
 Rent-collection platform for a small portfolio of properties. Tenants log in via Zitadel OIDC, save a card or bank account, and Stripe Subscriptions auto-charges them on their monthly due date.
 
-Production: https://rent.qureshi.io
+Production: https://app.getezpm.com
 
 ## Stack
 
 - **Next.js 15** (App Router, React 19, TypeScript, Tailwind, shadcn/ui)
-- **Auth.js v5** with Zitadel OIDC provider (`auth.kainban.com`)
+- **Auth.js v5** with Zitadel OIDC provider (`auth.getezpm.com`)
 - **Stripe** — cards + `us_bank_account` (ACH via Financial Connections), Subscriptions for monthly auto-pay
 - **Supabase Postgres** for data
 - **Coolify** for self-hosted deploy (auto-deploy on push to main)

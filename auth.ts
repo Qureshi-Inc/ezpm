@@ -3,7 +3,7 @@
  *
  * Pattern matches zitadel/example-auth-nextjs (the official Zitadel example).
  * Single OIDC client per D8 — both http://localhost:3000 and
- * https://rent.qureshi.io are registered as redirect URIs on the same Zitadel
+ * https://app.getezpm.com are registered as redirect URIs on the same Zitadel
  * app. Dev mode is enabled on the Zitadel app to allow the http localhost URL.
  *
  * The session callback fans out into our provisioning route on every login,
@@ -44,8 +44,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Zitadel({
       // Auth.js v5 picks up AUTH_ZITADEL_ID and AUTH_ZITADEL_SECRET from env
       // automatically. AUTH_ZITADEL_ISSUER is non-standard but supported here
-      // for clarity; falls back to https://auth.kainban.com.
-      issuer: process.env.AUTH_ZITADEL_ISSUER || 'https://auth.kainban.com',
+      // for clarity; falls back to https://auth.getezpm.com.
+      issuer: process.env.AUTH_ZITADEL_ISSUER || 'https://auth.getezpm.com',
       authorization: {
         params: {
           // openid: standard OIDC; profile: name/picture; email: email claim;
