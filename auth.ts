@@ -35,6 +35,11 @@ declare module '@auth/core/jwt' {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Auth.js v5 refuses to honor the Host header by default — a defense
+  // against host-header injection. Vercel auto-sets this; self-hosted
+  // deployments behind a proxy (us: Cloudflare → Coolify Traefik → app)
+  // need to opt in explicitly or every request returns "UntrustedHost".
+  trustHost: true,
   providers: [
     Zitadel({
       // Auth.js v5 picks up AUTH_ZITADEL_ID and AUTH_ZITADEL_SECRET from env
