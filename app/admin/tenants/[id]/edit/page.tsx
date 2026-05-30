@@ -21,7 +21,6 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
     // Await params to fix Next.js 15 compatibility
     const { id } = await params
 
-    // Get tenant details (using manual join to avoid foreign key dependency)
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('*')
@@ -32,18 +31,9 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
       redirect('/admin/tenants')
     }
 
-    // Get user email separately
-    const { data: user } = await supabase
-      .from('users')
-      .select('email')
-      .eq('id', tenant.user_id)
-      .single()
-
-    // Merge data for form compatibility
-    const tenantWithUser = {
-      ...tenant,
-      user: user || { email: '' }
-    }
+    // Email lives on tenants directly now (post-Zitadel migration). The form
+    // doesn't need a separate user join.
+    const tenantWithUser = tenant
 
     // Get all properties for the dropdown
     const { data: properties } = await supabase
@@ -86,7 +76,9 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
                 <h3 className="font-medium text-gray-900 mb-2">Account Information</h3>
                 <div className="text-sm text-gray-600 space-y-1">
                   <p>• Account ID: {tenantWithUser.id}</p>
-                  <p>• User ID: {tenantWithUser.user_id}</p>
+                  <p>• Zitadel-linked user ID: {tenantWithUser.user_id ?? 'not yet (tenant has not logged in)'}</p>
+                  <p>• Stripe Customer: {tenantWithUser.stripe_customer_id ?? 'not yet created'}</p>
+                  <p>• Stripe Subscription: {tenantWithUser.stripe_subscription_id ?? 'no active subscription'}</p>
                   <p>• Created: {new Date(tenantWithUser.created_at).toLocaleDateString()}</p>
                   <p>• Last Updated: {new Date(tenantWithUser.updated_at).toLocaleDateString()}</p>
                 </div>
@@ -97,6 +89,6 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
       </div>
     )
   } catch (error) {
-    redirect('/auth/login')
+    redirect('/api/auth/signin')
   }
 } 

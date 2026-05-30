@@ -1,153 +1,55 @@
-# Rent Payment Application
+# EZPM — EZ Property Manager
 
-A modern rent payment platform that allows tenants to pay rent online and property managers to track payments. Built with Next.js, Supabase, and Stripe.
+Rent-collection platform for a small portfolio of properties. Tenants log in via Zitadel OIDC, save a card or bank account, and Stripe Subscriptions auto-charges them on their monthly due date.
 
-## Features
+Production: https://rent.qureshi.io
 
-### Tenant Features
-- Secure login and registration
-- Add payment methods (ACH, Debit, Credit cards via Stripe)
-- Make one-time rent payments
-- Set up automatic payments
-- View payment history
-- View assigned property details
+## Stack
 
-### Admin Features
-- Create and manage tenants
-- Assign tenants to properties
-- View all payment transactions
-- Track monthly revenue
-- See pending payments
+- **Next.js 15** (App Router, React 19, TypeScript, Tailwind, shadcn/ui)
+- **Auth.js v5** with Zitadel OIDC provider (`auth.kainban.com`)
+- **Stripe** — cards + `us_bank_account` (ACH via Financial Connections), Subscriptions for monthly auto-pay
+- **Supabase Postgres** for data
+- **Coolify** for self-hosted deploy (auto-deploy on push to main)
 
-## Tech Stack
+See [CLAUDE.md](./CLAUDE.md) for full architecture, env vars, key flows, and security model.
 
-- **Frontend**: Next.js 14 with App Router, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes
-- **Database**: PostgreSQL (via Supabase)
-- **Authentication**: Custom implementation with session cookies
-- **Payment Processing**: Stripe
-- **Hosting**: Deployable to Vercel (free tier)
-
-## Prerequisites
-
-Before you begin, you'll need:
-
-1. Node.js 18+ installed
-2. A Supabase account (free tier available)
-3. A Stripe account (test mode is fine for development)
-
-## Setup Instructions
-
-### 1. Clone and Install Dependencies
+## Local development
 
 ```bash
-git clone <your-repo-url>
-cd rent-payment-app
+git clone git@github.com:Qureshi-Inc/ezpm.git
+cd ezpm
 npm install
-```
-
-### 2. Set Up Supabase
-
-1. Create a new project at [supabase.com](https://supabase.com)
-2. Go to SQL Editor and run the schema from `supabase/schema.sql`
-3. Get your project URL and keys from Settings > API
-
-### 3. Set Up Stripe
-
-1. Create an account at [stripe.com](https://stripe.com)
-2. Get your publishable and secret keys from the Dashboard
-3. For webhooks (optional), add endpoint URL: `https://your-domain.com/api/stripe/webhook`
-
-### 4. Configure Environment Variables
-
-Create a `.env.local` file in the root directory:
-
-```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-
-# Stripe
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
-STRIPE_SECRET_KEY=your_stripe_secret_key
-STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
-
-# App
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-### 5. Create an Admin User
-
-Run the following SQL in Supabase SQL Editor to create an admin user:
-
-```sql
--- Create admin user (password: admin123)
-INSERT INTO users (email, password_hash, role) VALUES 
-('admin@example.com', '$2a$10$PJvF3H5Z2X3LoUVHVZ.hXelSIxG7iF8y5H.OKfcJqZdQvKz.cBkH2', 'admin');
-```
-
-Note: Change the password after first login!
-
-### 6. Run the Application
-
-```bash
+cp .env.example .env.local
+# Fill in .env.local — see CLAUDE.md for what each var means
 npm run dev
 ```
 
-Visit [http://localhost:3000](http://localhost:3000)
+To run the app locally against the same Zitadel + Stripe accounts as prod:
+- Make sure your Zitadel OIDC app has `http://localhost:3000/api/auth/callback/zitadel` registered as a redirect URI AND dev mode is enabled (see `scripts/zitadel-setup-runbook.md`).
+- Use Stripe test keys (`sk_test_...`, `pk_test_...`) in `.env.local`.
 
-## Deployment
+## Operational scripts
 
-### Deploy to Vercel (Recommended)
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Local dev server on `http://localhost:3000` |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint |
+| `npm run reconcile-stripe` | Replay Stripe events since the last successful sync. Use after server downtime to catch missed webhooks. Add `-- --dry-run` to preview. |
 
-1. Push your code to GitHub
-2. Import your repository on [Vercel](https://vercel.com)
-3. Add all environment variables
-4. Deploy!
+## Database schema
 
-### Deploy to Render
+`supabase/schema.sql` is the single source of truth. To apply to a fresh database:
+1. Drop everything: `DROP TABLE IF EXISTS auto_payments, payments, payment_methods, tenants, properties, users CASCADE;`
+2. Run the schema file in the Supabase SQL Editor.
 
-1. Create a new Web Service on [Render](https://render.com)
-2. Connect your GitHub repository
-3. Set build command: `npm run build`
-4. Set start command: `npm start`
-5. Add environment variables
-6. Deploy!
+For the LIVE database cutover from the old (custom-auth + Moov) schema, see [`MIGRATION.md`](./MIGRATION.md).
 
-## Project Structure
+## Zitadel setup
 
-```
-rent-payment-app/
-├── app/                    # Next.js app router pages
-│   ├── admin/             # Admin dashboard pages
-│   ├── tenant/            # Tenant dashboard pages
-│   ├── auth/              # Authentication pages
-│   └── api/               # API routes
-├── components/            # React components
-│   ├── ui/               # Reusable UI components
-│   └── layout/           # Layout components
-├── lib/                   # Utility libraries
-├── types/                 # TypeScript type definitions
-├── utils/                 # Helper functions
-└── supabase/             # Database schema
-```
-
-## Security Notes
-
-- Always use HTTPS in production
-- Keep your environment variables secret
-- Regularly update dependencies
-- Use Stripe in test mode during development
-- Implement rate limiting for production
+One-time setup is in [`scripts/zitadel-setup-runbook.md`](./scripts/zitadel-setup-runbook.md). Run that first; come back here for the rest.
 
 ## License
 
-This project is licensed under the [AGPLv3](LICENSE) license.
-
-If you deploy this software or create derivatives for public or commercial use, you are required to share your source code under the same license. We welcome improvements via pull requests!
-
-
-## Support
-
-For issues and questions, please open a GitHub issue.
+[AGPLv3](LICENSE).

@@ -52,10 +52,10 @@ export default async function CreateTenantPage() {
               <CardContent className="pt-6">
                 <h3 className="font-medium text-gray-900 mb-2">What happens next?</h3>
                 <div className="text-sm text-gray-600 space-y-1">
-                  <p>• The tenant will receive login credentials via email</p>
-                  <p>• They can access their tenant portal to view rent info</p>
-                  <p>• You can assign them to properties and set up payments</p>
-                  <p>• Payment methods can be added once they log in</p>
+                  <p>• You invite the tenant&apos;s email in the Zitadel admin UI (Org → Users → New).</p>
+                  <p>• Zitadel emails them an invite link to set their password.</p>
+                  <p>• On first login here, the tenant is auto-linked to this record by email match.</p>
+                  <p>• They add a payment method (card or ACH) and the Stripe Customer + Subscription are created.</p>
                 </div>
               </CardContent>
             </Card>
@@ -64,6 +64,6 @@ export default async function CreateTenantPage() {
       </div>
     )
   } catch (error) {
-    redirect('/auth/login')
+    redirect('/api/auth/signin')
   }
 } 

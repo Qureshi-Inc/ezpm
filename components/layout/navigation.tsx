@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Home, CreditCard, Clock, LogOut, Users, Building, DollarSign, Menu, X } from 'lucide-react'
 
@@ -12,16 +12,13 @@ interface NavigationProps {
 }
 
 export function Navigation({ role, userName }: NavigationProps) {
-  const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' })
-      router.push('/auth/login')
-    } catch (error) {
-      console.error('Logout error:', error)
-    }
+  // Auth.js signOut clears the JWE cookie and (via callbackUrl) bounces us
+  // to a public landing. Federated logout from Zitadel itself is a follow-up
+  // (call Zitadel's end_session_endpoint with id_token_hint).
+  const handleLogout = () => {
+    void signOut({ callbackUrl: '/' })
   }
 
   const tenantLinks = [

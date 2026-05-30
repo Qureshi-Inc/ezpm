@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "EZPM - Rent Payment Portal",
-  description: "Manage rent payments online - Easy, secure, and automated",
+  description: "Manage rent payments online - secure and automated",
 };
 
 export default function RootLayout({
@@ -25,13 +24,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        {/* Load Moov.js globally */}
-        <Script
-          src="https://js.moov.io/v1?min=v0.6.12"
-          strategy="beforeInteractive"
-        />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

@@ -284,6 +284,6 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
       </div>
     )
   } catch (error) {
-    redirect('/auth/login')
+    redirect('/api/auth/signin')
   }
 } 

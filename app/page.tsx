@@ -5,12 +5,9 @@ export default async function Home() {
   const session = await getSession()
 
   if (!session) {
-    redirect('/auth/login')
+    // Auth.js sign-in handler kicks off the OIDC flow to Zitadel
+    redirect('/api/auth/signin?callbackUrl=/')
   }
 
-  if (session.role === 'admin') {
-    redirect('/admin')
-  } else {
-    redirect('/tenant')
-  }
+  redirect(session.role === 'admin' ? '/admin' : '/tenant')
 }
