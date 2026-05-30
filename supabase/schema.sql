@@ -89,8 +89,12 @@ CREATE TABLE payment_methods (
                               CHECK (verification_status IN ('verified', 'pending_microdeposits', 'failed')),
     setup_intent_id           VARCHAR(255),
     created_at                TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at                TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (tenant_id, type, last4)
+    updated_at                TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    -- No (tenant_id, type, last4) UNIQUE: a tenant can legitimately have
+    -- multiple bank accounts at the same institution that share a last4
+    -- (e.g. checking + savings), AND Stripe test mode reuses the same
+    -- last4 across test account numbers. The real uniqueness is
+    -- enforced by stripe_payment_method_id (UNIQUE above).
 );
 
 -- ============================================================
