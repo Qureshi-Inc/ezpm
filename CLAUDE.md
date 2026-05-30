@@ -10,7 +10,7 @@ Production: https://rent.qureshi.io (Coolify auto-deploy on push to main).
 
 - **Frontend:** Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, shadcn/ui
 - **Auth:** Zitadel (https://auth.kainban.com, `ezpm` org) via Auth.js v5 (`next-auth@beta`)
-- **Database:** Supabase Postgres (data plane only; not using Supabase Auth)
+- **Database:** Self-hosted postgres + PostgREST (see `/home/opti3/services/ezpm-db/`). The ezpm app uses `@supabase/supabase-js` against a Caddy-shimmed PostgREST endpoint; zero code changes vs Supabase SaaS.
 - **Payments:** Stripe (cards + `us_bank_account`/ACH via Financial Connections), Stripe Subscriptions for monthly auto-charge
 - **Deploy:** Coolify on a self-hosted server
 
@@ -29,10 +29,12 @@ STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
 
-# Supabase (data plane)
-NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
+# Self-hosted DB (postgres + PostgREST + Caddy in /home/opti3/services/ezpm-db/)
+# The SUPABASE_* names are kept because the JS SDK reads them; the URL points
+# at our Caddy shim on the Coolify docker network instead of supabase.co.
+NEXT_PUBLIC_SUPABASE_URL=http://ezpm-db-caddy
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...   # JWT signed with JWT_SECRET in ezpm-db/.env, role=anon
+SUPABASE_SERVICE_ROLE_KEY=eyJ...        # JWT signed with same secret, role=service_role
 
 # App
 NEXT_PUBLIC_APP_URL=https://rent.qureshi.io

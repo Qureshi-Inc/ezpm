@@ -1,67 +1,89 @@
-# EZPM cutover runbook (Zitadel + Stripe Subscriptions migration)
+# EZPM cutover runbook (Zitadel + Stripe Subscriptions + self-hosted DB)
 
-This runbook walks through the live cutover for the `migrate-zitadel-stripe-subs` PR. Read it end-to-end before starting. The schema replacement is destructive; rollback requires a pg_dump taken BEFORE you start (see step 1).
+This runbook walks through the live cutover for the `migrate-zitadel-stripe-subs` PR. Read it end-to-end before starting.
+
+## What this cutover does
+
+1. Replaces the Supabase SaaS database with self-hosted **postgres + PostgREST + Caddy** running locally as `ezpm-db` (see `/home/opti3/services/ezpm-db/`). The ezpm app keeps using `@supabase/supabase-js` — it talks to PostgREST through Caddy's URL shim. Zero app code changes.
+2. Replaces the custom bcrypt + base64-JSON cookie auth with Zitadel OIDC via Auth.js v5.
+3. Drops Moov entirely; consolidates to Stripe (card + `us_bank_account` ACH).
+4. Introduces Stripe Subscriptions for monthly auto-charge so home-server downtime no longer causes missed rent.
 
 ## Prerequisites
 
-- [ ] You've completed `scripts/zitadel-setup-runbook.md` and have:
+- [ ] Zitadel org + OIDC app set up per `scripts/zitadel-setup-runbook.md`. Have these three values ready:
   - `AUTH_ZITADEL_ID`
   - `AUTH_ZITADEL_SECRET`
-  - Your owner email invited in Zitadel and the password set
-- [ ] You have the new env vars ready to paste into Coolify (see CLAUDE.md → Required Environment Variables)
-- [ ] You have your Stripe webhook secret rotated and ready (or you'll re-create the webhook in step 4)
-- [ ] You have postgres access to the Supabase project (connection string from Supabase dashboard → Settings → Database)
+  - `AUTH_SECRET` (from `openssl rand -base64 32`)
+- [ ] Your owner email already invited as a Zitadel user, password set.
+- [ ] `ezpm-db` stack running (`docker compose ps` in `/home/opti3/services/ezpm-db/` shows all 3 containers healthy).
+- [ ] Stripe webhook endpoint ready (we'll update it in step 3).
 
-## Cutover (estimated 30 minutes if nothing goes wrong)
+## Cutover (estimated 20 minutes if nothing breaks)
 
-### 1. Back up the live database (T13 deferred — do this manually here)
+### 1. Update Coolify env vars
 
-From the Supabase dashboard:
-- Settings → Database → Connection string → URI (copy the postgres URI)
-- OR: Settings → Database → Backups → On-demand backup (if your tier supports it)
+In the Coolify UI for the ezpm app → Environment Variables.
 
-If using the postgres URI, on any machine with `pg_dump` installed:
+**Remove (no longer needed):**
 
-```bash
-pg_dump -Fc "postgresql://postgres:<password>@db.<project>.supabase.co:5432/postgres" \
-  > ezpm-pre-zitadel-$(date -u +%Y-%m-%dT%H-%M-%SZ).dump
+```
+MOOV_ACCOUNT_ID
+MOOV_DOMAIN
+MOOV_PUBLIC_KEY
+MOOV_SECRET_KEY
+NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID
 ```
 
-Stash this file somewhere durable (S3, Drive, your home machine — not just `/tmp`). It is your ONLY recovery path if the new schema has a bug.
+**Replace (Supabase SaaS → self-hosted DB):**
 
-To restore later (rollback):
-
-```bash
-pg_restore -d "postgresql://..." --clean --if-exists ezpm-pre-zitadel-<timestamp>.dump
+Old (delete):
+```
+NEXT_PUBLIC_SUPABASE_URL=https://isygihdulvjbmybcjgji.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<old jwt>
+SUPABASE_SERVICE_ROLE_KEY=<old jwt>
 ```
 
-### 2. Apply the new schema to the live database
+New (paste from `/home/opti3/services/ezpm-db/coolify-env-snippet.txt`):
+```
+NEXT_PUBLIC_SUPABASE_URL=http://ezpm-db-caddy
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<new JWT signed with our JWT_SECRET>
+SUPABASE_SERVICE_ROLE_KEY=<new service_role JWT>
+```
 
-In the Supabase SQL editor (Settings → SQL Editor → New query):
+The hostname `ezpm-db-caddy` resolves over the `coolify` Docker network. The new JWTs are signed with the secret in `/home/opti3/services/ezpm-db/.env`.
 
-1. Run `DROP TABLE IF EXISTS auto_payments, payments, payment_methods, tenants, properties, users CASCADE;` (drops in dependency order)
-2. Paste the contents of `supabase/schema.sql` and execute.
-3. Verify the new tables exist: `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';` — should show `users`, `tenants`, `properties`, `payment_methods`, `payments`, `stripe_events`, `system_settings`.
-4. Verify the RPC: `\df provision_user_from_zitadel` (or `SELECT proname FROM pg_proc WHERE proname = 'provision_user_from_zitadel';`).
+**Add (Auth.js v5 + Zitadel):**
 
-If anything failed, restore from the dump (step 1) before continuing.
+```
+AUTH_SECRET=<openssl rand -base64 32 output>
+AUTH_ZITADEL_ID=<client id from Zitadel app, e.g. 375204933076517379>
+AUTH_ZITADEL_SECRET=<client secret from Zitadel app>
+AUTH_ZITADEL_ISSUER=https://auth.kainban.com
+NEXTAUTH_URL=https://rent.qureshi.io
+```
 
-### 3. Push the env vars to Coolify
+**Keep (no change):**
 
-In the Coolify UI for the ezpm app:
+```
+STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+NEXT_PUBLIC_APP_URL
+```
 
-- **Remove:** `MOOV_ACCOUNT_ID`, `MOOV_DOMAIN`, `MOOV_PUBLIC_KEY`, `MOOV_SECRET_KEY`, `NEXT_PUBLIC_MOOV_FACILITATOR_ACCOUNT_ID`
-- **Add:** `AUTH_SECRET`, `AUTH_ZITADEL_ID`, `AUTH_ZITADEL_SECRET`, `AUTH_ZITADEL_ISSUER` (= `https://auth.kainban.com`), `NEXTAUTH_URL` (= `https://rent.qureshi.io`)
-- **Keep:** all `STRIPE_*` and `SUPABASE_*` vars unchanged
+Save the env changes in Coolify. **Do NOT redeploy yet.**
 
-Save. Don't redeploy yet.
+### 2. (Optional) Take a final Supabase backup
 
-### 4. Confirm the Stripe webhook endpoint
+If you ever want to consult the old data again, take an on-demand backup in Supabase dashboard → Database → Backups. You can cancel the Supabase project entirely after the cutover is verified.
 
-In the Stripe Dashboard:
-- Developers → Webhooks
+### 3. Confirm Stripe webhook endpoint
+
+In the Stripe Dashboard → Developers → Webhooks:
+
 - Endpoint URL: `https://rent.qureshi.io/api/webhooks/stripe`
-- Events to send (at minimum):
+- Events to send:
   - `invoice.created`
   - `invoice.finalized`
   - `invoice.payment_succeeded`
@@ -71,50 +93,82 @@ In the Stripe Dashboard:
   - `customer.subscription.created`
   - `customer.subscription.updated`
   - `customer.subscription.deleted`
-- Copy the signing secret (`whsec_...`) into the Coolify env var `STRIPE_WEBHOOK_SECRET`.
+- Signing secret (`whsec_...`): make sure it matches `STRIPE_WEBHOOK_SECRET` in Coolify. If you rotated it, paste the new value into Coolify now.
 
-### 5. Merge & deploy
+### 4. Merge the PR → Coolify auto-deploys
 
-- Merge the PR (`/ship` handles this if you've configured it; otherwise `gh pr merge --squash`).
-- Coolify auto-deploys on push to main. Watch the build logs.
-- Wait for the build to finish.
+```bash
+gh pr merge migrate-zitadel-stripe-subs --squash
+# or merge in the GitHub UI
+```
 
-### 6. Self-bootstrap as admin
+Coolify watches `main` and auto-deploys on push. Watch the build logs in Coolify UI. Should take 3-5 minutes.
 
-- Open `https://rent.qureshi.io/admin` in a fresh browser window (or incognito).
-- Should redirect to `auth.kainban.com` → log in with the Zitadel account you invited yourself to in step 7 of the Zitadel runbook.
-- After the OIDC callback, you should land on `/admin` as the ezpm admin (first-user-wins bootstrap).
-- If you land on `/tenant` instead, you're NOT the first user. Check the `users` table: `SELECT * FROM users;` — if there's already an admin, the bootstrap ran for someone else and you'll need to manually flip your role: `UPDATE users SET role = 'admin' WHERE email = '<your-email>';`
+If the build fails on `npm run build`, the deploy stops and the old container keeps serving. Fix forward.
 
-### 7. Re-onboard the 3 live properties' tenants
+### 5. Self-bootstrap as admin
+
+- Open `https://rent.qureshi.io/admin` in a fresh incognito window.
+- Should redirect to `auth.kainban.com` (Zitadel ezpm org login UI).
+- Log in with the Zitadel account you invited yourself to in the runbook.
+- After the OIDC callback you should land on `/admin` as the ezpm admin (first-user-wins bootstrap).
+
+If you land on `/tenant` instead, you weren't the first user. Check the ezpm-db users table:
+
+```bash
+docker exec ezpm-postgres psql -U postgres -d ezpm -c \
+  "SELECT email, role FROM users ORDER BY created_at;"
+```
+
+If someone else got admin, flip your role:
+
+```bash
+docker exec ezpm-postgres psql -U postgres -d ezpm -c \
+  "UPDATE users SET role = 'admin' WHERE email = '<your-email>';"
+```
+
+### 6. Re-onboard the 3 properties' tenants
 
 For each tenant:
 
-1. In ezpm admin → Properties → Create (if you haven't already, since the wipe).
-2. Admin → Tenants → Add New Tenant. Fill in their email + property + due day. Submit.
-3. In Zitadel admin UI (auth.kainban.com/ui/console → ezpm org → Users → New), invite the same email. Zitadel sends them the invite link.
-4. Tenant accepts, sets password, logs into `rent.qureshi.io`. Provisioning route auto-links them to the tenants row by email.
-5. Tenant adds a payment method (card or bank). On successful add, the Stripe Customer + Subscription are auto-created. Their first invoice will land on the next payment_due_day.
+1. **In ezpm admin** → Properties → Create (if you haven't already since the schema is fresh).
+2. **In ezpm admin** → Tenants → Add New Tenant. Fill in their email + property + due day. Submit.
+3. **In Zitadel admin UI** (`auth.kainban.com/ui/console` → ezpm org → Users → New), invite the same email. Zitadel sends them the invite link.
+4. **Tenant** accepts the invite, sets a Zitadel password, logs into `rent.qureshi.io`. Provisioning route auto-links them to the tenants row by email.
+5. **Tenant** adds a payment method (card or bank) at `/tenant/payment-methods/add`. On successful add, the Stripe Customer + Subscription are auto-created. The first invoice will land on the next payment_due_day.
 
-### 8. Sanity check
+### 7. Sanity check
 
-- In Stripe Dashboard → Customers, you should see one Customer per tenant who's added a payment method.
-- In Stripe Dashboard → Subscriptions, one Subscription per onboarded tenant.
-- In the ezpm admin payments page, click "Debug tenants" — every tenant should show `Zitadel user`, `Stripe customer`, `Stripe subscription` all populated.
-- Click "Run Stripe reconcile" — should report `processed=0` if everything is already mirrored, `skipped=N` for already-seen events.
+- **Stripe Dashboard → Customers**: one Customer per tenant who's added a payment method.
+- **Stripe Dashboard → Subscriptions**: one Subscription per onboarded tenant.
+- **ezpm admin → Payments page** → click **Debug tenants** → every tenant shows `Zitadel user`, `Stripe customer`, `Stripe subscription` all populated.
+- Click **Run Stripe reconcile** → should report `processed=0` if everything is already mirrored.
 
 ## Rollback
 
-If anything is wrong AFTER step 5 and you can't fix forward:
+If anything is wrong AFTER step 4:
 
-1. Roll back Coolify to the previous deploy (Coolify UI → Deployments → click the prior one → Redeploy).
-2. Restore the pg_dump from step 1:
-   ```bash
-   pg_restore -d "postgresql://..." --clean --if-exists <your-dump-file>
-   ```
-3. Remove the new env vars and restore the Moov env vars in Coolify if needed.
-4. The Stripe Customers/Subscriptions you created in step 7 will remain in Stripe. They're harmless until/unless you re-cutover. Cancel any test subscriptions you don't want.
+1. **Roll back Coolify deploy:** Coolify UI → Deployments → click the prior deploy → Redeploy.
+2. **Restore the old env vars:** put back the old `NEXT_PUBLIC_SUPABASE_*` values and remove the `AUTH_*` ones. The old ezpm code will run against the Supabase SaaS DB again.
+3. **The ezpm-db stack** can stay running (it's harmless when nothing is pointing at it). Or `docker compose down -v` in `/home/opti3/services/ezpm-db/` to wipe it.
+
+## Backup strategy for self-hosted DB
+
+The `ezpm-pgdata` volume lives under `/var/lib/docker/volumes/ezpm-db_ezpm-pgdata/_data`. Wire it into your existing backup-status / restic / cron pipeline. A one-off pg_dump:
+
+```bash
+docker exec ezpm-postgres pg_dump -U postgres ezpm -Fc \
+  > ~/ezpm-backups/$(date -u +%Y-%m-%dT%H-%M-%SZ).dump
+```
+
+To restore:
+
+```bash
+# Stop the ezpm app first so it doesn't write during restore.
+docker exec -i ezpm-postgres pg_restore -U postgres -d ezpm --clean --if-exists \
+  < ~/ezpm-backups/<your-backup>.dump
+```
 
 ## Post-cutover follow-ups
 
-See `CLAUDE.md` → Deferred section. The high-priority follow-up is T12 (ACH return webhooks).
+See `CLAUDE.md` → Deferred section. Highest priority is T12 (ACH return webhooks — bounced ACH currently shows as paid until manually reconciled).
