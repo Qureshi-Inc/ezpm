@@ -157,13 +157,15 @@ export interface SendInvitationResult {
 }
 
 export async function sendInvitation(input: SendInvitationInput): Promise<SendInvitationResult> {
-  await call(`/v2/users/${encodeURIComponent(input.userId)}/invitation_code`, {
+  // Zitadel v4 path is /invite_code (not /invitation_code which 404s).
+  // applicationName moved to a sibling field of sendCode.
+  await call(`/v2/users/${encodeURIComponent(input.userId)}/invite_code`, {
     method: 'POST',
     body: JSON.stringify({
       sendCode: {
         urlTemplate: input.urlTemplate,
-        applicationName: input.applicationName ?? 'EZPM',
       },
+      applicationName: input.applicationName ?? 'EZPM',
     }),
   })
   return { sent: true }
