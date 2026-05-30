@@ -60,11 +60,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // 30 days; tenants only log in once a month, no need for short sessions.
     maxAge: 30 * 24 * 60 * 60,
   },
-  pages: {
-    // Auth.js redirects unauthenticated users here. We don't render a custom
-    // sign-in page — clicking sign-in goes straight to Zitadel via signIn().
-    signIn: '/api/auth/signin',
-  },
+  // pages.signIn deliberately NOT set: pointing it at /api/auth/signin (the
+  // Auth.js built-in) creates a redirect/400 loop because Auth.js then tries
+  // to redirect users to its own endpoint as if it were a custom page. With
+  // pages.signIn omitted, Auth.js's default sign-in page renders at
+  // /api/auth/signin and auto-redirects to Zitadel (our only provider).
   callbacks: {
     // Called on each request that reads the session. We attach user_id +
     // role + zitadel_subject from the JWT into the public session object.
