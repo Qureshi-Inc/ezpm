@@ -19,13 +19,14 @@ export default async function TenantsPage() {
       .select('*')
       .order('created_at', { ascending: false })
 
-    type TenantRow = Tenant & { property: Pick<Property, 'address' | 'unit_number' | 'rent_amount'> | null }
+    type PropertySummary = Pick<Property, 'id' | 'address' | 'unit_number' | 'rent_amount'>
+    type TenantRow = Omit<Tenant, 'property'> & { property: PropertySummary | null }
     let tenants: TenantRow[] = []
     if (rawTenants && !error) {
       const propertyIds = (rawTenants as Tenant[]).map(t => t.property_id).filter((id): id is string => !!id)
       const { data: properties } = propertyIds.length > 0
         ? await supabase.from('properties').select('id, address, unit_number, rent_amount').in('id', propertyIds)
-        : { data: [] as Array<Pick<Property, 'id' | 'address' | 'unit_number' | 'rent_amount'>> }
+        : { data: [] as PropertySummary[] }
       tenants = (rawTenants as Tenant[]).map(tenant => ({
         ...tenant,
         property: properties?.find(p => p.id === tenant.property_id) ?? null,

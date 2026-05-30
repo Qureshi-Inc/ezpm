@@ -40,4 +40,10 @@ export default auth((req) => {
 
 export const config = {
   matcher: ['/admin/:path*', '/tenant/:path*'],
+  // Runs in the Edge runtime by default. Auth.js v5's session decryption uses
+  // jose, which warns about CompressionStream not existing in Edge — that
+  // path only fires for compressed JWEs (very large tokens) which we don't
+  // generate. If you ever see "CompressionStream is not defined" in prod
+  // logs, pin runtime: 'nodejs' here AND enable
+  // experimental.nodeMiddleware in next.config.ts.
 }

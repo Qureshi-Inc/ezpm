@@ -21,6 +21,45 @@ import type Stripe from 'stripe'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
+/**
+ * Lazy-create (and cache) the shared "Monthly rent" Stripe Product.
+ *
+ * Stripe API dahlia (2026-05) requires price_data.product to reference a
+ * pre-created Product ID — the old inline `product_data: { name }` was
+ * removed. We use ONE product for all rent across the platform; each
+ * tenant gets their own Price under this product (with their rent_amount
+ * as unit_amount).
+ *
+ * The product ID is cached in system_settings (key 'stripe_rent_product_id')
+ * so we only create it once.
+ */
+async function ensureRentProduct(): Promise<string> {
+  const supabase = createServerSupabaseClient()
+  const { data: existing } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'stripe_rent_product_id')
+    .maybeSingle()
+  if (existing?.value && typeof existing.value === 'string') {
+    return existing.value
+  }
+
+  const product = await stripe.products.create({
+    name: 'Monthly rent',
+    description: 'Recurring monthly rent payment via EZPM',
+    metadata: { app: 'ezpm' },
+  })
+
+  await supabase
+    .from('system_settings')
+    .upsert(
+      { key: 'stripe_rent_product_id', value: product.id },
+      { onConflict: 'key' },
+    )
+
+  return product.id
+}
+
 export interface TenantBillingContext {
   tenantId: string
   email: string
@@ -116,6 +155,7 @@ export async function createSubscriptionForTenant(
   }
 
   const anchor = nextBillingAnchor(ctx.paymentDueDay)
+  const productId = await ensureRentProduct()
 
   const sub = await stripe.subscriptions.create({
     customer: existing.stripe_customer_id,
@@ -123,7 +163,7 @@ export async function createSubscriptionForTenant(
       {
         price_data: {
           currency: 'usd',
-          product_data: { name: `Monthly rent — ${ctx.firstName} ${ctx.lastName}` },
+          product: productId,
           recurring: { interval: 'month' },
           unit_amount: Math.round(ctx.rentAmount * 100),
         },
@@ -175,6 +215,7 @@ export async function updateSubscriptionPrice(
   if (!oldItem) {
     throw new Error(`Subscription ${subscriptionId} has no items`)
   }
+  const productId = await ensureRentProduct()
 
   return stripe.subscriptions.update(subscriptionId, {
     items: [
@@ -182,7 +223,7 @@ export async function updateSubscriptionPrice(
         id: oldItem.id,
         price_data: {
           currency: 'usd',
-          product_data: { name: oldItem.price.product as string || 'Monthly rent' },
+          product: productId,
           recurring: { interval: 'month' },
           unit_amount: Math.round(newRentAmount * 100),
         },

@@ -25,7 +25,8 @@ declare module 'next-auth' {
   }
 }
 
-declare module 'next-auth/jwt' {
+// Auth.js v5 reorganized JWT types; module augmentation lives on '@auth/core/jwt'.
+declare module '@auth/core/jwt' {
   interface JWT {
     user_id?: string
     role?: 'admin' | 'tenant'

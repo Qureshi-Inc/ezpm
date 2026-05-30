@@ -100,9 +100,11 @@ async function mirrorInvoice(
     ? new Date(invoice.due_date * 1000).toISOString().slice(0, 10)
     : new Date(invoice.created * 1000).toISOString().slice(0, 10)
 
+  // Stripe Invoice exposes default_payment_method directly; payment_settings
+  // also has a payment_method_types[] but the resolved PM ID lives at the
+  // top level.
   let paymentMethodId: string | null = null
-  const stripePm =
-    invoice.default_payment_method ?? invoice.payment_settings?.default_payment_method
+  const stripePm = invoice.default_payment_method
   if (typeof stripePm === 'string' && stripePm) {
     const { data: pm } = await supabase
       .from('payment_methods')
@@ -112,12 +114,15 @@ async function mirrorInvoice(
     if (pm) paymentMethodId = pm.id
   }
 
-  const stripeChargeId =
-    typeof invoice.charge === 'string' ? invoice.charge : invoice.charge?.id ?? null
-  const stripePaymentIntentId =
-    typeof invoice.payment_intent === 'string'
-      ? invoice.payment_intent
-      : invoice.payment_intent?.id ?? null
+  // Stripe API 2026-05-27.dahlia removed invoice.charge and invoice.payment_intent
+  // at the top level. The new shape is invoice.payments[] (an ApiList<InvoicePayment>).
+  // For the T12 ACH-return follow-up we'll want to walk this list to find the
+  // most recent PaymentIntent + Charge. For now (this PR), we leave both columns
+  // null and look up via stripe_invoice_id when needed.
+  // TODO (T12): populate stripeChargeId from invoice.payments to support
+  // charge.failed / charge.dispute.created webhook handling.
+  const stripeChargeId: string | null = null
+  const stripePaymentIntentId: string | null = null
 
   await supabase.from('payments').upsert(
     {
