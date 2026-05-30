@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
 import { Edit, Trash2 } from 'lucide-react'
+import type { PaymentMethodType } from '@/utils/payment-fees'
 
 interface PaymentMethod {
   id: string
-  type: 'card' | 'moov_ach'
-  last4: string
+  type: PaymentMethodType
+  last4: string | null
   is_default: boolean
 }
 
@@ -30,26 +31,22 @@ export function PaymentMethodActions({ paymentMethod }: PaymentMethodActionsProp
       const response = await fetch(`/api/tenant/payment-methods/${paymentMethod.id}`, {
         method: 'DELETE',
       })
-
       const data = await response.json()
-
       if (!response.ok) {
         throw new Error(data.error || 'Failed to delete payment method')
       }
-
-      // Success - refresh the page
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete payment method')
-      throw err // Re-throw to let the dialog handle the error state
+      throw err
     } finally {
       setIsDeleting(false)
     }
   }
 
-  const methodName = paymentMethod.type === 'card' 
-    ? `Card ending in ${paymentMethod.last4}` 
-    : `Bank account ending in ${paymentMethod.last4}`
+  const methodName = paymentMethod.type === 'card'
+    ? `Card ending in ${paymentMethod.last4 ?? '••••'}`
+    : `Bank account ending in ${paymentMethod.last4 ?? '••••'}`
 
   return (
     <div className="flex items-center space-x-2">
@@ -58,23 +55,23 @@ export function PaymentMethodActions({ paymentMethod }: PaymentMethodActionsProp
           {error}
         </div>
       )}
-      
+
       <Button variant="outline" size="sm" disabled>
         <Edit className="w-4 h-4 mr-1" />
         Edit
       </Button>
-      
+
       <DeleteConfirmationDialog
         title="Remove Payment Method"
         description="This will permanently remove this payment method from your account."
         itemName={methodName}
         onConfirm={handleDelete}
         isLoading={isDeleting}
-        destructiveWarning={paymentMethod.is_default ? "This is your default payment method. Another method will be set as default if available." : undefined}
+        destructiveWarning={paymentMethod.is_default ? 'This is your default payment method. Another method will be set as default if available.' : undefined}
         trigger={
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="text-red-600 hover:text-red-700"
             disabled={isDeleting}
           >
@@ -84,4 +81,4 @@ export function PaymentMethodActions({ paymentMethod }: PaymentMethodActionsProp
       />
     </div>
   )
-} 
+}

@@ -7,12 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "create-admin": "node scripts/create-admin.js"
+    "reconcile-stripe": "tsx scripts/reconcile-stripe.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
-    "@moovio/moov-js": "^0.0.16",
-    "@moovio/sdk": "^0.14.0",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-dropdown-menu": "^2.1.15",
     "@radix-ui/react-label": "^2.1.7",
@@ -23,7 +21,6 @@
     "@stripe/stripe-js": "^7.3.1",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.10",
-    "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -37,7 +34,6 @@
     "zod": "^3.25.51"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
