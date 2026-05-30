@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { requireAdmin } from '@/lib/auth'
+import { updateSubscriptionPrice } from '@/lib/stripe-subscriptions'
 
 export async function DELETE(
   request: NextRequest,
@@ -167,7 +168,78 @@ export async function PUT(
     }
 
     console.log('Property updated successfully:', property)
-    return NextResponse.json({ property })
+
+    // Propagate rent_amount change to every tenant's Stripe Subscription
+    // assigned to this property. Without this, the local DB shows the new
+    // rent but Stripe keeps charging the old amount on the next cycle.
+    //
+    // Proration is OFF by default — change takes effect on the next billing
+    // cycle. This matches lib/stripe-subscriptions.ts createSubscriptionForTenant
+    // which uses proration_behavior: 'none'. If you want to prorate the
+    // delta immediately, pass apply_immediately: true in the body.
+    const subscriptionUpdates: Array<{
+      tenant_id: string
+      subscription_id: string
+      status: 'updated' | 'failed' | 'skipped'
+      error?: string
+    }> = []
+
+    const { data: tenantsOnProperty } = await supabase
+      .from('tenants')
+      .select('id, email, stripe_subscription_id')
+      .eq('property_id', id)
+      .not('stripe_subscription_id', 'is', null)
+
+    if (tenantsOnProperty && tenantsOnProperty.length > 0) {
+      const prorate = data.apply_immediately === true
+      for (const t of tenantsOnProperty) {
+        if (!t.stripe_subscription_id) {
+          subscriptionUpdates.push({
+            tenant_id: t.id,
+            subscription_id: '',
+            status: 'skipped',
+          })
+          continue
+        }
+        try {
+          await updateSubscriptionPrice(
+            t.stripe_subscription_id,
+            Number(data.rent_amount),
+            { prorate },
+          )
+          subscriptionUpdates.push({
+            tenant_id: t.id,
+            subscription_id: t.stripe_subscription_id,
+            status: 'updated',
+          })
+        } catch (err) {
+          console.error(`Failed to update subscription ${t.stripe_subscription_id} for tenant ${t.email}:`, err)
+          subscriptionUpdates.push({
+            tenant_id: t.id,
+            subscription_id: t.stripe_subscription_id,
+            status: 'failed',
+            error: err instanceof Error ? err.message : 'unknown',
+          })
+        }
+      }
+    }
+
+    const failed = subscriptionUpdates.filter(u => u.status === 'failed')
+    if (failed.length > 0) {
+      return NextResponse.json({
+        property,
+        subscriptionUpdates,
+        warning: `Property saved, but ${failed.length} of ${subscriptionUpdates.length} Stripe subscription(s) failed to update. Re-save to retry, or update manually in Stripe Dashboard.`,
+      })
+    }
+
+    return NextResponse.json({
+      property,
+      subscriptionUpdates,
+      message: subscriptionUpdates.length > 0
+        ? `Property saved. ${subscriptionUpdates.length} tenant subscription(s) updated to new rent.`
+        : 'Property saved.',
+    })
   } catch (error) {
     console.error('Property update error:', error)
     return NextResponse.json(
