@@ -1,8 +1,33 @@
+/**
+ * Stripe webhook handler — Subscription/Invoice events drive the local
+ * `payments` table (now a mirror of Stripe Invoices) and the `tenants`
+ * stripe_* fields.
+ *
+ * Idempotency (T8): every incoming event.id is INSERTed into the
+ * stripe_events table with ON CONFLICT DO NOTHING. If the insert affects
+ * zero rows, this exact event was already processed and we no-op
+ * (Stripe redelivers webhooks on transient failures; without idempotency
+ * we'd double-mirror invoices).
+ *
+ * Recovery if this handler is down: scripts/reconcile-stripe.ts walks
+ * stripe.events.list({ since: last_synced_at }) and replays through the
+ * same lib/stripe-event-handler module.
+ *
+ * Events handled (see lib/stripe-event-handler.ts):
+ *   invoice.created / .finalized / .payment_succeeded / .payment_failed /
+ *   .marked_uncollectible / .voided
+ *   customer.subscription.created / .updated / .deleted
+ *
+ * NOT handled in this PR (deferred per D11):
+ *   charge.failed                  -> ACH bounce 1-7 days post-success (T12)
+ *   charge.dispute.created         -> chargebacks (T12)
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { verifyWebhookSignature } from '@/lib/stripe-server'
-import { calculateNextDueDate, generatePaymentForTenant } from '@/utils/payment-generation'
+import { handleStripeEvent } from '@/lib/stripe-event-handler'
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,11 +36,10 @@ export async function POST(request: NextRequest) {
     const signature = headersList.get('stripe-signature')
 
     if (!signature) {
-      console.error('No Stripe signature found')
+      console.error('No Stripe signature on incoming webhook')
       return NextResponse.json({ error: 'No signature' }, { status: 400 })
     }
 
-    // Verify webhook signature
     let event
     try {
       event = verifyWebhookSignature(body, signature)
@@ -24,122 +48,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
-    console.log('Received Stripe webhook:', event.type, event.id)
-
     const supabase = createServerSupabaseClient()
 
-    switch (event.type) {
-      case 'payment_intent.succeeded': {
-        const paymentIntent = event.data.object
-        const tenantId = paymentIntent.metadata?.tenant_id
-        const paymentId = paymentIntent.metadata?.payment_id
+    // Idempotency: insert with ON CONFLICT DO NOTHING via maybeSingle().
+    // If maybeSingle returns null data, this exact event_id was already
+    // claimed and we don't reprocess.
+    const { data: claimed, error: claimError } = await supabase
+      .from('stripe_events')
+      .insert({
+        event_id: event.id,
+        event_type: event.type,
+        payload: event as unknown as Record<string, unknown>,
+      })
+      .select('event_id')
+      .maybeSingle()
 
-        if (!tenantId || !paymentId) {
-          console.error('Missing metadata in PaymentIntent:', paymentIntent.id)
-          break
-        }
-
-        console.log(`Payment succeeded: ${paymentIntent.id} for tenant ${tenantId}`)
-
-        // Update payment status
-        const { error: updateError } = await supabase
-          .from('payments')
-          .update({
-            status: 'succeeded',
-            stripe_payment_intent_id: paymentIntent.id,
-            paid_at: new Date().toISOString(),
-          })
-          .eq('id', paymentId)
-
-        if (updateError) {
-          console.error('Failed to update payment status:', updateError)
-          break
-        }
-
-        // Get tenant info for next payment generation
-        const { data: tenant } = await supabase
-          .from('tenants')
-          .select('payment_due_day')
-          .eq('id', tenantId)
-          .single()
-
-        if (tenant) {
-          // Get the current payment to calculate next due date
-          const { data: currentPayment } = await supabase
-            .from('payments')
-            .select('due_date')
-            .eq('id', paymentId)
-            .single()
-
-          if (currentPayment) {
-            try {
-              const currentDueDate = new Date(currentPayment.due_date)
-              const nextMonth = new Date(currentDueDate.getFullYear(), currentDueDate.getMonth() + 1, 1)
-              const nextDueDate = calculateNextDueDate(tenant.payment_due_day, nextMonth)
-              
-              // Only generate next payment if it's within 5 days of the due date
-              const today = new Date()
-              const daysUntilDue = Math.ceil((nextDueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-              
-              if (daysUntilDue <= 5) {
-                await generatePaymentForTenant(tenantId, nextDueDate, supabase)
-                console.log(`Generated next payment for tenant ${tenantId} due on ${nextDueDate.toISOString().split('T')[0]}`)
-              } else {
-                console.log(`Next payment for tenant ${tenantId} not yet due (${daysUntilDue} days away), skipping generation`)
-              }
-            } catch (error) {
-              console.error('Failed to generate next payment:', error)
-            }
-          }
-        }
-
-        break
+    if (claimError) {
+      // Real DB error (not the duplicate-key path — that returns null data,
+      // no error). Refusing the webhook causes Stripe to retry.
+      // Exception: 23505 IS the duplicate-key error code that supabase-js
+      // sometimes surfaces here; treat as already-processed.
+      if (claimError.code === '23505') {
+        return NextResponse.json({ received: true, idempotent: true })
       }
-
-      case 'payment_intent.payment_failed': {
-        const paymentIntent = event.data.object
-        const paymentId = paymentIntent.metadata?.payment_id
-
-        if (!paymentId) {
-          console.error('Missing payment_id in PaymentIntent metadata:', paymentIntent.id)
-          break
-        }
-
-        console.log(`Payment failed: ${paymentIntent.id}`)
-
-        // Update payment status to failed
-        const { error: updateError } = await supabase
-          .from('payments')
-          .update({
-            status: 'failed',
-            stripe_payment_intent_id: paymentIntent.id,
-          })
-          .eq('id', paymentId)
-
-        if (updateError) {
-          console.error('Failed to update payment status:', updateError)
-        }
-
-        break
-      }
-
-      case 'payment_method.attached': {
-        const paymentMethod = event.data.object
-        console.log(`Payment method attached: ${paymentMethod.id}`)
-        break
-      }
-
-      default:
-        console.log(`Unhandled event type: ${event.type}`)
+      console.error('stripe_events insert failed:', claimError)
+      return NextResponse.json({ error: 'DB error' }, { status: 500 })
+    }
+    if (!claimed) {
+      return NextResponse.json({ received: true, idempotent: true })
     }
 
-    return NextResponse.json({ received: true })
+    await handleStripeEvent(event, supabase)
 
+    await supabase
+      .from('stripe_events')
+      .update({ processed_at: new Date().toISOString() })
+      .eq('event_id', event.id)
+
+    // Advance the reconcile watermark so the catchup script knows it can
+    // skip events older than this on next run.
+    await supabase
+      .from('system_settings')
+      .upsert(
+        { key: 'last_stripe_event_synced_at', value: event.created },
+        { onConflict: 'key' },
+      )
+
+    return NextResponse.json({ received: true })
   } catch (error) {
-    console.error('Webhook error:', error)
-    return NextResponse.json(
-      { error: 'Webhook handler failed' },
-      { status: 500 }
-    )
+    console.error('Stripe webhook handler crashed:', error)
+    return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 })
   }
-} 
+}
