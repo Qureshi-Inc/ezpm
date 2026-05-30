@@ -96,7 +96,12 @@ CREATE TABLE payments (
     stripe_invoice_id          VARCHAR(255) UNIQUE,
     stripe_payment_intent_id   VARCHAR(255),
     stripe_charge_id           VARCHAR(255),
-    amount                     DECIMAL(10, 2) NOT NULL CHECK (amount > 0),
+    -- amount >= 0 (not > 0) so we can mirror $0 Stripe Invoices. Stripe
+    -- legitimately creates $0 invoices for proration-less period starts,
+    -- credit-note adjustments, and zero-amount invoice items. Filtering
+    -- them out at the CHECK layer made the webhook handler silently fail
+    -- (rejected by postgres, no error surfaced to logs).
+    amount                     DECIMAL(10, 2) NOT NULL CHECK (amount >= 0),
     status                     VARCHAR(50) NOT NULL CHECK (status IN ('open', 'processing', 'succeeded', 'failed', 'uncollectible', 'void')),
     payment_method_id          UUID REFERENCES payment_methods(id) ON DELETE SET NULL,
     due_date                   DATE NOT NULL,
