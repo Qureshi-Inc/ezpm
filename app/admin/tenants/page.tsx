@@ -7,34 +7,28 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { Plus, User, Mail, Phone, Building } from 'lucide-react'
+import type { Tenant, Property } from '@/types'
 
 export default async function TenantsPage() {
   try {
     const session = await requireAdmin()
     const supabase = createServerSupabaseClient()
 
-    // Get all tenants first
     const { data: rawTenants, error } = await supabase
       .from('tenants')
       .select('*')
       .order('created_at', { ascending: false })
 
-    // Get users and properties separately and join manually
-    let tenants = []
+    type TenantRow = Tenant & { property: Pick<Property, 'address' | 'unit_number' | 'rent_amount'> | null }
+    let tenants: TenantRow[] = []
     if (rawTenants && !error) {
-      const userIds = rawTenants.map(t => t.user_id).filter(Boolean)
-      const propertyIds = rawTenants.map(t => t.property_id).filter(Boolean)
-
-      const [{ data: users }, { data: properties }] = await Promise.all([
-        userIds.length > 0 ? supabase.from('users').select('id, email').in('id', userIds) : { data: [] },
-        propertyIds.length > 0 ? supabase.from('properties').select('id, address, unit_number, rent_amount').in('id', propertyIds) : { data: [] }
-      ])
-
-      // Join the data manually
-      tenants = rawTenants.map(tenant => ({
+      const propertyIds = (rawTenants as Tenant[]).map(t => t.property_id).filter((id): id is string => !!id)
+      const { data: properties } = propertyIds.length > 0
+        ? await supabase.from('properties').select('id, address, unit_number, rent_amount').in('id', propertyIds)
+        : { data: [] as Array<Pick<Property, 'id' | 'address' | 'unit_number' | 'rent_amount'>> }
+      tenants = (rawTenants as Tenant[]).map(tenant => ({
         ...tenant,
-        user: users?.find(u => u.id === tenant.user_id),
-        property: properties?.find(p => p.id === tenant.property_id)
+        property: properties?.find(p => p.id === tenant.property_id) ?? null,
       }))
     }
 
@@ -78,7 +72,7 @@ export default async function TenantsPage() {
                             </CardTitle>
                             <CardDescription className="flex items-center space-x-1">
                               <Mail className="w-3 h-3" />
-                              <span>{tenant.user?.email}</span>
+                              <span>{tenant.email}</span>
                             </CardDescription>
                           </div>
                         </div>
@@ -160,6 +154,6 @@ export default async function TenantsPage() {
       </div>
     )
   } catch (error) {
-    redirect('/auth/login')
+    redirect('/api/auth/signin')
   }
 } 

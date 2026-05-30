@@ -1,5 +1,16 @@
 'use client'
 
+/**
+ * CreateTenantForm — admin pre-stages a tenant by email.
+ *
+ * No password field. Zitadel owns the password lifecycle. After this form
+ * succeeds, the admin separately invites the email from the Zitadel admin
+ * UI (auto-invite via Zitadel API is a follow-up TODO).
+ *
+ * When the tenant accepts the invite and logs in, lib/provision.ts links
+ * tenants.user_id to the new users row by matching email.
+ */
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -31,37 +42,25 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
     setError('')
 
     const formData = new FormData(e.currentTarget)
-    
     const data = {
       firstName: formData.get('first_name') as string,
       lastName: formData.get('last_name') as string,
       email: formData.get('email') as string,
       phone: formData.get('phone') as string,
-      password: formData.get('password') as string,
       propertyId: propertyId === 'none' ? null : propertyId,
-      paymentDueDay: parseInt(paymentDueDay)
+      paymentDueDay: parseInt(paymentDueDay),
     }
 
     try {
       const response = await fetch('/api/admin/tenants', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-
       const result = await response.json()
-
       if (!response.ok) {
-        if (result.details && Array.isArray(result.details)) {
-          // Password validation errors
-          throw new Error(`${result.error}: ${result.details.join(', ')}`)
-        }
         throw new Error(result.error || 'Failed to create tenant')
       }
-
-      // Success - redirect to tenants list
       router.push('/admin/tenants')
       router.refresh()
     } catch (err) {
@@ -82,47 +81,25 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="first_name">First Name *</Label>
-          <Input 
-            id="first_name" 
-            name="first_name"
-            placeholder="John"
-            required 
-            disabled={isSubmitting}
-          />
+          <Input id="first_name" name="first_name" placeholder="John" required disabled={isSubmitting} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="last_name">Last Name *</Label>
-          <Input 
-            id="last_name" 
-            name="last_name"
-            placeholder="Doe"
-            required 
-            disabled={isSubmitting}
-          />
+          <Input id="last_name" name="last_name" placeholder="Doe" required disabled={isSubmitting} />
         </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="email">Email Address *</Label>
-        <Input 
-          id="email" 
-          name="email"
-          type="email"
-          placeholder="john.doe@example.com"
-          required 
-          disabled={isSubmitting}
-        />
+        <Input id="email" name="email" type="email" placeholder="john.doe@example.com" required disabled={isSubmitting} />
+        <p className="text-xs text-gray-600">
+          This must match the email you invite in Zitadel — the tenant is linked on first login by email match.
+        </p>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="phone">Phone Number</Label>
-        <Input 
-          id="phone" 
-          name="phone"
-          type="tel"
-          placeholder="(555) 123-4567"
-          disabled={isSubmitting}
-        />
+        <Input id="phone" name="phone" type="tel" placeholder="(555) 123-4567" disabled={isSubmitting} />
       </div>
 
       <div className="space-y-2">
@@ -132,7 +109,7 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
             <SelectValue placeholder="Select payment due day" />
           </SelectTrigger>
           <SelectContent>
-            {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+            {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
               <SelectItem key={day} value={day.toString()}>
                 {day === 1 ? '1st' : day === 2 ? '2nd' : day === 3 ? '3rd' : `${day}th`} of each month
               </SelectItem>
@@ -140,32 +117,8 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
           </SelectContent>
         </Select>
         <p className="text-xs text-gray-600">
-          Select which day of the month rent payments are due (e.g., 1st for monthly payments due on the 1st)
+          Capped at the 28th to avoid skipping months (no Feb 30th). Drives the Stripe Subscription billing anchor.
         </p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="password">Temporary Password *</Label>
-        <Input 
-          id="password" 
-          name="password"
-          type="password"
-          placeholder="Create a secure temporary password"
-          required 
-          disabled={isSubmitting}
-        />
-        <div className="bg-blue-50 p-3 rounded-lg">
-          <p className="text-xs text-blue-800 font-medium mb-1">Password Requirements:</p>
-          <ul className="text-xs text-blue-700 space-y-0.5">
-            <li>• At least 8 characters long</li>
-            <li>• One uppercase letter (A-Z)</li>
-            <li>• One lowercase letter (a-z)</li>
-            <li>• One number (0-9)</li>
-          </ul>
-          <p className="text-xs text-blue-600 mt-2">
-            The tenant will be prompted to change this password on first login.
-          </p>
-        </div>
       </div>
 
       <div className="space-y-2">
@@ -186,6 +139,15 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
         </Select>
       </div>
 
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
+        <p className="font-medium mb-1">Next step after this form:</p>
+        <p>
+          Invite <span className="font-mono">[email above]</span> in the Zitadel admin UI
+          (Org → Users → New). The tenant gets an email to set their password, then logs in
+          via Zitadel. Their tenant record (this form) is automatically linked on first login.
+        </p>
+      </div>
+
       <div className="flex space-x-4 pt-4">
         <Button type="submit" className="flex-1" disabled={isSubmitting}>
           {isSubmitting ? 'Creating...' : 'Create Tenant'}
@@ -198,4 +160,4 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
       </div>
     </form>
   )
-} 
+}

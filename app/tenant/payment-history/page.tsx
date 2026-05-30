@@ -11,7 +11,7 @@ export default async function PaymentHistoryPage() {
   const tenant = await getCurrentTenant()
   
   if (!tenant) {
-    redirect('/auth/login')
+    redirect('/api/auth/signin')
   }
 
   const supabase = createServerSupabaseClient()

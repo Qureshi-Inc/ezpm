@@ -1,32 +1,43 @@
+/**
+ * Edge middleware: enforce auth + role-based access.
+ *
+ * Auth.js v5 middleware decodes the signed JWE session cookie at the edge
+ * (no DB call, no Zitadel round-trip). Unauthenticated requests to
+ * /admin or /tenant get redirected to the Auth.js sign-in endpoint which
+ * itself redirects to Zitadel.
+ *
+ * Role gating: authenticated tenants requesting /admin get bounced back to
+ * /tenant. The old middleware only checked cookie presence; this one
+ * actually validates the role claim.
+ */
+
+import { auth } from '@/auth'
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
 
-export function middleware(request: NextRequest) {
-  const path = request.nextUrl.pathname
+export default auth((req) => {
+  const path = req.nextUrl.pathname
+  const isAuthed = !!req.auth
+  const role = req.auth?.user?.role
 
-  // Define protected routes
-  const isProtectedRoute = path.startsWith('/admin') || path.startsWith('/tenant')
-  const isAuthRoute = path.startsWith('/auth')
+  const isAdminRoute = path.startsWith('/admin')
+  const isTenantRoute = path.startsWith('/tenant')
 
-  // Get the session token from cookies
-  const session = request.cookies.get('session')
-
-  // Redirect to login if accessing protected route without session
-  if (isProtectedRoute && !session) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+  // Unauthenticated → bounce to Auth.js sign-in (which redirects to Zitadel).
+  if ((isAdminRoute || isTenantRoute) && !isAuthed) {
+    const signInUrl = new URL('/api/auth/signin', req.nextUrl.origin)
+    signInUrl.searchParams.set('callbackUrl', req.nextUrl.pathname)
+    return NextResponse.redirect(signInUrl)
   }
 
-  // Redirect to appropriate dashboard if accessing auth routes with session
-  // BUT allow access to change-password page even with session
-  if (isAuthRoute && session && !path.startsWith('/auth/change-password')) {
-    // In a real app, you'd decode the session to get the user role
-    // For now, we'll just redirect to tenant dashboard
-    return NextResponse.redirect(new URL('/tenant', request.url))
+  // Authed tenant trying to hit /admin → push to /tenant.
+  if (isAdminRoute && role === 'tenant') {
+    return NextResponse.redirect(new URL('/tenant', req.nextUrl.origin))
   }
 
+  // Authed admin trying to hit /tenant pages is fine — admins can preview.
   return NextResponse.next()
-}
+})
 
 export const config = {
-  matcher: ['/admin/:path*', '/tenant/:path*', '/auth/:path*']
-} 
+  matcher: ['/admin/:path*', '/tenant/:path*'],
+}

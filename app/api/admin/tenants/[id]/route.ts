@@ -1,263 +1,200 @@
+/**
+ * PUT  /api/admin/tenants/[id] — update tenant metadata (no auth fields)
+ * DELETE /api/admin/tenants/[id] — delete tenant; force=true also wipes payments + payment methods
+ *
+ * Password updates are removed entirely. Zitadel owns the password lifecycle —
+ * if a tenant needs a password reset, admin does it in the Zitadel admin UI.
+ *
+ * Email updates are allowed but flagged: if the tenant has already linked to a
+ * Zitadel user (user_id IS NOT NULL), changing the email here only changes the
+ * local mirror. The tenant must still log in with their existing Zitadel email.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
-import { createServerSupabaseClient } from '@/lib/supabase'
 import { requireAdmin } from '@/lib/auth'
-import { calculateNextDueDate, generatePaymentForTenant } from '@/utils/payment-generation'
+import { createServerSupabaseClient } from '@/lib/supabase'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Verify admin authentication
     await requireAdmin()
-    
+
     const { id } = await params
-    const { email, firstName, lastName, phone, propertyId, newPassword, paymentDueDay } = await request.json()
+    const { email, firstName, lastName, phone, propertyId, paymentDueDay } = await request.json()
 
     if (!email || !firstName || !lastName) {
       return NextResponse.json(
         { error: 'Email, first name, and last name are required' },
-        { status: 400 }
+        { status: 400 },
       )
     }
-
-    if (paymentDueDay && (paymentDueDay < 1 || paymentDueDay > 31)) {
+    if (paymentDueDay && (paymentDueDay < 1 || paymentDueDay > 28)) {
       return NextResponse.json(
-        { error: 'Payment due day must be between 1 and 31' },
-        { status: 400 }
+        { error: 'Payment due day must be between 1 and 28' },
+        { status: 400 },
       )
     }
 
     const supabase = createServerSupabaseClient()
 
-    // Get the tenant to find the user_id and current property assignment
     const { data: tenant, error: tenantFetchError } = await supabase
       .from('tenants')
-      .select('user_id, property_id, payment_due_day')
+      .select('id, email, user_id, property_id, payment_due_day')
       .eq('id', id)
-      .single()
-
+      .maybeSingle()
     if (tenantFetchError || !tenant) {
-      return NextResponse.json(
-        { error: 'Tenant not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
     }
 
-    // Check if email is being changed and if it conflicts with another user
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .neq('id', tenant.user_id)
-      .single()
-
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'A user with this email already exists' },
-        { status: 400 }
-      )
+    // Email uniqueness (skip if unchanged)
+    if (email !== tenant.email) {
+      const { data: conflict } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('email', email)
+        .neq('id', id)
+        .maybeSingle()
+      if (conflict) {
+        return NextResponse.json(
+          { error: 'Another tenant already uses this email' },
+          { status: 400 },
+        )
+      }
     }
 
-    // Update user record
-    const userUpdateData: any = { email }
-    
-    if (newPassword && newPassword.trim()) {
-      userUpdateData.password_hash = await bcrypt.hash(newPassword, 10)
-    }
-
-    const { error: userUpdateError } = await supabase
-      .from('users')
-      .update(userUpdateData)
-      .eq('id', tenant.user_id)
-
-    if (userUpdateError) {
-      console.error('User update error:', userUpdateError)
-      return NextResponse.json(
-        { error: 'Failed to update user account' },
-        { status: 500 }
-      )
-    }
-
-    // Update tenant record
-    const tenantUpdateData: any = {
+    const tenantUpdateData: Record<string, unknown> = {
+      email,
       first_name: firstName,
       last_name: lastName,
     }
-
-    if (phone !== undefined) {
-      tenantUpdateData.phone = phone || null
-    }
-
+    if (phone !== undefined) tenantUpdateData.phone = phone || null
     if (propertyId !== undefined) {
       tenantUpdateData.property_id = (propertyId && propertyId !== 'none') ? propertyId : null
     }
+    if (paymentDueDay !== undefined) tenantUpdateData.payment_due_day = paymentDueDay
 
-    if (paymentDueDay !== undefined) {
-      tenantUpdateData.payment_due_day = paymentDueDay
-    }
-
-    const { data: updatedTenant, error: tenantUpdateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from('tenants')
       .update(tenantUpdateData)
       .eq('id', id)
       .select()
       .single()
 
-    if (tenantUpdateError) {
-      console.error('Tenant update error:', tenantUpdateError)
+    if (updateError) {
       return NextResponse.json(
-        { error: 'Failed to update tenant profile' },
-        { status: 500 }
+        { error: `Failed to update tenant: ${updateError.message}` },
+        { status: 500 },
       )
     }
 
-    // Check if we need to generate a payment due to property assignment or payment due day change
-    const wasAssignedToProperty = !tenant.property_id && propertyId && propertyId !== 'none'
-    const paymentDayChanged = paymentDueDay !== undefined && paymentDueDay !== tenant.payment_due_day
-
-    if (wasAssignedToProperty || (paymentDayChanged && updatedTenant.property_id)) {
-      try {
-        const finalPaymentDueDay = paymentDueDay !== undefined ? paymentDueDay : tenant.payment_due_day
-        const dueDate = calculateNextDueDate(finalPaymentDueDay)
-        await generatePaymentForTenant(updatedTenant.id, dueDate, supabase)
-        console.log(`Generated payment for tenant ${updatedTenant.id} due on ${dueDate.toISOString().split('T')[0]}`)
-      } catch (paymentError) {
-        console.error('Failed to generate payment:', paymentError)
-        // Don't fail tenant update if payment generation fails
-      }
-    }
+    // Note: if rent_amount changes on the assigned property, the Stripe
+    // Subscription price must be updated separately. That's handled in
+    // lib/stripe-subscriptions.ts (T4) and called from the property update
+    // route, not here.
 
     return NextResponse.json({
       success: true,
-      message: 'Tenant updated successfully',
-      tenant: updatedTenant
+      message: 'Tenant updated',
+      tenant: updated,
+      warning: tenant.user_id && email !== tenant.email
+        ? 'Tenant already linked to Zitadel; local email mirror updated but Zitadel email is unchanged. Update in Zitadel admin if needed.'
+        : undefined,
     })
-
   } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     console.error('Update tenant error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Verify admin authentication
     await requireAdmin()
-    
+
     const { id } = await params
     const { force } = await request.json().catch(() => ({ force: false }))
     const supabase = createServerSupabaseClient()
 
-    // Get the tenant to find the user_id
     const { data: tenant, error: tenantFetchError } = await supabase
       .from('tenants')
-      .select('user_id, first_name, last_name')
+      .select('user_id, first_name, last_name, stripe_subscription_id')
       .eq('id', id)
-      .single()
-
+      .maybeSingle()
     if (tenantFetchError || !tenant) {
-      return NextResponse.json(
-        { error: 'Tenant not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
     }
 
-    // Check if tenant has any payments
-    const { data: payments, error: paymentsError } = await supabase
+    // Existing payments? Refuse unless force=true.
+    const { data: payments } = await supabase
       .from('payments')
       .select('id')
       .eq('tenant_id', id)
       .limit(1)
-
-    if (paymentsError) {
-      console.error('Error checking payments:', paymentsError)
-      return NextResponse.json(
-        { error: 'Failed to check tenant payments' },
-        { status: 500 }
-      )
-    }
-
     if (payments && payments.length > 0 && !force) {
       return NextResponse.json(
-        { 
-          error: 'Cannot delete tenant with existing payment history. Please archive the tenant instead.',
+        {
+          error: 'Cannot delete tenant with payment history. Pass force=true to wipe everything.',
           hasPayments: true,
-          tenantId: id
+          tenantId: id,
         },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
-    // If force delete, remove all associated data
-    if (force && payments && payments.length > 0) {
-      console.log(`Force deleting tenant ${tenant.first_name} ${tenant.last_name} and all associated data`)
-      
-      // Delete in reverse dependency order
-      // 1. Delete auto_payments
-      await supabase
-        .from('auto_payments')
-        .delete()
-        .eq('tenant_id', id)
-      
-      // 2. Delete payment_methods
-      await supabase
-        .from('payment_methods')
-        .delete()
-        .eq('tenant_id', id)
-      
-      // 3. Delete payments
-      await supabase
-        .from('payments')
-        .delete()
-        .eq('tenant_id', id)
-      
-      console.log('Deleted all associated payment data')
+    // Force wipe: payments + payment_methods. Tenants CASCADEs to these
+    // via the schema's foreign keys (ON DELETE CASCADE) but we do it
+    // explicitly here for clearer audit logs.
+    if (force) {
+      await supabase.from('payments').delete().eq('tenant_id', id)
+      await supabase.from('payment_methods').delete().eq('tenant_id', id)
     }
 
-    // Delete tenant record first (this will cascade to related records due to foreign key constraints)
+    // TODO (T12 follow-up): if tenant.stripe_subscription_id is set, call
+    // stripe.subscriptions.cancel() here to stop future charges. For now
+    // admin must cancel in Stripe Dashboard before deleting.
+
     const { error: deleteTenantError } = await supabase
       .from('tenants')
       .delete()
       .eq('id', id)
-
     if (deleteTenantError) {
-      console.error('Delete tenant error:', deleteTenantError)
       return NextResponse.json(
         { error: 'Failed to delete tenant' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
-    // Delete the associated user account
-    const { error: deleteUserError } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', tenant.user_id)
-
-    if (deleteUserError) {
-      console.error('Delete user error:', deleteUserError)
-      // Log the error but don't fail the request since tenant is already deleted
-      console.warn('Tenant deleted but failed to delete associated user account')
+    // Delete the users row if it was linked. Zitadel still has the user;
+    // admin should also delete from the Zitadel admin UI to fully revoke.
+    if (tenant.user_id) {
+      await supabase.from('users').delete().eq('id', tenant.user_id)
     }
 
     return NextResponse.json({
       success: true,
-      message: `Tenant ${tenant.first_name} ${tenant.last_name} deleted successfully`
+      message: `Tenant ${tenant.first_name} ${tenant.last_name} deleted`,
+      warning: tenant.stripe_subscription_id
+        ? `Stripe Subscription ${tenant.stripe_subscription_id} still active — cancel it in Stripe Dashboard.`
+        : undefined,
     })
-
   } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     console.error('Delete tenant error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

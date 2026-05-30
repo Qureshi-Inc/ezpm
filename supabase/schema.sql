@@ -41,13 +41,16 @@ CREATE TABLE properties (
 );
 
 -- ============================================================
--- TENANTS: linked to Stripe Customer + Subscription
+-- TENANTS: pre-staged by admin; linked to a user on first Zitadel login
 -- ============================================================
 -- stripe_subscription_id IS the auto-pay record. No separate auto_payments table.
+-- user_id is NULL until the tenant accepts the Zitadel invite and logs in for the
+-- first time; the provisioning route links by matching tenants.email = users.email.
 
 CREATE TABLE tenants (
     id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id                 UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    user_id                 UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    email                   VARCHAR(255) UNIQUE NOT NULL,
     first_name              VARCHAR(100) NOT NULL,
     last_name               VARCHAR(100) NOT NULL,
     phone                   VARCHAR(20),
@@ -136,6 +139,7 @@ CREATE TABLE system_settings (
 CREATE INDEX idx_users_zitadel_subject       ON users(zitadel_subject);
 CREATE INDEX idx_users_email                  ON users(email);
 CREATE INDEX idx_tenants_user_id              ON tenants(user_id);
+CREATE INDEX idx_tenants_email                ON tenants(email);
 CREATE INDEX idx_tenants_property_id          ON tenants(property_id);
 CREATE INDEX idx_tenants_stripe_customer_id   ON tenants(stripe_customer_id);
 CREATE INDEX idx_tenants_stripe_subscription  ON tenants(stripe_subscription_id);
@@ -148,6 +152,87 @@ CREATE INDEX idx_payments_stripe_invoice      ON payments(stripe_invoice_id);
 CREATE INDEX idx_payments_status              ON payments(status);
 CREATE INDEX idx_payments_due_date            ON payments(due_date);
 CREATE INDEX idx_stripe_events_type_received  ON stripe_events(event_type, received_at DESC);
+
+-- ============================================================
+-- PROVISIONING FUNCTION (atomic first-user-becomes-admin + tenant link)
+-- ============================================================
+-- Called by app/api/auth/provision (via lib/provision.ts) on the FIRST
+-- login for a given Zitadel subject. Closes the race condition flagged by
+-- the outside-voice review (blocker #2): two concurrent first-logins
+-- would otherwise both observe an empty users table.
+--
+-- Mechanism: pg_advisory_xact_lock serializes the empty-check + insert
+-- into a single critical section. The lock is released when the
+-- transaction commits. Subsequent calls (after admin exists) acquire the
+-- lock briefly but only do the insert path.
+--
+-- For tenants, also links the matching pre-staged tenants row (created
+-- by admin) by email.
+
+CREATE OR REPLACE FUNCTION provision_user_from_zitadel(
+    p_zitadel_subject TEXT,
+    p_email           TEXT,
+    p_first_name      TEXT,
+    p_last_name       TEXT,
+    p_lock_key        BIGINT
+)
+RETURNS TABLE (user_id UUID, role TEXT)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_existing_count INTEGER;
+    v_role           TEXT;
+    v_new_user_id    UUID;
+BEGIN
+    PERFORM pg_advisory_xact_lock(p_lock_key);
+
+    -- Double-check existence under the lock (the auth.ts caller already
+    -- fast-pathed this, but a race between fast-path and lock acquisition
+    -- could still hit here).
+    SELECT u.id, u.role INTO v_new_user_id, v_role
+    FROM users u
+    WHERE u.zitadel_subject = p_zitadel_subject;
+
+    IF v_new_user_id IS NOT NULL THEN
+        RETURN QUERY SELECT v_new_user_id, v_role;
+        RETURN;
+    END IF;
+
+    -- First-user-becomes-admin
+    SELECT COUNT(*) INTO v_existing_count FROM users;
+    IF v_existing_count = 0 THEN
+        v_role := 'admin';
+    ELSE
+        v_role := 'tenant';
+    END IF;
+
+    INSERT INTO users (zitadel_subject, email, first_name, last_name, role)
+    VALUES (p_zitadel_subject, p_email, p_first_name, p_last_name, v_role)
+    RETURNING id INTO v_new_user_id;
+
+    -- Defense-in-depth: mark the bootstrap as done so any future
+    -- provisioning logic can short-circuit the empty-check.
+    UPDATE system_settings
+       SET value = 'true'::jsonb
+     WHERE key = 'admin_bootstrapped'
+       AND value::text = 'false';
+
+    -- If tenant, link to a pre-staged tenants row by email (admin creates
+    -- these rows when inviting tenants via /admin/tenants/create).
+    IF v_role = 'tenant' THEN
+        UPDATE tenants
+           SET user_id = v_new_user_id
+         WHERE email = p_email
+           AND user_id IS NULL;
+        -- Note: it's OK if no row exists (e.g. an unrecognized email that
+        -- somehow got through Zitadel's invite-only policy). The provisioning
+        -- still succeeds; the user just has no tenant record to charge until
+        -- admin creates one.
+    END IF;
+
+    RETURN QUERY SELECT v_new_user_id, v_role;
+END;
+$$;
 
 -- ============================================================
 -- UPDATED_AT TRIGGERS

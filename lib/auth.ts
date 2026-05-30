@@ -1,93 +1,78 @@
-import { cookies } from 'next/headers'
+/**
+ * Compat shim over Auth.js v5.
+ *
+ * The rest of the codebase (server components, route handlers) imports
+ * { getSession, requireAuth, requireAdmin, getCurrentUser, getCurrentTenant }
+ * from here. Those names predate the Auth.js migration; keeping them stable
+ * means none of the callers need to change shape, only the internals.
+ *
+ * Auth.js's auth() returns the full Session object; we narrow it to the
+ * SessionUser shape the rest of the app already expects.
+ */
+
+import { auth } from '@/auth'
 import { createServerSupabaseClient } from './supabase'
 
-interface SessionUser {
+export interface SessionUser {
   userId: string
   email: string
   role: 'admin' | 'tenant'
+  zitadel_subject: string
 }
 
 export async function getSession(): Promise<SessionUser | null> {
-  try {
-    const cookieStore = await cookies()
-    const sessionToken = cookieStore.get('session')
-
-    if (!sessionToken) {
-      return null
-    }
-
-    // Decode session token
-    const sessionData = JSON.parse(
-      Buffer.from(sessionToken.value, 'base64').toString('utf-8')
-    )
-
-    return sessionData as SessionUser
-  } catch (error) {
-    console.error('Session error:', error)
+  const session = await auth()
+  if (!session?.user?.id || !session.user.email) {
     return null
+  }
+  return {
+    userId: session.user.id,
+    email: session.user.email,
+    role: session.user.role,
+    zitadel_subject: session.user.zitadel_subject,
   }
 }
 
-export async function requireAuth() {
+export async function requireAuth(): Promise<SessionUser> {
   const session = await getSession()
-  
   if (!session) {
     throw new Error('Unauthorized')
   }
-
   return session
 }
 
-export async function requireAdmin() {
+export async function requireAdmin(): Promise<SessionUser> {
   const session = await requireAuth()
-  
   if (session.role !== 'admin') {
     throw new Error('Forbidden')
   }
-
   return session
 }
 
 export async function getCurrentUser() {
   const session = await getSession()
-  
-  if (!session) {
-    return null
-  }
+  if (!session) return null
 
   const supabase = createServerSupabaseClient()
-  
-  const { data: user, error } = await supabase
+  const { data: user } = await supabase
     .from('users')
     .select('*')
     .eq('id', session.userId)
-    .single()
-
-  if (error || !user) {
-    return null
-  }
+    .maybeSingle()
 
   return user
 }
 
 export async function getCurrentTenant() {
   const session = await getSession()
-  
-  if (!session || session.role !== 'tenant') {
-    return null
-  }
+  if (!session || session.role !== 'tenant') return null
 
   const supabase = createServerSupabaseClient()
-  
-  const { data: tenant, error } = await supabase
+  const { data: tenant } = await supabase
     .from('tenants')
     .select('*, property:properties(*)')
     .eq('user_id', session.userId)
-    .single()
-
-  if (error || !tenant) {
-    return null
-  }
+    .maybeSingle()
 
   return tenant
-} 
+}

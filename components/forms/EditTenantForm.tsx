@@ -1,5 +1,13 @@
 'use client'
 
+/**
+ * EditTenantForm — update local tenant metadata. No password handling.
+ *
+ * Changing email here only updates the local mirror; Zitadel email must be
+ * changed separately in the Zitadel admin UI to actually move the auth
+ * identity. The API surface returns a `warning` when the email diverges.
+ */
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -16,14 +24,13 @@ interface Property {
 
 interface Tenant {
   id: string
+  email: string
   first_name: string
   last_name: string
   phone: string | null
   property_id: string | null
   payment_due_day: number
-  user?: {
-    email: string
-  }
+  user_id: string | null
 }
 
 interface EditTenantFormProps {
@@ -34,6 +41,7 @@ interface EditTenantFormProps {
 export function EditTenantForm({ tenant, properties }: EditTenantFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [warning, setWarning] = useState('')
   const [propertyId, setPropertyId] = useState(tenant.property_id || 'none')
   const [paymentDueDay, setPaymentDueDay] = useState(tenant.payment_due_day?.toString() || '1')
   const router = useRouter()
@@ -42,35 +50,34 @@ export function EditTenantForm({ tenant, properties }: EditTenantFormProps) {
     e.preventDefault()
     setIsSubmitting(true)
     setError('')
+    setWarning('')
 
     const formData = new FormData(e.currentTarget)
-    
     const data = {
       firstName: formData.get('first_name') as string,
       lastName: formData.get('last_name') as string,
       email: formData.get('email') as string,
       phone: formData.get('phone') as string,
-      newPassword: formData.get('new_password') as string,
       propertyId: propertyId === 'none' ? null : propertyId,
-      paymentDueDay: parseInt(paymentDueDay)
+      paymentDueDay: parseInt(paymentDueDay),
     }
 
     try {
       const response = await fetch(`/api/admin/tenants/${tenant.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-
       const result = await response.json()
-
       if (!response.ok) {
         throw new Error(result.error || 'Failed to update tenant')
       }
-
-      // Success - redirect to tenant details
+      if (result.warning) {
+        setWarning(result.warning)
+        // Don't auto-navigate so admin can see the warning
+        setIsSubmitting(false)
+        return
+      }
       router.push(`/admin/tenants/${tenant.id}`)
       router.refresh()
     } catch (err) {
@@ -87,51 +94,41 @@ export function EditTenantForm({ tenant, properties }: EditTenantFormProps) {
           {error}
         </div>
       )}
+      {warning && (
+        <div className="p-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md">
+          <p className="font-medium">Heads up:</p>
+          <p>{warning}</p>
+          <Link href={`/admin/tenants/${tenant.id}`} className="text-amber-900 underline">
+            Continue to tenant details →
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="first_name">First Name *</Label>
-          <Input 
-            id="first_name" 
-            name="first_name"
-            defaultValue={tenant.first_name}
-            required 
-            disabled={isSubmitting}
-          />
+          <Input id="first_name" name="first_name" defaultValue={tenant.first_name} required disabled={isSubmitting} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="last_name">Last Name *</Label>
-          <Input 
-            id="last_name" 
-            name="last_name"
-            defaultValue={tenant.last_name}
-            required 
-            disabled={isSubmitting}
-          />
+          <Input id="last_name" name="last_name" defaultValue={tenant.last_name} required disabled={isSubmitting} />
         </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="email">Email Address *</Label>
-        <Input 
-          id="email" 
-          name="email"
-          type="email"
-          defaultValue={tenant.user?.email}
-          required 
-          disabled={isSubmitting}
-        />
+        <Input id="email" name="email" type="email" defaultValue={tenant.email} required disabled={isSubmitting} />
+        {tenant.user_id && (
+          <p className="text-xs text-amber-700">
+            Tenant has already logged in via Zitadel. Changing email here only updates this app's mirror — change the
+            Zitadel email separately if you want auth to move too.
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="phone">Phone Number</Label>
-        <Input 
-          id="phone" 
-          name="phone"
-          type="tel"
-          defaultValue={tenant.phone || ''}
-          disabled={isSubmitting}
-        />
+        <Input id="phone" name="phone" type="tel" defaultValue={tenant.phone || ''} disabled={isSubmitting} />
       </div>
 
       <div className="space-y-2">
@@ -141,16 +138,13 @@ export function EditTenantForm({ tenant, properties }: EditTenantFormProps) {
             <SelectValue placeholder="Select payment due day" />
           </SelectTrigger>
           <SelectContent>
-            {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+            {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
               <SelectItem key={day} value={day.toString()}>
                 {day === 1 ? '1st' : day === 2 ? '2nd' : day === 3 ? '3rd' : `${day}th`} of each month
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-gray-600">
-          Select which day of the month rent payments are due
-        </p>
       </div>
 
       <div className="space-y-2">
@@ -171,22 +165,6 @@ export function EditTenantForm({ tenant, properties }: EditTenantFormProps) {
         </Select>
       </div>
 
-      <div className="border-t pt-4">
-        <div className="space-y-2">
-          <Label htmlFor="new_password">New Password (Optional)</Label>
-          <Input 
-            id="new_password" 
-            name="new_password"
-            type="password"
-            placeholder="Leave blank to keep current password"
-            disabled={isSubmitting}
-          />
-          <p className="text-xs text-gray-500">
-            Only fill this field if you want to reset the tenant's password
-          </p>
-        </div>
-      </div>
-
       <div className="flex space-x-4 pt-4">
         <Button type="submit" className="flex-1" disabled={isSubmitting}>
           {isSubmitting ? 'Updating...' : 'Update Tenant'}
@@ -199,4 +177,4 @@ export function EditTenantForm({ tenant, properties }: EditTenantFormProps) {
       </div>
     </form>
   )
-} 
+}

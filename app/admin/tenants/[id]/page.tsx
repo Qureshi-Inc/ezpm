@@ -24,7 +24,6 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
     // Await params to fix Next.js 15 compatibility
     const { id } = await params
 
-    // Get tenant details (using manual join to avoid foreign key dependency)
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('*')
@@ -35,49 +34,42 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
       redirect('/admin/tenants')
     }
 
-    // Get user info separately
-    const { data: user } = await supabase
-      .from('users')
-      .select('email, created_at')
-      .eq('id', tenant.user_id)
-      .single()
+    // Linked Zitadel user info (if tenant has logged in at least once)
+    let user: { email: string; created_at: string; zitadel_subject: string } | null = null
+    if (tenant.user_id) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email, created_at, zitadel_subject')
+        .eq('id', tenant.user_id)
+        .maybeSingle()
+      user = userData
+    }
 
-    // Get property info separately if tenant has a property assigned
     let property = null
     if (tenant.property_id) {
       const { data: propertyData } = await supabase
         .from('properties')
         .select('address, unit_number, rent_amount')
         .eq('id', tenant.property_id)
-        .single()
+        .maybeSingle()
       property = propertyData
     }
 
-    // Merge data for display
     const tenantWithRelations = {
       ...tenant,
-      user: user || null,
-      property: property
+      user,
+      property,
     }
 
-    // Get recent payments for this tenant through leases
-    // First get the tenant's leases
-    const { data: leases } = await supabase
-      .from('leases')
-      .select('id')
+    // Recent payments: tenant_id is on the payments table directly (no leases
+    // table — that was dead code referring to a table that never existed in
+    // the schema).
+    const { data: recentPayments } = await supabase
+      .from('payments')
+      .select('*')
       .eq('tenant_id', id)
-
-    let recentPayments = null
-    if (leases && leases.length > 0) {
-      const leaseIds = leases.map(l => l.id)
-      const { data: paymentsData } = await supabase
-        .from('payments')
-        .select('*')
-        .in('lease_id', leaseIds)
-        .order('created_at', { ascending: false })
-        .limit(5)
-      recentPayments = paymentsData
-    }
+      .order('due_date', { ascending: false })
+      .limit(5)
 
     return (
       <div className="min-h-screen bg-gray-50">
@@ -129,7 +121,12 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                       <Mail className="w-4 h-4 text-gray-400" />
                       <div>
                         <p className="text-sm font-medium text-gray-500">Email</p>
-                        <p>{tenantWithRelations.user?.email}</p>
+                        <p>{tenantWithRelations.email}</p>
+                        {!tenantWithRelations.user_id && (
+                          <p className="text-xs text-amber-700">
+                            Tenant has not yet logged in via Zitadel.
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -153,7 +150,7 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
 
                     <div>
                       <p className="text-sm font-medium text-gray-500">Account Created</p>
-                      <p>{formatDate(tenantWithRelations.user?.created_at || tenantWithRelations.created_at)}</p>
+                      <p>{formatDate(tenantWithRelations.created_at)}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -251,6 +248,6 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
       </div>
     )
   } catch (error) {
-    redirect('/auth/login')
+    redirect('/api/auth/signin')
   }
 } 

@@ -193,6 +193,6 @@ export default async function PaymentsPage() {
       </div>
     )
   } catch (error) {
-    redirect('/auth/login')
+    redirect('/api/auth/signin')
   }
 } 
