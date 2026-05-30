@@ -32,6 +32,7 @@ interface CreateTenantFormProps {
 export function CreateTenantForm({ properties }: CreateTenantFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [warning, setWarning] = useState('')
   const [propertyId, setPropertyId] = useState('none')
   const [paymentDueDay, setPaymentDueDay] = useState('1')
   const router = useRouter()
@@ -61,6 +62,13 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
       if (!response.ok) {
         throw new Error(result.error || 'Failed to create tenant')
       }
+      // If Zitadel auto-invite failed or is disabled, hold on the form
+      // to show the warning so the admin knows to do a manual invite.
+      if (result.zitadelStatus === 'manual_fallback' || result.zitadelStatus === 'disabled') {
+        setWarning(result.zitadelMessage || 'Tenant created, but invite needs manual handling.')
+        setIsSubmitting(false)
+        return
+      }
       router.push('/admin/tenants')
       router.refresh()
     } catch (err) {
@@ -75,6 +83,15 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
       {error && (
         <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
           {error}
+        </div>
+      )}
+      {warning && (
+        <div className="p-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md">
+          <p className="font-medium mb-1">Tenant saved, manual step required:</p>
+          <p>{warning}</p>
+          <Link href="/admin/tenants" className="text-amber-900 underline mt-2 inline-block">
+            Continue to tenants list →
+          </Link>
         </div>
       )}
 
@@ -140,11 +157,15 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
-        <p className="font-medium mb-1">Next step after this form:</p>
-        <p>
-          Invite <span className="font-mono">[email above]</span> in the Zitadel admin UI
-          (Org → Users → New). The tenant gets an email to set their password, then logs in
-          via Zitadel. Their tenant record (this form) is automatically linked on first login.
+        <p className="font-medium mb-1">What happens when you submit:</p>
+        <ol className="list-decimal pl-4 space-y-1">
+          <li>A tenant record is created and linked to this property.</li>
+          <li>A Zitadel user is created with this email, and an invitation email is sent automatically.</li>
+          <li>The tenant clicks the email link, sets their password, and is taken to the rent portal.</li>
+        </ol>
+        <p className="mt-2 text-xs text-blue-700">
+          If Zitadel auto-invite is not configured (no service token), the form will show a fallback
+          message and you can invite manually in the Zitadel admin UI.
         </p>
       </div>
 

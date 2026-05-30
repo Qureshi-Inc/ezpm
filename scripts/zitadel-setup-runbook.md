@@ -95,9 +95,7 @@ Expected output:
 
 If those URLs come back as expected, Zitadel is ready.
 
-## What to give the agent
-
-Paste these three values back to the chat:
+## What to give the agent (or paste into Coolify)
 
 ```
 AUTH_ZITADEL_ID=<client_id from step 6>
@@ -107,4 +105,68 @@ AUTH_SECRET=<run: openssl rand -base64 32>
 
 (The `AUTH_ZITADEL_ISSUER` is always `https://auth.kainban.com` so I'll hardcode it in the example .env.)
 
-You'll also need to paste those into Coolify env vars before the prod deploy goes out, but I'll remind you at /ship time.
+---
+
+## Service User for ezpm admin integration (D15)
+
+Optional but strongly recommended: this enables the admin panel to auto-invite tenants in one click instead of bouncing between ezpm and Zitadel admin UIs. ~5 minutes in the Zitadel UI.
+
+### 1. Create a machine user
+
+1. In Zitadel admin → switch to the `ezpm` org.
+2. **Users** → **+ New** → choose **Machine User** (not Human).
+3. Username: `ezpm-svc`
+4. Name: `EZPM Server Integration`
+5. **Access Token Type**: `Bearer` (default)
+6. Click **Create**.
+
+### 2. Grant the machine user the right role
+
+1. On the new `ezpm-svc` user's detail page → **Authorizations** tab → **+ New**.
+2. Project: pick `ezpm-web`.
+3. Roles: select `ORG_USER_MANAGER` (or `IAM_USER_MANAGER` if you don't see that one).
+4. Save.
+
+Actually — for org-scoped user management, the cleaner path is:
+
+1. Top nav → switch to the `ezpm` org (you should already be there).
+2. **Settings** → **Members** → **+ New Member**.
+3. Pick the `ezpm-svc` user.
+4. Role: `ORG_USER_MANAGER` (lets the service user create/update users in this org).
+5. Save.
+
+### 3. Generate the Personal Access Token
+
+1. Back on the `ezpm-svc` user's detail page → **Personal Access Tokens** tab → **+ New**.
+2. Expiration: pick something far out (e.g. 2099-01-01) or leave default for 1y.
+3. Click **Create**.
+4. **Copy the token immediately** — Zitadel shows it ONCE (format: `pat_...`).
+
+### 4. Find the ezpm org ID
+
+In the Zitadel admin URL when you're viewing the ezpm org's settings, the URL looks like:
+
+```
+https://auth.kainban.com/ui/console/orgs/375198905173803523
+```
+
+The number at the end is your `ZITADEL_ORG_ID`.
+
+### 5. Set the env vars in Coolify
+
+In the Coolify env config for the ezpm app, add:
+
+```
+ZITADEL_SERVICE_TOKEN=<the pat_... token from step 3>
+ZITADEL_ORG_ID=<the numeric org id from step 4>
+```
+
+Restart the container. From the next "Create Tenant" submit, ezpm will:
+
+- Create the user in Zitadel
+- Generate an invitation code
+- Have Zitadel email the tenant a link to `https://rent.qureshi.io/auth/invite?code=...&userId=...`
+
+The tenant clicks → sets password on YOUR branded page → signs in → lands at `/tenant`.
+
+If the env vars are missing, tenant creation still works — it just falls back to a "Invite this email manually in Zitadel admin" message in the response.

@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase'
+import * as zitadel from '@/lib/zitadel'
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,10 +76,46 @@ export async function POST(request: NextRequest) {
     // first adds a payment method (handled in lib/stripe-subscriptions.ts,
     // T4). No charge until they pay something.
 
+    // Zitadel invite (D15): create + invite the user automatically. Failures
+    // are non-fatal — the tenant row is already saved and admin can fall
+    // back to manual invite via Zitadel admin UI. We surface the status in
+    // the response so the form can warn the admin.
+    let zitadelStatus: 'invited' | 'manual_fallback' | 'disabled' = 'disabled'
+    let zitadelMessage: string | undefined
+    if (zitadel.isConfigured()) {
+      try {
+        const created = await zitadel.createHumanUser({
+          email,
+          firstName,
+          lastName,
+        })
+        const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://rent.qureshi.io').replace(/\/$/, '')
+        await zitadel.sendInvitation({
+          userId: created.userId,
+          urlTemplate: `${appUrl}/auth/invite?code={{.Code}}&userId={{.UserID}}`,
+          applicationName: 'EZPM Rent Portal',
+        })
+        zitadelStatus = 'invited'
+        zitadelMessage = created.alreadyExisted
+          ? `Existing Zitadel user found for ${email}; new invitation email sent.`
+          : `Invitation email sent to ${email} via Zitadel.`
+      } catch (err) {
+        console.error('Zitadel invite failed (tenant row still saved):', err)
+        zitadelStatus = 'manual_fallback'
+        zitadelMessage = `Auto-invite failed (${err instanceof Error ? err.message : 'unknown'}). Invite ${email} manually in Zitadel admin.`
+      }
+    } else {
+      zitadelMessage = `Zitadel auto-invite disabled (ZITADEL_SERVICE_TOKEN not set). Invite ${email} manually in Zitadel admin.`
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Tenant ${firstName} ${lastName} pre-staged. Invite ${email} via Zitadel admin to complete onboarding.`,
+      message: zitadelStatus === 'invited'
+        ? `Tenant ${firstName} ${lastName} created and invited.`
+        : `Tenant ${firstName} ${lastName} created. ${zitadelMessage}`,
       tenant: newTenant,
+      zitadelStatus,
+      zitadelMessage,
     })
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
