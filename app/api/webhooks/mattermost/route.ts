@@ -26,6 +26,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { getMattermostPost, getBotUserId } from '@/lib/mattermost'
+import { notifyTenantOfReply } from '@/lib/maintenance-notify'
 
 function ok() {
   // Empty body — never return { text }, or Mattermost posts it back (loop).
@@ -95,9 +96,16 @@ export async function POST(request: NextRequest) {
       body: text,
       mattermost_post_id: postId,
     })
-    if (error && !/duplicate key|unique/i.test(error.message)) {
-      console.error('[webhooks/mattermost] insert error:', error)
+    if (error) {
+      if (!/duplicate key|unique/i.test(error.message)) {
+        console.error('[webhooks/mattermost] insert error:', error)
+      }
+      // Duplicate (Mattermost retried) — don't email twice.
+      return ok()
     }
+
+    // Email the tenant the reply + a link back to the request.
+    void notifyTenantOfReply(req.id, text)
 
     return ok()
   } catch (err) {

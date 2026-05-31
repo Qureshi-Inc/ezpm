@@ -354,6 +354,69 @@ export async function sendMaintenanceStatusEmail(data: MaintenanceStatusData): P
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Maintenance reply email (admin replied in the request thread)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface MaintenanceReplyData {
+  tenantName: string
+  tenantEmail: string
+  requestTitle: string
+  replyBody: string
+  requestUrl: string
+}
+
+export function renderMaintenanceReplyEmail(data: MaintenanceReplyData): { subject: string; html: string } {
+  const subject = `New reply on your request: ${data.requestTitle}`
+  const isPhotoOnly = !data.replyBody || data.replyBody.trim() === '' || data.replyBody.trim() === '(photo)'
+  const replyHtml = isPhotoOnly
+    ? '📷 Shared a photo — open the request to view it.'
+    : escapeHtml(data.replyBody).replace(/\n/g, '<br>')
+
+  const bodyHtml = `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+      <tr>
+        <td style="padding:14px 18px;background-color:${C.cream};border-radius:12px;">
+          <div style="font-family:${SANS};font-size:12px;font-weight:600;color:${C.muted};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Your request</div>
+          <div style="font-family:${SERIF};font-size:20px;font-weight:normal;color:${C.ink};line-height:1.25;">${escapeHtml(data.requestTitle)}</div>
+        </td>
+      </tr>
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 18px;background-color:#FFFFFF;border:1px solid ${C.border};border-left:3px solid ${C.teal};border-radius:10px;">
+          <div style="font-family:${SANS};font-size:12px;font-weight:600;color:${C.muted};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Property manager replied</div>
+          <div style="font-family:${SANS};font-size:15px;color:${C.ink};line-height:1.55;">${replyHtml}</div>
+        </td>
+      </tr>
+    </table>
+    <table role="presentation" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="background-color:${C.teal};border-radius:10px;">
+          <a href="${data.requestUrl}" style="display:inline-block;padding:12px 22px;font-family:${SANS};font-size:14px;font-weight:600;color:#FFFFFF;text-decoration:none;">View &amp; reply &rarr;</a>
+        </td>
+      </tr>
+    </table>`
+
+  const html = emailLayout({
+    subject,
+    preheader: `Your property manager replied to "${data.requestTitle}".`,
+    badge: { text: '💬 NEW REPLY', color: C.teal, bg: '#DCEEEF' },
+    heading: `Hi ${escapeHtml(data.tenantName)},`,
+    intro: 'Your property manager replied to your maintenance request.',
+    bodyHtml,
+    footerNote: 'Reply right from the request page in your tenant portal, or just reply to this email.',
+  })
+
+  return { subject, html }
+}
+
+/** Fire-and-forget: render + send a maintenance reply email. */
+export async function sendMaintenanceReplyEmail(data: MaintenanceReplyData): Promise<void> {
+  const { subject, html } = renderMaintenanceReplyEmail(data)
+  await sendEmail({ to: data.tenantEmail, toName: data.tenantName, subject, html })
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Announcement email (admin → tenants broadcast)
 // ──────────────────────────────────────────────────────────────────────────────
 

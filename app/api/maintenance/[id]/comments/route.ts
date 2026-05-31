@@ -19,6 +19,7 @@ import {
   MAX_FILES_PER_REQUEST,
 } from '@/lib/storage'
 import { postMaintenanceMessage, type MattermostUpload } from '@/lib/mattermost'
+import { notifyTenantOfReply } from '@/lib/maintenance-notify'
 
 interface AttachmentRow {
   id: string
@@ -170,6 +171,12 @@ export async function POST(
       const who = session.role === 'admin' ? 'Manager' : 'Tenant'
       const msg = `💬 **${who} replied:** ${body || '_(photo)_'}`
       void postMaintenanceMessage(msg, { rootId: req.mattermost_root_id, files: mmUploads }).catch(() => {})
+    }
+
+    // When the property manager replies, email the tenant with the message +
+    // a link back to the request. (Tenant's own replies don't email themselves.)
+    if (session.role === 'admin') {
+      void notifyTenantOfReply(id, body || '(photo)')
     }
 
     return NextResponse.json({
