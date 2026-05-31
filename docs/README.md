@@ -1,12 +1,21 @@
-# EZPM landing page (getezpm.com)
+# EZPM landing pages (getezpm.com)
 
-This directory is served as `https://getezpm.com` via GitHub Pages.
+This directory is served as `https://getezpm.com` via GitHub Pages. Two pages live here, written for two different audiences:
 
 ## Files
 
-- `index.html` — single-file landing page (no build step, no JS deps, all CSS inline)
-- `favicon.svg` — favicon
+- `index.html` — **tenant-facing landing** at `getezpm.com`. Warm, friendly, one clear action: "Log in to your portal." Fraunces serif headlines + Inter body, soft teal accent, rounded cards. Built for tenants who got an invite email and need to figure out what this is before clicking.
+- `builders/index.html` — **builder/operator landing** at `getezpm.com/builders/`. "Issued document" treasury-style aesthetic for landlords who want to self-host. IBM Plex family, hard borders, §-numbered sections, fee tables. Built for technical readers evaluating EZPM as software they could deploy themselves.
+- `favicon.svg` — shared favicon
 - `CNAME` — GitHub Pages custom-domain config (`getezpm.com`)
+
+## Promoting `/builders/` to a subdomain
+
+If you want the builder page to live at `builders.getezpm.com` (or similar) instead of as a subpath:
+
+1. **DNS in Cloudflare**: add a CNAME `builders` → `qureshi-inc.github.io`
+2. **GitHub Pages**: GitHub Pages serves one CNAME per branch. To serve a second domain, the easiest path is a Cloudflare Worker that rewrites `builders.getezpm.com/*` → `getezpm.com/builders/*` (no second deploy needed). Alternatively, move `docs/builders/` to its own repo with its own Pages config + CNAME.
+3. Update the `For builders` / `For tenants` cross-links in both pages to use the new hostname.
 
 ## Enable GitHub Pages
 
