@@ -158,27 +158,40 @@ export interface SendInvitationResult {
 /**
  * Triggers Zitadel to email the user an invitation with a verification code.
  *
- * We intentionally do NOT pass a urlTemplate — Zitadel's hosted login UI
- * handles the full verify + password setup + MFA flow at
- * /ui/v2/login/verify, then redirects the user back to the EZPM OIDC client
- * (app.getezpm.com) when they finish. This keeps us out of the password
- * lifecycle entirely (Zitadel owns password policy, complexity rules, MFA).
+ * Critical detail: we point the email link at our own /auth/start route
+ * (NOT Zitadel's default verify page) so the click initiates an OIDC
+ * authorize flow. Difference:
  *
- * If you ever want to brand the password page yourself, add back a
- * urlTemplate of the form "https://your.app/auth/invite?code={{.Code}}&userId={{.UserID}}"
- * and implement verify + setPassword endpoints — but you give up the free
- * MFA/branding features of the hosted UI.
+ *   - DEFAULT behavior (no urlTemplate): email -> auth.getezpm.com/ui/v2/login/verify
+ *     -> user verifies + sets password -> Zitadel has NO OIDC context ->
+ *     dumps user on Zitadel's own console. Tenants get stuck and confused.
+ *
+ *   - OUR setup: email -> app.getezpm.com/auth/start?login_hint=<email> ->
+ *     /auth/start fires signIn('zitadel') which generates an OIDC authorize
+ *     URL with login_hint set -> Zitadel sees the hint, finds the user, sees
+ *     the pending invite_code, shows verify page WITHIN the OIDC context ->
+ *     after verify + password, Zitadel completes the OIDC dance ->
+ *     /api/auth/callback/zitadel -> session created -> /tenant. No manual
+ *     navigation, no stranded-on-Zitadel-console.
+ *
+ * {{.LoginName}} is one of Zitadel's Go template vars for invite emails;
+ * resolves to the user's primary login (email). Other available vars:
+ * {{.Code}}, {{.UserID}}, {{.OrgID}}, {{.FirstName}}, etc. — see Zitadel
+ * v4 docs. We don't include Code/UserID in our URL because the verify
+ * form on Zitadel's UI doesn't auto-fill when reached via an OIDC flow
+ * anyway, and we don't have a custom verify page to consume them.
  */
 export async function sendInvitation(input: SendInvitationInput): Promise<SendInvitationResult> {
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.getezpm.com').replace(/\/$/, '')
+
   // applicationName MUST be inside sendCode — Zitadel silently ignores it at
   // the root level and the email shows the default "Zitadel Login" instead.
-  // Verified by probing the live API; HTTP 200 either way, only the rendered
-  // template differs.
   await call(`/v2/users/${encodeURIComponent(input.userId)}/invite_code`, {
     method: 'POST',
     body: JSON.stringify({
       sendCode: {
         applicationName: input.applicationName ?? 'EZPM',
+        urlTemplate: `${appUrl}/auth/start?callbackUrl=%2Ftenant&login_hint={{.LoginName}}`,
       },
     }),
   })
