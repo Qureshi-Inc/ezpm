@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Home, CreditCard, Clock, LogOut, Users, Building, DollarSign, Menu, X, Wrench, FileText } from 'lucide-react'
+import { Home, CreditCard, Clock, LogOut, Users, Building, DollarSign, Menu, X, Wrench, FileText, Megaphone } from 'lucide-react'
 
 interface NavigationProps {
   role: 'admin' | 'tenant'
@@ -29,6 +29,7 @@ export function Navigation({ role, userName }: NavigationProps) {
     { href: '/tenant/payment-methods', label: 'Payment Methods', icon: CreditCard },
     { href: '/tenant/maintenance', label: 'Maintenance', icon: Wrench },
     { href: '/tenant/documents', label: 'Documents', icon: FileText },
+    { href: '/tenant/announcements', label: 'Announcements', icon: Megaphone },
     { href: '/tenant/payment-history', label: 'Payment History', icon: Clock },
   ]
 
@@ -37,6 +38,7 @@ export function Navigation({ role, userName }: NavigationProps) {
     { href: '/admin/tenants', label: 'Tenants', icon: Users },
     { href: '/admin/properties', label: 'Properties', icon: Building },
     { href: '/admin/maintenance', label: 'Maintenance', icon: Wrench },
+    { href: '/admin/announcements', label: 'Announcements', icon: Megaphone },
     { href: '/admin/payments', label: 'Payments', icon: DollarSign },
   ]
 

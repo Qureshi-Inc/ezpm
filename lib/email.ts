@@ -352,3 +352,41 @@ export async function sendMaintenanceStatusEmail(data: MaintenanceStatusData): P
   const { subject, html } = renderMaintenanceStatusEmail(data)
   await sendEmail({ to: data.tenantEmail, toName: data.tenantName, subject, html })
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Announcement email (admin → tenants broadcast)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface AnnouncementEmailData {
+  title: string
+  body: string
+}
+
+export function renderAnnouncementEmail(data: AnnouncementEmailData): { subject: string; html: string } {
+  const subject = data.title
+  // Preserve the admin's line breaks; escape everything else.
+  const bodyParagraphs = escapeHtml(data.body)
+    .split(/\n{2,}/)
+    .map(
+      (p) =>
+        `<p style="margin:0 0 14px 0;font-family:${SANS};font-size:15px;color:${C.ink2};line-height:1.6;">${p.replace(/\n/g, '<br>')}</p>`,
+    )
+    .join('')
+
+  const bodyHtml = `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${C.cream};border-radius:14px;">
+      <tr><td style="padding:22px 24px;">${bodyParagraphs}</td></tr>
+    </table>`
+
+  const html = emailLayout({
+    subject,
+    preheader: data.title,
+    badge: { text: '📣 ANNOUNCEMENT', color: C.teal, bg: '#DCEEEF' },
+    heading: escapeHtml(data.title),
+    intro: 'A message from your property manager.',
+    bodyHtml,
+    footerNote: 'You can also see this in your tenant portal. Questions? Just reply to this email.',
+  })
+
+  return { subject, html }
+}

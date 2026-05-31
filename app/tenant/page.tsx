@@ -44,6 +44,13 @@ export default async function TenantDashboard() {
     .eq('tenant_id', tenant.id)
     .in('status', ['open', 'in_progress'])
 
+  const { data: latestAnnouncement } = await supabase
+    .from('announcements')
+    .select('id, title, body, created_at')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
   const autoPayActive = !!tenant.stripe_subscription_id
 
   return (
@@ -57,6 +64,19 @@ export default async function TenantDashboard() {
             Welcome back, {tenant.first_name}.
           </h1>
         </div>
+
+        {latestAnnouncement && (
+          <Link href="/tenant/announcements" className="block mb-5">
+            <div className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4 transition-colors hover:bg-primary/10">
+              <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary text-base">📣</span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium uppercase tracking-wide text-primary">Announcement</p>
+                <p className="font-medium text-foreground truncate">{latestAnnouncement.title}</p>
+                <p className="text-sm text-muted-foreground line-clamp-2">{latestAnnouncement.body}</p>
+              </div>
+            </div>
+          </Link>
+        )}
 
         {/* Hero: next payment + property, side by side on desktop */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-5">
