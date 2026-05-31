@@ -169,9 +169,11 @@ export async function POST(request: NextRequest) {
     const urgent = priority === 'urgent'
     const where = tenant.property?.address ? `\n**Where:** ${tenant.property.address}` : ''
     const details = description ? `\n\n${description}` : ''
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.getezpm.com').replace(/\/$/, '')
+    const link = `\n\n[Open in EZPM →](${appUrl}/admin/maintenance/${created.id})`
     const rootMessage =
       `${urgent ? '🚨 ' : '🔧 '}**New maintenance request${urgent ? ' — URGENT' : ''}**\n` +
-      `**${title}** _(${category})_\n**Tenant:** ${tenantName}${where}${details}`
+      `**${title}** _(${category})_\n**Tenant:** ${tenantName}${where}${details}${link}`
 
     void (async () => {
       try {
