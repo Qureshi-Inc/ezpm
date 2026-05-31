@@ -314,6 +314,10 @@ CREATE TABLE maintenance_requests (
     category    VARCHAR(30)  NOT NULL DEFAULT 'other',
     priority    VARCHAR(10)  NOT NULL DEFAULT 'normal',
     status      VARCHAR(20)  NOT NULL DEFAULT 'open',
+    -- Root post id of this request's Mattermost thread (set when the bot posts
+    -- the initial message); status changes reply under it to keep one thread
+    -- per request.
+    mattermost_root_id TEXT,
     created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     resolved_at TIMESTAMPTZ,

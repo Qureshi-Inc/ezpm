@@ -18,12 +18,23 @@ Production: https://app.getezpm.com (Coolify auto-deploy on push to main).
 ## Optional Environment Variables
 
 ```
-# Mattermost operational notifications (lib/notify.ts)
+# Mattermost operational notifications (lib/notify.ts) — incoming webhook.
 # Fires on: new tenant signup, subscription created, rent charged/failed.
 # Leave unset to disable notifications silently (no errors, no-op).
-# Bot: 54doh4cy7ig8fpphwtqfw3h98c on mm.qureshi.io
 # In Mattermost: Integrations → Incoming Webhooks → Add Webhook → copy URL.
 MATTERMOST_WEBHOOK_URL=https://mm.qureshi.io/hooks/<token>
+
+# Mattermost MAINTENANCE channel (lib/mattermost.ts) — bot API, NOT a webhook.
+# Used to post one THREAD PER maintenance request (status changes reply under
+# the root). Threads need the bot's API token (webhooks can't thread):
+#   System Console → Integrations → Bot Accounts → ezpm bot → Create Token.
+# The bot must be a MEMBER of the channel. Give EITHER the channel id OR the
+# team name (channel name defaults to ezpm-maintenance). Unset = no-op.
+MATTERMOST_URL=https://mm.qureshi.io
+MATTERMOST_BOT_TOKEN=<bot access token>
+MATTERMOST_MAINTENANCE_CHANNEL_ID=<26-char channel id>   # OR set MATTERMOST_TEAM instead
+# MATTERMOST_TEAM=<team name>
+# MATTERMOST_MAINTENANCE_CHANNEL=ezpm-maintenance
 
 # Branded tenant receipt emails (lib/email.ts)
 # Sent automatically on every successful payment (invoice.payment_succeeded).

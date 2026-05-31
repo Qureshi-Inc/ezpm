@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { sendMaintenanceStatusEmail, type MaintenanceStatus } from '@/lib/email'
+import { postMaintenanceMessage } from '@/lib/mattermost'
 
 const STATUSES: MaintenanceStatus[] = ['open', 'in_progress', 'resolved', 'cancelled']
 
@@ -31,7 +32,7 @@ export async function PATCH(
     // Load current state + the tenant/property for the notification email.
     const { data: req } = await supabase
       .from('maintenance_requests')
-      .select('id, status, title, tenant:tenants(email, first_name, last_name), property:properties(address, unit_number)')
+      .select('id, status, title, mattermost_root_id, tenant:tenants(email, first_name, last_name), property:properties(address, unit_number)')
       .eq('id', id)
       .maybeSingle()
 
@@ -51,7 +52,8 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Email the tenant only if the status actually changed.
+    // On a real change: email the tenant AND reply in the request's Mattermost
+    // thread so the channel shows the full lifecycle under one root post.
     if (req.status !== status) {
       const tenant = req.tenant as unknown as { email: string; first_name: string | null; last_name: string | null } | null
       const property = req.property as unknown as { address: string | null; unit_number: string | null } | null
@@ -64,6 +66,15 @@ export async function PATCH(
           propertyAddress: property?.address ?? null,
           propertyUnit: property?.unit_number ?? null,
         })
+      }
+      if (req.mattermost_root_id) {
+        const STATUS_TEXT: Record<string, string> = {
+          open: '↩️ Reopened',
+          in_progress: '🛠️ Marked **in progress**',
+          resolved: '✅ Marked **resolved**',
+          cancelled: '🚫 Cancelled',
+        }
+        void postMaintenanceMessage(STATUS_TEXT[status] ?? `Status: ${status}`, req.mattermost_root_id)
       }
     }
 

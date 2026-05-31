@@ -22,7 +22,7 @@ import {
   MAX_FILE_BYTES,
   MAX_FILES_PER_REQUEST,
 } from '@/lib/storage'
-import { notify } from '@/lib/notify'
+import { postMaintenanceMessage } from '@/lib/mattermost'
 
 const CATEGORIES = ['plumbing', 'electrical', 'appliance', 'hvac', 'other']
 const PRIORITIES = ['normal', 'urgent']
@@ -146,16 +146,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fire-and-forget Mattermost ping to the landlord.
-    notify.maintenanceRequested({
-      email: tenant.email,
-      firstName: tenant.first_name,
-      lastName: tenant.last_name,
-      title,
-      category,
-      priority,
-      propertyAddress: tenant.property?.address ?? null,
-    })
+    // Post the request as the ROOT of a new thread in the maintenance channel,
+    // then remember the post id so status changes reply under it (one thread per
+    // request). Non-blocking: a slow/absent Mattermost never delays the tenant.
+    const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(' ') || tenant.email
+    const urgent = priority === 'urgent'
+    const where = tenant.property?.address ? `\n**Where:** ${tenant.property.address}` : ''
+    const details = description ? `\n\n${description}` : ''
+    const rootMessage =
+      `${urgent ? '🚨 ' : '🔧 '}**New maintenance request${urgent ? ' — URGENT' : ''}**\n` +
+      `**${title}** _(${category})_\n**Tenant:** ${tenantName}${where}${details}`
+
+    void (async () => {
+      const rootId = await postMaintenanceMessage(rootMessage)
+      if (rootId) {
+        await supabase
+          .from('maintenance_requests')
+          .update({ mattermost_root_id: rootId })
+          .eq('id', created.id)
+      }
+    })()
 
     return NextResponse.json({ success: true, request: created })
   } catch {
