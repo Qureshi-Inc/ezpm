@@ -63,7 +63,10 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+/* overflow-x: clip stops any stray horizontal scroll without creating a scroll
+   container (so the sticky banner keeps working, unlike overflow:hidden/auto). */
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; overflow-x: clip; }
+body { overflow-x: clip; }
 body {
   background: var(--paper);
   color: var(--ink);
@@ -767,6 +770,15 @@ section.doc.tinted { background: var(--paper-tint); }
   .hero { padding: 44px 0 52px; }
   .hero-actions .btn { width: 100%; }   /* full-width tap targets */
   .article { padding: 22px; }
+  /* Banner: drop the "/ for builders" tagline + tighten so brand + CTA fit. */
+  .banner-row { gap: 12px; }
+  .brand > span > span { display: none; }
+  .brand { font-size: 17px; min-width: 0; }
+  .banner-cta .btn { white-space: nowrap; }
+  /* Ledger reads better as one column on a phone. */
+  .ledger-row { grid-template-columns: 1fr; }
+  .ledger-cell { border-left: none; border-top: var(--rule-w) solid var(--rule-soft); }
+  .ledger-cell:first-child { border-top: none; }
 }
 </style>
 </head>
