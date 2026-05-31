@@ -228,6 +228,35 @@ BEGIN
         RETURN;
     END IF;
 
+    -- Zitadel-migration safety net: a user with this email may already
+    -- exist with a different zitadel_subject (e.g. we moved from
+    -- auth.kainban.com to auth.getezpm.com; old subjects are dead).
+    -- Without this branch the INSERT below would explode on the
+    -- users.email UNIQUE constraint and lock the user out of their own
+    -- account. Re-binding the existing row to the new subject preserves
+    -- tenant linkage (via users.id) and lets them log in.
+    --
+    -- Trust model: email-as-identity is safe because Zitadel enforces
+    -- email uniqueness within the org, and admins invite tenants by
+    -- email. If you ever federate to a second IdP that issues different
+    -- subjects for the same email, harden this check (e.g. require an
+    -- admin to confirm the rebinding).
+    SELECT u.id, u.role INTO v_new_user_id, v_role
+    FROM users u
+    WHERE LOWER(u.email) = LOWER(p_email);
+
+    IF v_new_user_id IS NOT NULL THEN
+        UPDATE users
+           SET zitadel_subject = p_zitadel_subject,
+               first_name      = COALESCE(p_first_name, first_name),
+               last_name       = COALESCE(p_last_name, last_name)
+         WHERE id = v_new_user_id;
+        out_user_id := v_new_user_id;
+        out_role    := v_role;
+        RETURN NEXT;
+        RETURN;
+    END IF;
+
     -- First-user-becomes-admin
     SELECT COUNT(*) INTO v_existing_count FROM users;
     IF v_existing_count = 0 THEN
