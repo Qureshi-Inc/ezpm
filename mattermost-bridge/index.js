@@ -36,6 +36,12 @@ const IGNORE_USERNAMES = (process.env.IGNORE_USERNAMES || 'matter-bot')
   .filter(Boolean)
 
 const WS_URL = BASE.replace(/^http/, 'ws') + '/api/v4/websocket'
+// Status emojis we mirror back as status changes (must match lib/mattermost.ts).
+const STATUS_EMOJI_NAMES = ['hammer_and_wrench', 'white_check_mark', 'no_entry_sign']
+const APP_REACTION_URL = (process.env.APP_REACTION_URL || APP_WEBHOOK_URL).replace(
+  /\/mattermost$/,
+  '/mattermost-reaction',
+)
 
 function log(...args) {
   console.log(new Date().toISOString(), ...args)
@@ -107,7 +113,42 @@ async function relay(post) {
   }
 }
 
+async function relayReaction(reaction) {
+  try {
+    const body = new URLSearchParams({
+      token: OUTGOING_TOKEN,
+      post_id: reaction.post_id,
+      emoji: reaction.emoji_name,
+      user_id: reaction.user_id,
+    })
+    const res = await fetch(APP_REACTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    })
+    log(`relayed reaction :${reaction.emoji_name}: on ${reaction.post_id} -> app: HTTP ${res.status}`)
+  } catch (err) {
+    log('reaction relay failed:', err.message)
+  }
+}
+
 function handleEvent(msg) {
+  // A status emoji added on a request's root post → drive the status change.
+  if (msg.event === 'reaction_added') {
+    let reaction
+    try {
+      reaction = JSON.parse(msg.data.reaction)
+    } catch {
+      return
+    }
+    const bchan = msg.broadcast && msg.broadcast.channel_id
+    if (bchan && bchan !== CHANNEL_ID) return
+    if (botUserId && reaction.user_id === botUserId) return // ignore our own reactions (loop guard)
+    if (!STATUS_EMOJI_NAMES.includes(reaction.emoji_name)) return
+    relayReaction(reaction)
+    return
+  }
+
   if (msg.event !== 'posted') return
   let post
   try {

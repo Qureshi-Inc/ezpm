@@ -29,6 +29,7 @@ export default async function TenantSettingsPage() {
           <CardContent>
             <NotificationSettings
               initialMaintenanceReplies={tenant.notify_maintenance_replies !== false}
+              initialMaintenanceStatus={tenant.notify_maintenance_status !== false}
               initialPaymentReceipts={tenant.notify_payment_receipts !== false}
             />
           </CardContent>

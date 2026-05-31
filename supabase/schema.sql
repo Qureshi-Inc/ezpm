@@ -60,6 +60,7 @@ CREATE TABLE tenants (
     stripe_subscription_id  VARCHAR(255) UNIQUE,
     -- Tenant-controlled email notification toggles (tenant Settings page).
     notify_maintenance_replies BOOLEAN NOT NULL DEFAULT true,
+    notify_maintenance_status  BOOLEAN NOT NULL DEFAULT true,
     notify_payment_receipts    BOOLEAN NOT NULL DEFAULT true,
     created_at              TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at              TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP

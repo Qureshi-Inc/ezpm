@@ -33,10 +33,22 @@ docker compose logs -f        # expect: "authenticated, listening for replies in
 
 `MATTERMOST_OUTGOING_TOKEN` here **must equal** the app's `MATTERMOST_OUTGOING_TOKEN`.
 
+## Two-way status (emoji reactions)
+
+The bridge also catches `reaction_added` on a request's root post and relays a
+**status emoji** to `POST /api/webhooks/mattermost-reaction` (derived from
+`APP_WEBHOOK_URL`, or override with `APP_REACTION_URL`):
+🛠️ `hammer_and_wrench` → in progress, ✅ `white_check_mark` → resolved,
+🚫 `no_entry_sign` → cancelled. The app updates the request and emails the
+tenant — same as changing status in the web UI. (No emoji maps to "open";
+`reaction_removed` is ignored.)
+
 ## Behavior / safety
 
 - Only mirrors **thread replies** in the configured channel (root messages and
   other channels are ignored).
+- Status emoji reactions drive status changes; the bot's own reactions are
+  ignored (loop guard).
 - Ignores the bot's own posts (loop guard) and dedupes by Mattermost post id
   (the app enforces a UNIQUE `mattermost_post_id`).
 - `IGNORE_USERNAMES` (default `matter-bot`) drops posts **from** those users and

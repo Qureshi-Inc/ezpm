@@ -18,6 +18,9 @@ export async function PATCH(request: NextRequest) {
     if (typeof body.notify_maintenance_replies === 'boolean') {
       update.notify_maintenance_replies = body.notify_maintenance_replies
     }
+    if (typeof body.notify_maintenance_status === 'boolean') {
+      update.notify_maintenance_status = body.notify_maintenance_status
+    }
     if (typeof body.notify_payment_receipts === 'boolean') {
       update.notify_payment_receipts = body.notify_payment_receipts
     }

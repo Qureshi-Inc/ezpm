@@ -5,12 +5,18 @@ import { Loader2 } from 'lucide-react'
 
 interface Props {
   initialMaintenanceReplies: boolean
+  initialMaintenanceStatus: boolean
   initialPaymentReceipts: boolean
 }
 
-export function NotificationSettings({ initialMaintenanceReplies, initialPaymentReceipts }: Props) {
+export function NotificationSettings({
+  initialMaintenanceReplies,
+  initialMaintenanceStatus,
+  initialPaymentReceipts,
+}: Props) {
   const [prefs, setPrefs] = useState({
     notify_maintenance_replies: initialMaintenanceReplies,
+    notify_maintenance_status: initialMaintenanceStatus,
     notify_payment_receipts: initialPaymentReceipts,
   })
   const [savingKey, setSavingKey] = useState<string>('')
@@ -43,6 +49,11 @@ export function NotificationSettings({ initialMaintenanceReplies, initialPayment
   }
 
   const ROWS: { key: PrefKey; title: string; desc: string }[] = [
+    {
+      key: 'notify_maintenance_status',
+      title: 'Maintenance status updates',
+      desc: 'Email me when a maintenance request changes status (in progress, resolved, cancelled).',
+    },
     {
       key: 'notify_maintenance_replies',
       title: 'Maintenance replies',

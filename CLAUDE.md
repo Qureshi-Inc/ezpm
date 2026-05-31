@@ -139,9 +139,20 @@ Tenants see the latest on their dashboard banner + a full list at
 Per-tenant email toggles (default true) on `/tenant/settings`
 (`NotificationSettings`) via `PATCH /api/tenant/notifications`:
 - `notify_maintenance_replies` — honored by `lib/maintenance-notify.ts`.
+- `notify_maintenance_status` — honored by `applyMaintenanceStatus` in
+  `lib/maintenance-status.ts`.
 - `notify_payment_receipts` — honored by `sendReceiptEmailForInvoice` in
   `lib/stripe-event-handler.ts`.
 Structured so adding more toggles is one boolean column + one row in the UI.
+
+### Status changes are bidirectional
+`lib/maintenance-status.ts` `applyMaintenanceStatus()` is the single path for a
+status change (DB update + tenant email + Mattermost emoji). Triggered by:
+- the admin web UI (`PATCH /api/admin/maintenance/[id]`), or
+- a **status emoji reaction in Mattermost** on the request's root post — the
+  bridge catches `reaction_added` (🛠️→in_progress, ✅→resolved, 🚫→cancelled)
+  and relays to `POST /api/webhooks/mattermost-reaction`. (No emoji maps to
+  `open`; reopen via the web UI. `reaction_removed` is ignored — ambiguous.)
 
 ### Admin "Send Password Reset"
 `/admin/tenants/[id]` → emails the tenant a Zitadel password-reset link
@@ -187,7 +198,7 @@ Outbound (app → Mattermost) uses the bot API and works anywhere. **Inbound**
 - `maintenance_comments` — two-way request thread (tenant/admin). `mattermost_post_id` (UNIQUE) dedupes replies mirrored in from Mattermost.
 - `documents` — per-tenant bidirectional document folder (file metadata; bytes on `UPLOADS_DIR` under `documents/`).
 - `announcements` — admin → tenant notices.
-- `tenants.notify_maintenance_replies`, `tenants.notify_payment_receipts` — per-tenant email toggles (default true; tenant Settings page).
+- `tenants.notify_maintenance_replies`, `tenants.notify_maintenance_status`, `tenants.notify_payment_receipts` — per-tenant email toggles (default true; tenant Settings page).
 
 ## Key Flows
 
