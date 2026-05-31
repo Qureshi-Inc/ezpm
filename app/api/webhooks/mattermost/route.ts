@@ -51,7 +51,16 @@ export async function POST(request: NextRequest) {
 
     const postId = (payload.post_id || '').trim()
     const userId = (payload.user_id || '').trim()
-    const text = (payload.text || '').trim()
+
+    // If the webhook is configured with a trigger word (e.g. "reply"), the
+    // message text starts with it. Strip it so the mirrored comment is just
+    // the actual message. trigger_word is empty when the hook fires on every
+    // message, in which case we keep the full text.
+    let text = (payload.text || '').trim()
+    const triggerWord = (payload.trigger_word || '').trim()
+    if (triggerWord && text.toLowerCase().startsWith(triggerWord.toLowerCase())) {
+      text = text.slice(triggerWord.length).trim()
+    }
     if (!postId || !text) return ok()
 
     // Loop guard: never ingest the bot's own posts.
