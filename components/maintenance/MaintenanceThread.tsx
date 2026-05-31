@@ -35,7 +35,7 @@ export function MaintenanceThread({ requestId, viewerRole }: { requestId: string
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/maintenance/${requestId}/comments`)
+      const res = await fetch(`/api/maintenance/${requestId}/comments`, { cache: 'no-store' })
       const data = await res.json()
       if (res.ok) setComments(data.comments ?? [])
     } catch {

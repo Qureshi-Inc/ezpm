@@ -81,7 +81,10 @@ export async function GET(
       ...c,
       attachments: attachments.filter((a) => a.comment_id === c.id),
     }))
-    return NextResponse.json({ comments: withAttachments })
+    return NextResponse.json(
+      { comments: withAttachments },
+      { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
+    )
   } catch (err) {
     console.error('[maintenance/comments/list] failed:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
