@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Home, CreditCard, Clock, LogOut, Users, Building, DollarSign, Menu, X, Wrench, FileText, Megaphone } from 'lucide-react'
+import { Home, CreditCard, Clock, LogOut, Users, Building, DollarSign, Menu, X, Wrench, FileText, Megaphone, Settings } from 'lucide-react'
 
 interface NavigationProps {
   role: 'admin' | 'tenant'
@@ -30,6 +30,7 @@ export function Navigation({ role, userName }: NavigationProps) {
     { href: '/tenant/maintenance', label: 'Maintenance', icon: Wrench },
     { href: '/tenant/documents', label: 'Documents', icon: FileText },
     { href: '/tenant/payment-history', label: 'Payment History', icon: Clock },
+    { href: '/tenant/settings', label: 'Settings', icon: Settings },
   ]
 
   const adminLinks = [

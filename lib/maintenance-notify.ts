@@ -16,15 +16,17 @@ export async function notifyTenantOfReply(requestId: string, replyBody: string):
     const supabase = createServerSupabaseClient()
     const { data: req } = await supabase
       .from('maintenance_requests')
-      .select('id, title, tenant:tenants(email, first_name, last_name)')
+      .select('id, title, tenant:tenants(email, first_name, last_name, notify_maintenance_replies)')
       .eq('id', requestId)
       .maybeSingle()
     if (!req) return
 
     const tenant = req.tenant as unknown as
-      | { email: string | null; first_name: string | null; last_name: string | null }
+      | { email: string | null; first_name: string | null; last_name: string | null; notify_maintenance_replies: boolean | null }
       | null
     if (!tenant?.email) return
+    // Respect the tenant's notification preference (default on).
+    if (tenant.notify_maintenance_replies === false) return
 
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.getezpm.com').replace(/\/$/, '')
     await sendMaintenanceReplyEmail({
