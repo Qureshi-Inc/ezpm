@@ -168,38 +168,37 @@ export interface SendInvitationResult {
 /**
  * Triggers Zitadel to email the user an invitation with a verification code.
  *
- * Critical detail: we point the email link at our own /auth/start route
- * (NOT Zitadel's default verify page) so the click initiates an OIDC
- * authorize flow. Difference:
+ * We deliberately do NOT pass a urlTemplate. With no template, Zitadel's
+ * email contains a direct link to its hosted verify page:
  *
- *   - DEFAULT (no urlTemplate): email -> auth.getezpm.com/ui/v2/login/verify
- *     -> user verifies + sets password -> Zitadel has NO OIDC context ->
- *     dumps user on Zitadel's own console. Tenants stranded.
+ *   https://auth.getezpm.com/ui/v2/login/verify?code=ABCDEF&userId=...&invite=true
  *
- *   - OURS: email -> app.getezpm.com/auth/start?login_hint=<email> ->
- *     /auth/start fires signIn('zitadel') with login_hint set -> Zitadel
- *     OIDC authorize -> Zitadel sees the hint, finds the user, sees the
- *     pending invite -> verify page within OIDC context -> verify + set
- *     password -> Zitadel completes OIDC -> /api/auth/callback/zitadel
- *     -> session -> /tenant.
+ * Two key wins from the default:
+ *   1. {code} is in the URL -> Zitadel's verify form auto-fills it, so the
+ *      tenant just clicks "Continue" instead of typing the 6-char code.
+ *   2. The email is the standard Zitadel template (shows code as text and
+ *      as a button) — no missing-code complaints.
  *
- * URL template constraints (Zitadel v4):
- *   - Only {{.UserID}}, {{.Code}}, {{.OrgID}} placeholders are valid in
- *     the URL template. {{.LoginName}} is valid in email body templates
- *     but NOT URL templates — Zitadel returns 400 "url template is
- *     invalid" if you use anything outside the allowed three.
- *   - We bake login_hint=<email> directly into the URL at call time using
- *     the loginHint parameter (passed from the admin tenant-create route,
- *     which already knows the email).
+ * Post-invite redirect to /tenant is handled by the OIDC app's
+ * "Default Redirect URI" setting on the Zitadel admin side (currently
+ * https://app.getezpm.com). After Zitadel finishes invite + password
+ * setup, it redirects there, our home page bounces to /auth/start, and
+ * /auth/start silent-SSO's via the just-established Zitadel session.
+ *
+ * `loginHint` is accepted (and forwarded into /auth/start via the
+ * authorizationParams of the OIDC flow) for compatibility, but is NOT
+ * embedded in the urlTemplate since we're not using one.
+ *
+ * URL template constraints if you ever re-enable a custom one:
+ *   - Only {{.UserID}}, {{.Code}}, {{.OrgID}} placeholders are valid.
+ *   - {{.LoginName}} is valid in email body templates but NOT URL
+ *     templates — Zitadel returns 400 "url template is invalid".
  */
 export async function sendInvitation(input: SendInvitationInput): Promise<SendInvitationResult> {
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.getezpm.com').replace(/\/$/, '')
-
-  const params = new URLSearchParams({ callbackUrl: '/tenant' })
-  if (input.loginHint) {
-    params.set('login_hint', input.loginHint)
-  }
-  const urlTemplate = `${appUrl}/auth/start?${params.toString()}`
+  // Accept input.loginHint to preserve the call-site interface, but it isn't
+  // used in the urlTemplate-less default flow. Suppress unused-var lint via
+  // a no-op reference.
+  void input.loginHint
 
   // applicationName MUST be inside sendCode — Zitadel silently ignores it at
   // the root level and the email shows the default "Zitadel Login" instead.
@@ -208,7 +207,6 @@ export async function sendInvitation(input: SendInvitationInput): Promise<SendIn
     body: JSON.stringify({
       sendCode: {
         applicationName: input.applicationName ?? 'EZPM',
-        urlTemplate,
       },
     }),
   })
