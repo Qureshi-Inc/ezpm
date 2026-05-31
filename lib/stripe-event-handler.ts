@@ -35,13 +35,19 @@ export async function handleStripeEvent(event: Stripe.Event, supabase: Supabase)
       break
     }
 
-    case 'invoice.payment_failed':
-      await mirrorInvoice(event.data.object as Stripe.Invoice, supabase, { status: 'failed' })
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as Stripe.Invoice
+      await mirrorInvoice(invoice, supabase, { status: 'failed' })
+      void notifyRentFailed(invoice, supabase, 'payment_failed')
       break
+    }
 
-    case 'invoice.marked_uncollectible':
-      await mirrorInvoice(event.data.object as Stripe.Invoice, supabase, { status: 'uncollectible' })
+    case 'invoice.marked_uncollectible': {
+      const invoice = event.data.object as Stripe.Invoice
+      await mirrorInvoice(invoice, supabase, { status: 'uncollectible' })
+      void notifyRentFailed(invoice, supabase, 'uncollectible')
       break
+    }
 
     case 'invoice.voided':
       await mirrorInvoice(event.data.object as Stripe.Invoice, supabase, { status: 'void' })
@@ -160,19 +166,30 @@ async function tenantIdFromCustomer(
 }
 
 /**
+ * Shared tenant lookup for notification helpers.
+ */
+async function tenantForInvoice(
+  invoice: Stripe.Invoice,
+  supabase: Supabase,
+): Promise<{ email: string; first_name: string | null; last_name: string | null } | null> {
+  const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
+  if (!customerId) return null
+  const { data } = await supabase
+    .from('tenants')
+    .select('email, first_name, last_name')
+    .eq('stripe_customer_id', customerId)
+    .maybeSingle()
+  return data ?? null
+}
+
+/**
  * Fire-and-forget: looks up the tenant from the invoice's customer and sends
  * a Mattermost notification. Errors are silently swallowed so they can never
  * affect the webhook response or the mirrorInvoice result.
  */
 async function notifyRentCharged(invoice: Stripe.Invoice, supabase: Supabase): Promise<void> {
   try {
-    const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
-    if (!customerId) return
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('email, first_name, last_name')
-      .eq('stripe_customer_id', customerId)
-      .maybeSingle()
+    const tenant = await tenantForInvoice(invoice, supabase)
     if (!tenant) return
     notify.rentCharged({
       email: tenant.email,
@@ -180,6 +197,27 @@ async function notifyRentCharged(invoice: Stripe.Invoice, supabase: Supabase): P
       lastName: tenant.last_name,
       amount: invoice.amount_paid / 100,
       invoiceId: invoice.id,
+    })
+  } catch {
+    // Never let a notification failure bubble up to the webhook handler.
+  }
+}
+
+async function notifyRentFailed(
+  invoice: Stripe.Invoice,
+  supabase: Supabase,
+  reason: 'payment_failed' | 'uncollectible',
+): Promise<void> {
+  try {
+    const tenant = await tenantForInvoice(invoice, supabase)
+    if (!tenant) return
+    notify.rentFailed({
+      email: tenant.email,
+      firstName: tenant.first_name,
+      lastName: tenant.last_name,
+      amount: invoice.amount_due / 100,
+      invoiceId: invoice.id,
+      reason,
     })
   } catch {
     // Never let a notification failure bubble up to the webhook handler.

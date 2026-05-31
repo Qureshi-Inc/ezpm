@@ -85,6 +85,15 @@ export interface RentChargedPayload {
   invoiceId: string
 }
 
+export interface RentFailedPayload {
+  email: string
+  firstName: string | null
+  lastName: string | null
+  amount: number           // in dollars
+  invoiceId: string
+  reason: 'payment_failed' | 'uncollectible'
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Public API
 // ──────────────────────────────────────────────────────────────────────────────
@@ -114,6 +123,20 @@ export const notify = {
     void send({
       icon_emoji: ':white_check_mark:',
       text: `**Tenant subscribed** — ${name} (${payload.email}) enrolled in auto-pay at ${amount}/month via ${method}`,
+    })
+  },
+
+  /**
+   * Fires when a rent payment fails or is marked uncollectible.
+   * (invoice.payment_failed or invoice.marked_uncollectible webhook)
+   */
+  rentFailed(payload: RentFailedPayload): void {
+    const name = [payload.firstName, payload.lastName].filter(Boolean).join(' ') || payload.email
+    const amount = payload.amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+    const label = payload.reason === 'uncollectible' ? 'marked uncollectible' : 'failed'
+    void send({
+      icon_emoji: ':rotating_light:',
+      text: `**Rent payment ${label}** — ${amount} from ${name} (${payload.email}) · invoice \`${payload.invoiceId}\` — check Stripe Dashboard`,
     })
   },
 
