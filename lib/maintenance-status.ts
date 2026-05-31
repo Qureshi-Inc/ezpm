@@ -32,9 +32,12 @@ interface PropertyRow {
 export async function applyMaintenanceStatus(
   requestId: string,
   status: MaintenanceStatus,
-  opts: { react?: boolean } = {},
+  opts: { react?: boolean; fromReaction?: boolean } = {},
 ): Promise<{ ok: boolean; changed: boolean; notFound?: boolean }> {
   const supabase = createServerSupabaseClient()
+  // When the change came from a human's Mattermost reaction, clear stale status
+  // emojis but DON'T add the bot's own copy (the human's reaction is the visual).
+  const reactOpts = { addOwn: !opts.fromReaction }
 
   const { data: req } = await supabase
     .from('maintenance_requests')
@@ -47,7 +50,7 @@ export async function applyMaintenanceStatus(
   if (!req) return { ok: false, changed: false, notFound: true }
 
   if (req.status === status) {
-    if (opts.react !== false) void reactMaintenanceStatus(req.mattermost_root_id, status)
+    if (opts.react !== false) void reactMaintenanceStatus(req.mattermost_root_id, status, reactOpts)
     return { ok: true, changed: false }
   }
 
@@ -69,6 +72,6 @@ export async function applyMaintenanceStatus(
     })
   }
 
-  if (opts.react !== false) void reactMaintenanceStatus(req.mattermost_root_id, status)
+  if (opts.react !== false) void reactMaintenanceStatus(req.mattermost_root_id, status, reactOpts)
   return { ok: true, changed: true }
 }

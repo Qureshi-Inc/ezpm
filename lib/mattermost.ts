@@ -207,18 +207,25 @@ async function reactionCall(path: string, method: 'POST' | 'DELETE', body?: obje
  * emojis first so only the current one shows. 'open'/reopen clears all three.
  * Fully non-fatal — never throws.
  */
-export async function reactMaintenanceStatus(rootId: string | null | undefined, status: string): Promise<void> {
+export async function reactMaintenanceStatus(
+  rootId: string | null | undefined,
+  status: string,
+  opts: { addOwn?: boolean } = {},
+): Promise<void> {
   if (!TOKEN || !rootId) return
   const uid = await botUserId()
   if (!uid) return
 
   const keep = STATUS_EMOJI[status]
-  // Remove every status emoji except the one we're about to (or want to) keep.
+  // Remove every status emoji except the one we want to keep.
   for (const emoji of ALL_STATUS_EMOJI) {
     if (emoji === keep) continue
     await reactionCall(`/users/${uid}/posts/${rootId}/reactions/${emoji}`, 'DELETE')
   }
-  if (keep) {
+  // Add the bot's own copy of the current status emoji — UNLESS the change was
+  // driven by a human's reaction (addOwn: false), in which case their emoji is
+  // already there and a second bot copy would just show a count of 2.
+  if (keep && opts.addOwn !== false) {
     await reactionCall('/reactions', 'POST', { user_id: uid, post_id: rootId, emoji_name: keep })
   }
 }
