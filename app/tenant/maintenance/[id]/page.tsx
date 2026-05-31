@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/utils/helpers'
 import { CategoryIcon, categoryLabel, STATUS_LABEL, statusBadgeVariant } from '@/components/maintenance/meta'
 import { CancelRequestButton } from '@/components/maintenance/CancelRequestButton'
+import { MaintenanceThread } from '@/components/maintenance/MaintenanceThread'
 import { ArrowLeft } from 'lucide-react'
 
 export default async function TenantMaintenanceDetail({
@@ -22,18 +23,22 @@ export default async function TenantMaintenanceDetail({
   const supabase = createServerSupabaseClient()
   const { data: req } = await supabase
     .from('maintenance_requests')
-    .select('*, maintenance_attachments(id, file_name, content_type)')
+    .select('*, maintenance_attachments(id, file_name, content_type, comment_id)')
     .eq('id', id)
     .maybeSingle()
 
   // Ownership: a tenant can only view their own request.
   if (!req || req.tenant_id !== tenant.id) notFound()
 
-  const attachments = (req.maintenance_attachments ?? []) as {
-    id: string
-    file_name: string
-    content_type: string
-  }[]
+  // Only the original request photos here (comment photos live in the thread).
+  const attachments = (
+    (req.maintenance_attachments ?? []) as {
+      id: string
+      file_name: string
+      content_type: string
+      comment_id: string | null
+    }[]
+  ).filter((a) => !a.comment_id)
 
   return (
     <div className="min-h-screen bg-background">
@@ -120,6 +125,15 @@ export default async function TenantMaintenanceDetail({
                 <CancelRequestButton requestId={req.id} />
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Updates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MaintenanceThread requestId={req.id} viewerRole="tenant" />
           </CardContent>
         </Card>
       </main>

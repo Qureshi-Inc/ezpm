@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/utils/helpers'
 import { CategoryIcon, categoryLabel, STATUS_LABEL, statusBadgeVariant } from '@/components/maintenance/meta'
 import { StatusControl } from '@/components/maintenance/StatusControl'
+import { MaintenanceThread } from '@/components/maintenance/MaintenanceThread'
 import { ArrowLeft } from 'lucide-react'
 
 export default async function AdminMaintenanceDetail({
@@ -22,7 +23,7 @@ export default async function AdminMaintenanceDetail({
   const supabase = createServerSupabaseClient()
   const { data: req } = await supabase
     .from('maintenance_requests')
-    .select('*, maintenance_attachments(id, file_name, content_type), tenant:tenants(first_name, last_name, email), property:properties(address, unit_number)')
+    .select('*, maintenance_attachments(id, file_name, content_type, comment_id), tenant:tenants(first_name, last_name, email), property:properties(address, unit_number)')
     .eq('id', id)
     .maybeSingle()
 
@@ -30,7 +31,9 @@ export default async function AdminMaintenanceDetail({
 
   const tenant = req.tenant as { first_name: string | null; last_name: string | null; email: string } | null
   const property = req.property as { address: string | null; unit_number: string | null } | null
-  const attachments = (req.maintenance_attachments ?? []) as { id: string; file_name: string; content_type: string }[]
+  const attachments = (
+    (req.maintenance_attachments ?? []) as { id: string; file_name: string; content_type: string; comment_id: string | null }[]
+  ).filter((a) => !a.comment_id)
   const tenantName = tenant ? [tenant.first_name, tenant.last_name].filter(Boolean).join(' ') || tenant.email : 'Unknown'
 
   return (
@@ -132,6 +135,15 @@ export default async function AdminMaintenanceDetail({
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Update status</p>
               <StatusControl requestId={req.id} currentStatus={req.status} />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Updates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MaintenanceThread requestId={req.id} viewerRole="admin" />
           </CardContent>
         </Card>
       </main>
