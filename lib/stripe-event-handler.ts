@@ -240,10 +240,12 @@ async function sendReceiptEmailForInvoice(invoice: Stripe.Invoice, supabase: Sup
 
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('email, first_name, last_name, property_id')
+      .select('email, first_name, last_name, property_id, notify_payment_receipts')
       .eq('stripe_customer_id', customerId)
       .maybeSingle()
     if (!tenant?.email) return
+    // Respect the tenant's receipt-email preference (default on).
+    if (tenant.notify_payment_receipts === false) return
 
     // Property (optional — receipt still sends without it).
     let propertyAddress: string | null = null

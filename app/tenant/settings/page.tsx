@@ -27,7 +27,10 @@ export default async function TenantSettingsPage() {
             <CardDescription>Turn off anything you don&rsquo;t want in your inbox.</CardDescription>
           </CardHeader>
           <CardContent>
-            <NotificationSettings initialMaintenanceReplies={tenant.notify_maintenance_replies !== false} />
+            <NotificationSettings
+              initialMaintenanceReplies={tenant.notify_maintenance_replies !== false}
+              initialPaymentReceipts={tenant.notify_payment_receipts !== false}
+            />
           </CardContent>
         </Card>
       </main>

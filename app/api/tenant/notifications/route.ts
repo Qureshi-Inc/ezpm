@@ -18,6 +18,9 @@ export async function PATCH(request: NextRequest) {
     if (typeof body.notify_maintenance_replies === 'boolean') {
       update.notify_maintenance_replies = body.notify_maintenance_replies
     }
+    if (typeof body.notify_payment_receipts === 'boolean') {
+      update.notify_payment_receipts = body.notify_payment_receipts
+    }
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'No valid preference provided.' }, { status: 400 })
     }
