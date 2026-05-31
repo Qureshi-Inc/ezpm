@@ -22,7 +22,7 @@ import {
   MAX_FILE_BYTES,
   MAX_FILES_PER_REQUEST,
 } from '@/lib/storage'
-import { postMaintenanceMessage } from '@/lib/mattermost'
+import { postMaintenanceMessage, type MattermostUpload } from '@/lib/mattermost'
 
 const CATEGORIES = ['plumbing', 'electrical', 'appliance', 'hvac', 'other']
 const PRIORITIES = ['normal', 'urgent']
@@ -135,6 +135,8 @@ export async function POST(request: NextRequest) {
 
     // Store each file + mirror an attachments row. Files already passed
     // validation above, so storeAttachment should not throw on type/size.
+    // Also collect the bytes so we can attach them to the Mattermost post.
+    const mmUploads: MattermostUpload[] = []
     for (const f of files) {
       try {
         const stored = await storeAttachment(created.id, f)
@@ -145,6 +147,11 @@ export async function POST(request: NextRequest) {
           content_type: stored.contentType,
           size_bytes: stored.sizeBytes,
           uploaded_by_role: 'tenant',
+        })
+        mmUploads.push({
+          filename: stored.displayName,
+          contentType: stored.contentType,
+          bytes: await f.arrayBuffer(),
         })
       } catch (err) {
         // A single file failing shouldn't 500 the whole request — the request
@@ -168,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     void (async () => {
       try {
-        const rootId = await postMaintenanceMessage(rootMessage)
+        const rootId = await postMaintenanceMessage(rootMessage, { files: mmUploads })
         if (rootId) {
           await supabase
             .from('maintenance_requests')

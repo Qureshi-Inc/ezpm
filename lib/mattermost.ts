@@ -74,14 +74,57 @@ async function maintenanceChannelId(): Promise<string | null> {
   return cachedChannelId
 }
 
+/** A file to attach to a Mattermost post (raw bytes — uploaded via the Files API). */
+export interface MattermostUpload {
+  filename: string
+  contentType: string
+  bytes: ArrayBuffer | Uint8Array
+}
+
 /**
- * Post a message to the maintenance channel. If rootId is given, the message
- * threads under that post. Returns the new post id (for storing as a request's
- * thread root), or null on any failure / unconfigured.
+ * Upload one file to a channel via POST /api/v4/files and return its file id.
+ * Multipart upload — we must NOT set Content-Type (let fetch add the boundary),
+ * so this can't go through api() which forces application/json.
+ *
+ * Uses Blob (not File) with an explicit filename: the `File` global doesn't
+ * exist on Node 18, but Blob does, and FormData.append(field, blob, filename)
+ * sends the filename undici needs.
+ */
+async function uploadFile(channelId: string, f: MattermostUpload): Promise<string | null> {
+  if (!TOKEN) return null
+  try {
+    const fd = new FormData()
+    fd.append('channel_id', channelId)
+    fd.append('files', new Blob([f.bytes], { type: f.contentType }), f.filename)
+    const res = await fetch(`${BASE}/api/v4/files`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      body: fd,
+      signal: AbortSignal.timeout(20000),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      console.warn(`[mattermost] upload ${f.filename} -> ${res.status}: ${body.slice(0, 160)}`)
+      return null
+    }
+    const data = (await res.json()) as { file_infos?: { id: string }[] }
+    return data.file_infos?.[0]?.id ?? null
+  } catch (err) {
+    console.warn('[mattermost] file upload failed (non-fatal):', err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+/**
+ * Post a message to the maintenance channel. If opts.rootId is given, the
+ * message threads under that post. If opts.files are given, they're uploaded
+ * to Mattermost first and attached to the post so the images render inline.
+ * Returns the new post id (for storing as a request's thread root), or null on
+ * any failure / unconfigured.
  */
 export async function postMaintenanceMessage(
   message: string,
-  rootId?: string | null,
+  opts: { rootId?: string | null; files?: MattermostUpload[] } = {},
 ): Promise<string | null> {
   if (!TOKEN) return null
   const channelId = await maintenanceChannelId()
@@ -89,12 +132,20 @@ export async function postMaintenanceMessage(
     console.warn('[mattermost] no maintenance channel id — set MATTERMOST_MAINTENANCE_CHANNEL_ID or MATTERMOST_TEAM')
     return null
   }
+
+  let fileIds: string[] = []
+  if (opts.files?.length) {
+    const ids = await Promise.all(opts.files.map((f) => uploadFile(channelId, f)))
+    fileIds = ids.filter((id): id is string => !!id)
+  }
+
   const post = await api<{ id: string }>('/posts', {
     method: 'POST',
     body: JSON.stringify({
       channel_id: channelId,
       message,
-      ...(rootId ? { root_id: rootId } : {}),
+      ...(opts.rootId ? { root_id: opts.rootId } : {}),
+      ...(fileIds.length ? { file_ids: fileIds } : {}),
     }),
   })
   return post?.id ?? null

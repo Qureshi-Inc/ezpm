@@ -74,7 +74,7 @@ export async function PATCH(
           resolved: '✅ Marked **resolved**',
           cancelled: '🚫 Cancelled',
         }
-        void postMaintenanceMessage(STATUS_TEXT[status] ?? `Status: ${status}`, req.mattermost_root_id)
+        void postMaintenanceMessage(STATUS_TEXT[status] ?? `Status: ${status}`, { rootId: req.mattermost_root_id })
       }
     }
 
