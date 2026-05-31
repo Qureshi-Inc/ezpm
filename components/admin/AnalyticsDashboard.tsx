@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -83,12 +84,12 @@ export function AnalyticsDashboard() {
   const series = data?.series ?? []
 
   const kpis = [
-    { label: 'Collected (period)', value: s ? formatCurrency(s.collected) : '—', sub: `${s?.paymentsSucceeded ?? 0} payments`, Icon: TrendingUp },
-    { label: 'Expected / month', value: s ? formatCurrency(s.expectedMonthly) : '—', sub: 'occupied units', Icon: TrendingUp },
-    { label: 'Tenants', value: s ? `${s.activeTenants}/${s.totalTenants}` : '—', sub: 'active / total', Icon: Users },
-    { label: 'Occupancy', value: s ? `${s.occupiedProperties}/${s.totalProperties}` : '—', sub: 'units filled', Icon: Building },
-    { label: 'Failed payments', value: s ? String(s.paymentsFailed) : '—', sub: 'in period', Icon: TrendingUp },
-    { label: 'Open maintenance', value: s ? String(s.openMaintenance) : '—', sub: 'open or in progress', Icon: Wrench },
+    { label: 'Collected (period)', value: s ? formatCurrency(s.collected) : '—', sub: `${s?.paymentsSucceeded ?? 0} payments`, Icon: TrendingUp, href: '/admin/payments?status=succeeded' },
+    { label: 'Expected / month', value: s ? formatCurrency(s.expectedMonthly) : '—', sub: 'occupied units', Icon: TrendingUp, href: '/admin/properties' },
+    { label: 'Tenants', value: s ? `${s.activeTenants}/${s.totalTenants}` : '—', sub: 'active / total', Icon: Users, href: '/admin/tenants' },
+    { label: 'Occupancy', value: s ? `${s.occupiedProperties}/${s.totalProperties}` : '—', sub: 'units filled', Icon: Building, href: '/admin/properties' },
+    { label: 'Failed payments', value: s ? String(s.paymentsFailed) : '—', sub: 'in period', Icon: TrendingUp, href: '/admin/payments?status=failed' },
+    { label: 'Open maintenance', value: s ? String(s.openMaintenance) : '—', sub: 'open or in progress', Icon: Wrench, href: '/admin/maintenance?status=active' },
   ]
 
   return (
@@ -113,17 +114,19 @@ export function AnalyticsDashboard() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
-        {kpis.map(({ label, value, sub, Icon }) => (
-          <Card key={label}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
-                <Icon className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="font-display text-2xl font-medium tracking-tight text-foreground tabular-nums">{value}</div>
-              <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
-            </CardContent>
-          </Card>
+        {kpis.map(({ label, value, sub, Icon, href }) => (
+          <Link key={label} href={href} className="block">
+            <Card className="lift h-full transition-colors hover:border-primary/40">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="font-display text-2xl font-medium tracking-tight text-foreground tabular-nums">{value}</div>
+                <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 

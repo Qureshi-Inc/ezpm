@@ -7,14 +7,28 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatDate, getPaymentStatusColor } from '@/utils/helpers'
 import { GeneratePaymentsButton } from '@/components/admin/GeneratePaymentsButton'
 import { DollarSign, TrendingUp, Clock, CheckCircle } from 'lucide-react'
+import Link from 'next/link'
 
-export default async function PaymentsPage() {
+const PAYMENT_FILTERS: { value: string; label: string; statuses?: string[] }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'succeeded', label: 'Succeeded', statuses: ['succeeded'] },
+  { value: 'pending', label: 'Pending', statuses: ['open', 'processing'] },
+  { value: 'failed', label: 'Failed', statuses: ['failed', 'uncollectible'] },
+]
+
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>
+}) {
   try {
-    const session = await requireAdmin()
+    await requireAdmin()
+    const { status } = await searchParams
+    const active = PAYMENT_FILTERS.find((f) => f.value === status) ?? PAYMENT_FILTERS[0]
     const supabase = createServerSupabaseClient()
 
-    // Get all payments with tenant and property info
-    const { data: payments, error } = await supabase
+    // Get payments with tenant and property info (filtered by status if asked).
+    let paymentsQuery = supabase
       .from('payments')
       .select(`
         *,
@@ -23,6 +37,8 @@ export default async function PaymentsPage() {
       `)
       .order('created_at', { ascending: false })
       .limit(50)
+    if (active.statuses) paymentsQuery = paymentsQuery.in('status', active.statuses)
+    const { data: payments, error } = await paymentsQuery
 
     // Get payment statistics
     const [
@@ -120,12 +136,35 @@ export default async function PaymentsPage() {
               </Card>
             </div>
 
+            {/* Status filter */}
+            <div className="mb-4 flex flex-wrap gap-2">
+              {PAYMENT_FILTERS.map((f) => {
+                const isActive = f.value === active.value
+                const href = f.value === 'all' ? '/admin/payments' : `/admin/payments?status=${f.value}`
+                return (
+                  <Link
+                    key={f.value}
+                    href={href}
+                    className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40'
+                    }`}
+                  >
+                    {f.label}
+                  </Link>
+                )
+              })}
+            </div>
+
             {/* Payments Table */}
             <Card>
               <CardHeader>
-                <CardTitle>Recent Payments</CardTitle>
+                <CardTitle>{active.value === 'all' ? 'Recent Payments' : `${active.label} payments`}</CardTitle>
                 <CardDescription>
-                  Latest payment transactions from all tenants
+                  {active.value === 'all'
+                    ? 'Latest payment transactions from all tenants'
+                    : `Showing ${active.label.toLowerCase()} transactions from all tenants`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
