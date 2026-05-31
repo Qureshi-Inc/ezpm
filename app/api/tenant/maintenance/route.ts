@@ -64,7 +64,13 @@ export async function POST(request: NextRequest) {
     const description = String(form.get('description') || '').trim()
     const category = String(form.get('category') || 'other')
     const priority = String(form.get('priority') || 'normal')
-    const files = form.getAll('photos').filter((f): f is File => f instanceof File && f.size > 0)
+    // NB: don't use `instanceof File` — the `File` global only exists in
+    // Node >= 20, and the production runtime here is older, which threw
+    // "ReferenceError: File is not defined" the moment a photo was attached.
+    // A FormData entry is either a string or a Blob/File; duck-type the file.
+    const files = form
+      .getAll('photos')
+      .filter((f): f is File => typeof f !== 'string' && typeof (f as Blob).arrayBuffer === 'function' && f.size > 0)
 
     if (!title) {
       return NextResponse.json({ error: 'A short title is required.' }, { status: 400 })
