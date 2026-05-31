@@ -176,6 +176,65 @@ docker exec -i ezpm-postgres pg_restore -U postgres -d ezpm --clean --if-exists 
   < ~/ezpm-backups/<your-backup>.dump
 ```
 
+## Switching from Stripe test to live mode
+
+This is the test-to-live cutover for an already-deployed EZPM. Different from the initial migration above, but worth its own runbook because there's one easy-to-miss footgun.
+
+### 1. Stripe Dashboard (live mode)
+
+1. Top-left toggle → **Live mode**. Activate payments if not already — fill in business details, tax ID, bank account, statement descriptor (recommended: `EZPM RENT` or similar, max 22 chars).
+2. Settings → Payment methods → ensure **ACH Direct Debit** and **Financial Connections** are both enabled.
+3. Developers → Webhooks → **+ Add endpoint** for `https://app.getezpm.com/api/webhooks/stripe`. Select the same 13 events your test webhook has. **Copy the signing secret** (`whsec_...`).
+4. Developers → API keys → copy `sk_live_...` and `pk_live_...`.
+
+### 2. Coolify env vars
+
+Swap these three in Coolify → EZPM app → Environment Variables → Save → Redeploy:
+
+```
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...      # from step 1.3, the LIVE webhook
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+```
+
+### 3. Clear the test-mode Stripe Product cache (the footgun)
+
+EZPM caches the shared "Monthly rent" Stripe Product ID in `system_settings` so it only creates one per platform. That cache was populated in test mode and the product ID it references doesn't exist in live mode. First tenant's subscription create will fail with `No such product: prod_...`.
+
+Fix once after the env var swap:
+
+```bash
+docker exec ezpm-postgres psql -U postgres -d ezpm -c \
+  "DELETE FROM system_settings WHERE key = 'stripe_rent_product_id';"
+```
+
+Next call to `ensureRentProduct()` (i.e., the first tenant adding a PM after the cutover) creates a fresh live-mode product and re-caches it.
+
+### 4. Wipe test-mode local data (recommended)
+
+Customers, subscriptions, payment methods, invoices, and webhook events created against test keys are NOT reachable from live keys. Easiest to wipe and re-onboard tenants fresh:
+
+```bash
+docker exec -i ezpm-postgres psql -U postgres -d ezpm <<'SQL'
+BEGIN;
+DELETE FROM stripe_events;
+DELETE FROM payments;
+DELETE FROM payment_methods;
+DELETE FROM tenants;
+DELETE FROM properties;
+DELETE FROM users WHERE role != 'admin';
+COMMIT;
+SQL
+```
+
+Also delete any test-mode tenant Zitadel users via `auth.getezpm.com/ui/console` so they can be re-invited cleanly.
+
+### 5. End-to-end sanity test
+
+Create a tenant with **your own email** + a property with **$1 rent** + due day in the next few days. Walk through the invite + bank-account-add + subscription-create flow. Wait for the first invoice on the due day. Confirm in Stripe Dashboard (Live mode) that the $1 charge succeeded. Refund + delete the test tenant afterwards.
+
+---
+
 ## Post-cutover follow-ups
 
 See `CLAUDE.md` → Deferred section. Highest priority is T12 (ACH return webhooks — bounced ACH currently shows as paid until manually reconciled).
