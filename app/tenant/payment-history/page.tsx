@@ -68,7 +68,7 @@ export default async function PaymentHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Navigation role="tenant" userName={tenant.first_name} />
       
       <main className="max-w-6xl mx-auto py-6 sm:px-6 lg:px-8">

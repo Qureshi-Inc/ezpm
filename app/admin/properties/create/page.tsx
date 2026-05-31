@@ -12,7 +12,7 @@ export default async function CreatePropertyPage() {
     const session = await requireAdmin()
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navigation role="admin" userName="Admin" />
         
         <main className="max-w-2xl mx-auto py-6 sm:px-6 lg:px-8">

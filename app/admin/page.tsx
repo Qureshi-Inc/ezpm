@@ -37,100 +37,59 @@ export default async function AdminDashboard() {
     const pendingRevenue = pendingPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navigation role="admin" userName="Admin" />
-        
-        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="px-4 py-6 sm:px-0">
-            <h1 className="text-3xl font-bold text-gray-900 mb-8">
-              Admin Dashboard
+
+        <main className="max-w-6xl mx-auto py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <p className="text-sm font-medium text-primary mb-1">Overview</p>
+            <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-tight text-foreground">
+              Dashboard
             </h1>
+          </div>
 
-            {/* Statistics Cards */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-4 mb-8">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Tenants</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{totalTenants || 0}</div>
-                  <p className="text-xs text-muted-foreground">Active tenants</p>
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-5">
+            {[
+              { label: 'Tenants', value: totalTenants || 0, sub: 'Active', Icon: Users },
+              { label: 'Properties', value: totalProperties || 0, sub: 'Managed', Icon: Building },
+              { label: 'Revenue', value: formatCurrency(monthlyRevenue), sub: 'This month', Icon: TrendingUp },
+              { label: 'Pending', value: formatCurrency(pendingRevenue), sub: 'To collect', Icon: DollarSign },
+            ].map(({ label, value, sub, Icon }) => (
+              <Card key={label}>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                  </div>
+                  <div className="font-display text-3xl font-medium tracking-tight text-foreground tabular-nums">{value}</div>
+                  <p className="text-xs text-muted-foreground mt-1">{sub}</p>
                 </CardContent>
               </Card>
+            ))}
+          </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Properties</CardTitle>
-                  <Building className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{totalProperties || 0}</div>
-                  <p className="text-xs text-muted-foreground">Managed properties</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{formatCurrency(monthlyRevenue)}</div>
-                  <p className="text-xs text-muted-foreground">This month</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pending Payments</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{formatCurrency(pendingRevenue)}</div>
-                  <p className="text-xs text-muted-foreground">To be collected</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              <Card>
+          {/* Quick Actions */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            {[
+              { title: 'Tenants', desc: 'Add and manage tenants', href: '/admin/tenants', cta: 'Manage tenants' },
+              { title: 'Properties', desc: 'Add and manage properties', href: '/admin/properties', cta: 'Manage properties' },
+              { title: 'Payments', desc: 'View all transactions', href: '/admin/payments', cta: 'View payments' },
+            ].map(({ title, desc, href, cta }) => (
+              <Card key={href} className="lift">
                 <CardHeader>
-                  <CardTitle>Tenant Management</CardTitle>
-                  <CardDescription>Add new tenants and manage existing ones</CardDescription>
+                  <CardTitle className="text-lg">{title}</CardTitle>
+                  <CardDescription>{desc}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Link href="/admin/tenants">
-                    <Button className="w-full">Manage Tenants</Button>
+                  <Link href={href}>
+                    <Button variant="outline" className="w-full">{cta}</Button>
                   </Link>
                 </CardContent>
               </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Property Management</CardTitle>
-                  <CardDescription>Add and manage rental properties</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Link href="/admin/properties">
-                    <Button className="w-full">Manage Properties</Button>
-                  </Link>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Payment Overview</CardTitle>
-                  <CardDescription>View all payment transactions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Link href="/admin/payments">
-                    <Button className="w-full">View Payments</Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            </div>
+            ))}
           </div>
         </main>
       </div>
