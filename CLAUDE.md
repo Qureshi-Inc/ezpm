@@ -19,11 +19,23 @@ Production: https://app.getezpm.com (Coolify auto-deploy on push to main).
 
 ```
 # Mattermost operational notifications (lib/notify.ts)
-# Fires on: new tenant signup, subscription created, rent charged.
+# Fires on: new tenant signup, subscription created, rent charged/failed.
 # Leave unset to disable notifications silently (no errors, no-op).
 # Bot: 54doh4cy7ig8fpphwtqfw3h98c on mm.qureshi.io
 # In Mattermost: Integrations → Incoming Webhooks → Add Webhook → copy URL.
 MATTERMOST_WEBHOOK_URL=https://mm.qureshi.io/hooks/<token>
+
+# Branded tenant receipt emails (lib/email.ts)
+# Sent automatically on every successful payment (invoice.payment_succeeded).
+# Uses Brevo's HTTP transactional API (NOT the SMTP key Zitadel uses — this is
+# a separate API key from Brevo → SMTP & API → API Keys, format xkeysib-...).
+# Leave BREVO_API_KEY unset to disable receipts silently (no errors, no-op).
+# Preview the template: npx tsx scripts/preview-receipt.ts → open
+# email-templates/receipt-preview.html.
+BREVO_API_KEY=xkeysib-...
+EMAIL_FROM_ADDRESS=receipts@getezpm.com   # must be a verified Brevo sender/domain
+EMAIL_FROM_NAME=EZPM
+EMAIL_REPLY_TO=hello@getezpm.com
 ```
 
 ## Required Environment Variables

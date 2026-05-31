@@ -11,6 +11,7 @@
 import type Stripe from 'stripe'
 import type { createServerSupabaseClient } from './supabase'
 import { notify } from './notify'
+import { sendReceipt } from './email'
 
 type Supabase = ReturnType<typeof createServerSupabaseClient>
 
@@ -32,6 +33,9 @@ export async function handleStripeEvent(event: Stripe.Event, supabase: Supabase)
       // Look up tenant info for the Mattermost notification. This is a
       // separate query so mirrorInvoice stays unchanged and independent.
       void notifyRentCharged(invoice, supabase)
+      // Email the tenant a branded receipt. Fire-and-forget — a Brevo
+      // outage or missing API key can never break webhook processing.
+      void sendReceiptEmailForInvoice(invoice, supabase)
       break
     }
 
@@ -221,6 +225,69 @@ async function notifyRentFailed(
     })
   } catch {
     // Never let a notification failure bubble up to the webhook handler.
+  }
+}
+
+/**
+ * Fire-and-forget: send the tenant a branded receipt email after a successful
+ * payment. Looks up the full context (name, property, payment method) for the
+ * template. Any failure is swallowed — never affects the webhook.
+ */
+async function sendReceiptEmailForInvoice(invoice: Stripe.Invoice, supabase: Supabase): Promise<void> {
+  try {
+    const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
+    if (!customerId) return
+
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('email, first_name, last_name, property_id')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle()
+    if (!tenant?.email) return
+
+    // Property (optional — receipt still sends without it).
+    let propertyAddress: string | null = null
+    let propertyUnit: string | null = null
+    if (tenant.property_id) {
+      const { data: property } = await supabase
+        .from('properties')
+        .select('address, unit_number')
+        .eq('id', tenant.property_id)
+        .maybeSingle()
+      propertyAddress = property?.address ?? null
+      propertyUnit = property?.unit_number ?? null
+    }
+
+    // Payment method (optional) — resolve via the invoice's default PM.
+    let methodType: string | null = null
+    let methodLast4: string | null = null
+    const stripePm = invoice.default_payment_method
+    if (typeof stripePm === 'string' && stripePm) {
+      const { data: pm } = await supabase
+        .from('payment_methods')
+        .select('type, last4')
+        .eq('stripe_payment_method_id', stripePm)
+        .maybeSingle()
+      methodType = pm?.type ?? null
+      methodLast4 = pm?.last4 ?? null
+    }
+
+    const paidAt = new Date((invoice.status_transitions?.paid_at ?? invoice.created) * 1000)
+    const fullName = [tenant.first_name, tenant.last_name].filter(Boolean).join(' ') || tenant.email
+
+    await sendReceipt({
+      tenantName: fullName,
+      tenantEmail: tenant.email,
+      amount: invoice.amount_paid / 100,
+      invoiceId: invoice.id,
+      paidDate: paidAt,
+      propertyAddress,
+      propertyUnit,
+      paymentMethodType: methodType,
+      paymentMethodLast4: methodLast4,
+    })
+  } catch {
+    // Never let a receipt failure bubble up to the webhook handler.
   }
 }
 

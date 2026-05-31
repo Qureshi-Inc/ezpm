@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "reconcile-stripe": "tsx scripts/reconcile-stripe.ts"
+    "reconcile-stripe": "tsx scripts/reconcile-stripe.ts",
+    "preview-receipt": "tsx scripts/preview-receipt.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
