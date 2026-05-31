@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
-import { Edit, Trash2 } from 'lucide-react'
+import { Edit, Trash2, KeyRound } from 'lucide-react'
 
 interface Tenant {
   id: string
@@ -23,7 +23,9 @@ interface TenantActionsProps {
 export function TenantActions({ tenant }: TenantActionsProps) {
   const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
   const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
 
   const handleDelete = async () => {
     setIsDeleting(true)
@@ -95,6 +97,27 @@ export function TenantActions({ tenant }: TenantActionsProps) {
     }
   }
 
+  const handlePasswordReset = async () => {
+    setIsResetting(true)
+    setError('')
+    setSuccessMessage('')
+    try {
+      const response = await fetch(`/api/admin/tenants/${tenant.id}/password-reset`, {
+        method: 'POST',
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send password reset')
+      }
+      setSuccessMessage(data.message || 'Password-reset link sent.')
+      setTimeout(() => setSuccessMessage(''), 6000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send password reset')
+    } finally {
+      setIsResetting(false)
+    }
+  }
+
   const tenantName = `${tenant.first_name} ${tenant.last_name}`
 
   return (
@@ -102,6 +125,12 @@ export function TenantActions({ tenant }: TenantActionsProps) {
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm">
           {error}
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="bg-success/10 border border-success/30 text-success px-4 py-3 rounded-lg text-sm">
+          {successMessage}
         </div>
       )}
 
@@ -132,6 +161,31 @@ export function TenantActions({ tenant }: TenantActionsProps) {
             </Button>
           }
         />
+      </div>
+
+      <div className="pt-3 border-t">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handlePasswordReset}
+          disabled={isResetting}
+          className="w-full flex items-center justify-center gap-2"
+        >
+          {isResetting ? (
+            <>
+              <div className="w-4 h-4 border-2 border-border border-t-transparent rounded-full animate-spin" />
+              <span>Sending…</span>
+            </>
+          ) : (
+            <>
+              <KeyRound className="w-4 h-4" />
+              <span>Send Password Reset</span>
+            </>
+          )}
+        </Button>
+        <p className="text-xs text-muted-foreground mt-1 text-center">
+          Emails the tenant a secure Zitadel link to set a new password.
+        </p>
       </div>
     </div>
   )
