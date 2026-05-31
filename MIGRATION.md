@@ -57,10 +57,17 @@ The hostname `ezpm-db-caddy` resolves over the `coolify` Docker network. The new
 
 ```
 AUTH_SECRET=<openssl rand -base64 32 output>
-AUTH_ZITADEL_ID=<client id from Zitadel app, e.g. 375204933076517379>
+AUTH_TRUST_HOST=true
+AUTH_ZITADEL_ID=<client id from Zitadel app, e.g. 375245439433247491>
 AUTH_ZITADEL_SECRET=<client secret from Zitadel app>
 AUTH_ZITADEL_ISSUER=https://auth.getezpm.com
 NEXTAUTH_URL=https://app.getezpm.com
+
+# Required for one-click tenant invites from /admin/tenants/create.
+# See scripts/zitadel-setup-runbook.md "Service User for ezpm admin
+# integration" + step 4 for the PAT and org id.
+ZITADEL_SERVICE_TOKEN=<pat from ezpm-svc machine user>
+ZITADEL_ORG_ID=<numeric org id>
 ```
 
 **Keep (no change):**
@@ -129,13 +136,13 @@ docker exec ezpm-postgres psql -U postgres -d ezpm -c \
 
 ### 6. Re-onboard the 3 properties' tenants
 
-For each tenant:
+For each tenant (assuming `ZITADEL_SERVICE_TOKEN` is configured per step 1 — if not, you'll need to invite each tenant manually in the Zitadel admin UI):
 
 1. **In ezpm admin** → Properties → Create (if you haven't already since the schema is fresh).
 2. **In ezpm admin** → Tenants → Add New Tenant. Fill in their email + property + due day. Submit.
-3. **In Zitadel admin UI** (`auth.getezpm.com/ui/console` → ezpm org → Users → New), invite the same email. Zitadel sends them the invite link.
-4. **Tenant** accepts the invite, sets a Zitadel password, logs into `app.getezpm.com`. Provisioning route auto-links them to the tenants row by email.
-5. **Tenant** adds a payment method (card or bank) at `/tenant/payment-methods/add`. On successful add, the Stripe Customer + Subscription are auto-created. The first invoice will land on the next payment_due_day.
+   - Behind the scenes: ezpm calls `zitadel.createHumanUser` + `zitadel.sendInvitation`. Brevo SMTP delivers the invite email automatically. No manual Zitadel step.
+3. **Tenant** receives email → clicks the link → Zitadel verify page (code auto-filled from URL) → Continue → sets password → Zitadel redirects back to `app.getezpm.com` (via Default Redirect URI on the OIDC app) → `/auth/start` silent-SSOs → first sign-in provisions the user row + links the tenants row by email → lands on `/tenant`.
+4. **Tenant** adds a payment method (card or bank) at `/tenant/payment-methods/add`. On successful add, the Stripe Customer + Subscription are auto-created. The first invoice will land on the next payment_due_day.
 
 ### 7. Sanity check
 
