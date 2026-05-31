@@ -298,6 +298,48 @@ END;
 $$;
 
 -- ============================================================
+-- MAINTENANCE REQUESTS  (Phase 1: report + photos + status)
+-- ============================================================
+-- A tenant raises a request; the landlord moves status. Photos live on a
+-- mounted disk volume (see lib/storage.ts) and are served ONLY through an
+-- ownership-checked route, never a public URL. The two-way "updates thread"
+-- is Phase 2 (a separate maintenance_updates table) — not in this schema yet.
+
+CREATE TABLE maintenance_requests (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
+    title       VARCHAR(200) NOT NULL,
+    description TEXT,
+    category    VARCHAR(30)  NOT NULL DEFAULT 'other',
+    priority    VARCHAR(10)  NOT NULL DEFAULT 'normal',
+    status      VARCHAR(20)  NOT NULL DEFAULT 'open',
+    created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMPTZ,
+    CONSTRAINT mr_category_check CHECK (category IN ('plumbing','electrical','appliance','hvac','other')),
+    CONSTRAINT mr_priority_check CHECK (priority IN ('normal','urgent')),
+    CONSTRAINT mr_status_check   CHECK (status   IN ('open','in_progress','resolved','cancelled'))
+);
+CREATE INDEX idx_mr_tenant ON maintenance_requests(tenant_id);
+CREATE INDEX idx_mr_status ON maintenance_requests(status);
+
+-- Photo/PDF attachments. file_path is RELATIVE to UPLOADS_DIR; file_name is
+-- the original (display only). Stored on disk as <uuid>.<ext> by lib/storage.ts.
+CREATE TABLE maintenance_attachments (
+    id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    request_id       UUID NOT NULL REFERENCES maintenance_requests(id) ON DELETE CASCADE,
+    file_path        TEXT NOT NULL,
+    file_name        VARCHAR(255) NOT NULL,
+    content_type     VARCHAR(100) NOT NULL,
+    size_bytes       INTEGER NOT NULL,
+    uploaded_by_role VARCHAR(10) NOT NULL,
+    created_at       TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ma_uploader_check CHECK (uploaded_by_role IN ('tenant','admin'))
+);
+CREATE INDEX idx_ma_request ON maintenance_attachments(request_id);
+
+-- ============================================================
 -- UPDATED_AT TRIGGERS
 -- ============================================================
 
@@ -315,6 +357,7 @@ CREATE TRIGGER trg_tenants_updated_at         BEFORE UPDATE ON tenants         F
 CREATE TRIGGER trg_payment_methods_updated_at BEFORE UPDATE ON payment_methods FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_payments_updated_at        BEFORE UPDATE ON payments        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_system_settings_updated_at BEFORE UPDATE ON system_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_maintenance_requests_updated_at BEFORE UPDATE ON maintenance_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
 -- SEED DATA

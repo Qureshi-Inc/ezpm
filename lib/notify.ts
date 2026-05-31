@@ -94,6 +94,16 @@ export interface RentFailedPayload {
   reason: 'payment_failed' | 'uncollectible'
 }
 
+export interface MaintenanceRequestedPayload {
+  email: string
+  firstName: string | null
+  lastName: string | null
+  title: string
+  category: string
+  priority: string         // 'normal' | 'urgent'
+  propertyAddress?: string | null
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Public API
 // ──────────────────────────────────────────────────────────────────────────────
@@ -123,6 +133,20 @@ export const notify = {
     void send({
       icon_emoji: ':white_check_mark:',
       text: `**Tenant subscribed** — ${name} (${payload.email}) enrolled in auto-pay at ${amount}/month via ${method}`,
+    })
+  },
+
+  /**
+   * Fires when a tenant submits a new maintenance request. Urgent requests
+   * get the rotating-light icon so they stand out in the channel.
+   */
+  maintenanceRequested(payload: MaintenanceRequestedPayload): void {
+    const name = [payload.firstName, payload.lastName].filter(Boolean).join(' ') || payload.email
+    const urgent = payload.priority === 'urgent'
+    const where = payload.propertyAddress ? ` · ${payload.propertyAddress}` : ''
+    void send({
+      icon_emoji: urgent ? ':rotating_light:' : ':wrench:',
+      text: `**New maintenance request${urgent ? ' (URGENT)' : ''}** — ${name}${where}: "${payload.title}" _(${payload.category})_`,
     })
   },
 

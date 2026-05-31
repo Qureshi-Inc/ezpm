@@ -1,9 +1,9 @@
 /**
- * Transactional email for EZPM — branded receipts on successful rent payment.
+ * Transactional email for EZPM — branded receipts + maintenance status updates.
  *
  * Uses Brevo's HTTP transactional API (no SMTP/nodemailer dependency, just
  * fetch). FIRE-AND-FORGET: send failures are logged and swallowed so they can
- * never break the Stripe webhook handler.
+ * never break a webhook handler or request.
  *
  * Configuration:
  *   BREVO_API_KEY        - Brevo API key (Brevo → SMTP & API → API Keys,
@@ -15,6 +15,10 @@
  *   EMAIL_REPLY_TO       - optional reply-to (e.g. hello@getezpm.com)
  *
  * If BREVO_API_KEY is unset, all sends are silent no-ops (no errors).
+ *
+ * Templates share ONE brand shell — emailLayout() — so the receipt and the
+ * maintenance-status email can never drift in header/footer/palette. Add a new
+ * email by writing its inner content and calling emailLayout().
  */
 
 const BREVO_API = 'https://api.brevo.com/v3/smtp/email'
@@ -68,7 +72,143 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Receipt template
+// Shared brand shell — one source of truth for both emails (eng review CQ1)
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Palette matches getezpm.com. Email-safe: web-safe fonts only (clients won't
+// load @font-face, so Georgia stands in for Fraunces).
+const C = {
+  cream: '#FAF6EE',
+  card: '#FFFFFF',
+  ink: '#2A2520',
+  ink2: '#5C534A',
+  muted: '#897F73',
+  teal: '#0D7377',
+  leaf: '#4D8B5C',
+  amber: '#B88828',
+  red: '#B05446',
+  border: '#E8DFC9',
+}
+const SERIF = "Georgia, 'Times New Roman', serif"
+const SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function money(n: number): string {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}
+
+function longDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+interface EmailLayoutInput {
+  subject: string
+  preheader: string
+  badge?: { text: string; color: string; bg: string }
+  heading: string         // already-escaped/safe HTML
+  intro: string           // already-escaped/safe HTML
+  bodyHtml: string        // the middle (amount block, details table, etc.)
+  footerNote: string      // already-escaped/safe HTML
+}
+
+/**
+ * The full branded email document. Owns the DOCTYPE, the cream canvas, the
+ * "ez" seal header, the white card, the help-note, and the footer. Callers
+ * supply only the inner content via `bodyHtml` (+ heading/intro/badge).
+ */
+function emailLayout(i: EmailLayoutInput): string {
+  const badge = i.badge
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
+         <tr><td style="background-color:${i.badge.bg};border-radius:999px;padding:6px 14px;font-family:${SANS};font-size:12px;font-weight:700;color:${i.badge.color};letter-spacing:0.02em;">${escapeHtml(i.badge.text)}</td></tr>
+       </table>`
+    : ''
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>${escapeHtml(i.subject)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:${C.cream};">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(i.preheader)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${C.cream};">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+
+          <!-- Brand header -->
+          <tr>
+            <td style="padding:0 4px 24px 4px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background-color:${C.teal};border-radius:9px;width:34px;height:34px;text-align:center;vertical-align:middle;font-family:${SERIF};font-size:14px;font-weight:bold;color:${C.cream};">ez</td>
+                  <td style="padding-left:10px;font-family:${SERIF};font-size:20px;font-weight:bold;color:${C.ink};">EZPM</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background-color:${C.card};border:1px solid ${C.border};border-radius:18px;padding:36px 32px;">
+              ${badge}
+              <h1 style="margin:0 0 6px 0;font-family:${SERIF};font-size:30px;font-weight:normal;color:${C.ink};line-height:1.15;">${i.heading}</h1>
+              <p style="margin:0 0 24px 0;font-family:${SANS};font-size:15px;color:${C.ink2};line-height:1.5;">${i.intro}</p>
+              ${i.bodyHtml}
+            </td>
+          </tr>
+
+          <!-- Help note -->
+          <tr>
+            <td style="padding:20px 8px 0 8px;">
+              <p style="margin:0;font-family:${SANS};font-size:13px;color:${C.ink2};line-height:1.5;">${i.footerNote}</p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:24px 8px;border-top:1px solid ${C.border};margin-top:8px;">
+              <p style="margin:0 0 4px 0;font-family:${SANS};font-size:12px;color:${C.muted};">
+                EZPM &middot; <a href="https://app.getezpm.com" style="color:${C.teal};text-decoration:none;">app.getezpm.com</a>
+              </p>
+              <p style="margin:0;font-family:${SANS};font-size:11px;color:${C.muted};">
+                You received this because you have an active rental account with EZPM.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+/** A label/value row for the details table inside an email card. */
+function detailRow(label: string, valueHtml: string, mono = false): string {
+  const valueFont = mono ? "'Courier New',monospace" : SANS
+  const valueSize = mono ? '12px' : '14px'
+  const valueColor = mono ? C.ink2 : C.ink
+  const valueWeight = mono ? 'normal' : '600'
+  return `
+    <tr>
+      <td style="padding:10px 0;border-bottom:1px solid ${C.border};font-family:${SANS};font-size:13px;color:${C.muted};">${escapeHtml(label)}</td>
+      <td style="padding:10px 0;border-bottom:1px solid ${C.border};font-family:${valueFont};font-size:${valueSize};color:${valueColor};text-align:right;font-weight:${valueWeight};">${valueHtml}</td>
+    </tr>`
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Receipt email
 // ──────────────────────────────────────────────────────────────────────────────
 
 export interface ReceiptData {
@@ -83,40 +223,7 @@ export interface ReceiptData {
   paymentMethodLast4?: string | null
 }
 
-function money(n: number): string {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-}
-
-function longDate(d: Date): string {
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-/**
- * Renders the branded HTML receipt. Email-safe: table layout, all inline
- * styles, web-safe fonts (Georgia for the Fraunces-like display voice since
- * email clients won't load @font-face). Palette matches getezpm.com:
- * cream canvas, white card, deep teal, warm ink, leaf-green "paid".
- */
 export function renderReceiptEmail(data: ReceiptData): { subject: string; html: string } {
-  const cream = '#FAF6EE'
-  const card = '#FFFFFF'
-  const ink = '#2A2520'
-  const ink2 = '#5C534A'
-  const muted = '#897F73'
-  const teal = '#0D7377'
-  const leaf = '#4D8B5C'
-  const border = '#E8DFC9'
-  const serif = "Georgia, 'Times New Roman', serif"
-  const sans = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-
   const propertyLine = data.propertyAddress
     ? escapeHtml(data.propertyAddress) + (data.propertyUnit ? `, Unit ${escapeHtml(data.propertyUnit)}` : '')
     : 'Your residence'
@@ -129,124 +236,119 @@ export function renderReceiptEmail(data: ReceiptData): { subject: string; html: 
 
   const subject = `Receipt — ${money(data.amount)} rent payment received`
 
-  const row = (label: string, value: string) => `
-    <tr>
-      <td style="padding:10px 0;border-bottom:1px solid ${border};font-family:${sans};font-size:13px;color:${muted};">${label}</td>
-      <td style="padding:10px 0;border-bottom:1px solid ${border};font-family:${sans};font-size:14px;color:${ink};text-align:right;font-weight:600;">${value}</td>
-    </tr>`
+  const bodyHtml = `
+    <!-- Amount -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${C.cream};border-radius:14px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:22px 24px;text-align:center;">
+          <div style="font-family:${SANS};font-size:12px;font-weight:600;color:${C.muted};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Amount paid</div>
+          <div style="font-family:${SERIF};font-size:44px;font-weight:normal;color:${C.teal};line-height:1;">${money(data.amount)}</div>
+        </td>
+      </tr>
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      ${detailRow('Date paid', longDate(data.paidDate))}
+      ${detailRow('Property', propertyLine)}
+      ${detailRow('Payment method', methodLabel)}
+      ${detailRow('Receipt #', escapeHtml(data.invoiceId), true)}
+    </table>`
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="light">
-<title>${subject}</title>
-</head>
-<body style="margin:0;padding:0;background-color:${cream};">
-  <!-- preheader (hidden) -->
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-    Your ${money(data.amount)} rent payment was received. Thank you!
-  </div>
-
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${cream};">
-    <tr>
-      <td align="center" style="padding:32px 16px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
-
-          <!-- Brand header -->
-          <tr>
-            <td style="padding:0 4px 24px 4px;">
-              <table role="presentation" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="background-color:${teal};border-radius:9px;width:34px;height:34px;text-align:center;vertical-align:middle;font-family:${serif};font-size:14px;font-weight:bold;color:${cream};">ez</td>
-                  <td style="padding-left:10px;font-family:${serif};font-size:20px;font-weight:bold;color:${ink};">EZPM</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Card -->
-          <tr>
-            <td style="background-color:${card};border:1px solid ${border};border-radius:18px;padding:36px 32px;">
-
-              <!-- Paid badge -->
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
-                <tr>
-                  <td style="background-color:#E2EDE1;border-radius:999px;padding:6px 14px;font-family:${sans};font-size:12px;font-weight:700;color:${leaf};letter-spacing:0.02em;">
-                    ✓ PAYMENT RECEIVED
-                  </td>
-                </tr>
-              </table>
-
-              <h1 style="margin:0 0 6px 0;font-family:${serif};font-size:30px;font-weight:normal;color:${ink};line-height:1.15;">
-                Thank you, ${escapeHtml(data.tenantName)}.
-              </h1>
-              <p style="margin:0 0 24px 0;font-family:${sans};font-size:15px;color:${ink2};line-height:1.5;">
-                We&rsquo;ve received your rent payment. Here&rsquo;s your receipt for your records.
-              </p>
-
-              <!-- Amount -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${cream};border-radius:14px;margin-bottom:24px;">
-                <tr>
-                  <td style="padding:22px 24px;text-align:center;">
-                    <div style="font-family:${sans};font-size:12px;font-weight:600;color:${muted};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Amount paid</div>
-                    <div style="font-family:${serif};font-size:44px;font-weight:normal;color:${teal};line-height:1;">${money(data.amount)}</div>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Details -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                ${row('Date paid', longDate(data.paidDate))}
-                ${row('Property', propertyLine)}
-                ${row('Payment method', methodLabel)}
-                <tr>
-                  <td style="padding:10px 0;font-family:${sans};font-size:13px;color:${muted};">Receipt #</td>
-                  <td style="padding:10px 0;font-family:'Courier New',monospace;font-size:12px;color:${ink2};text-align:right;">${escapeHtml(data.invoiceId)}</td>
-                </tr>
-              </table>
-
-            </td>
-          </tr>
-
-          <!-- Help note -->
-          <tr>
-            <td style="padding:20px 8px 0 8px;">
-              <p style="margin:0;font-family:${sans};font-size:13px;color:${ink2};line-height:1.5;">
-                This payment was processed securely by Stripe. No action is needed — your
-                auto-pay remains active for next month. Questions about your account?
-                Just reply to this email.
-              </p>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="padding:24px 8px;border-top:1px solid ${border};margin-top:8px;">
-              <p style="margin:0 0 4px 0;font-family:${sans};font-size:12px;color:${muted};">
-                EZPM &middot; <a href="https://app.getezpm.com" style="color:${teal};text-decoration:none;">app.getezpm.com</a>
-              </p>
-              <p style="margin:0;font-family:${sans};font-size:11px;color:${muted};">
-                You received this because you have an active rental account with EZPM.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`
+  const html = emailLayout({
+    subject,
+    preheader: `Your ${money(data.amount)} rent payment was received. Thank you!`,
+    badge: { text: '✓ PAYMENT RECEIVED', color: C.leaf, bg: '#E2EDE1' },
+    heading: `Thank you, ${escapeHtml(data.tenantName)}.`,
+    intro: 'We&rsquo;ve received your rent payment. Here&rsquo;s your receipt for your records.',
+    bodyHtml,
+    footerNote:
+      'This payment was processed securely by Stripe. No action is needed — your auto-pay remains active for next month. Questions about your account? Just reply to this email.',
+  })
 
   return { subject, html }
 }
 
-/**
- * Fire-and-forget: render + send a receipt. Returns nothing; logs on failure.
- */
+/** Fire-and-forget: render + send a receipt. */
 export async function sendReceipt(data: ReceiptData): Promise<void> {
   const { subject, html } = renderReceiptEmail(data)
+  await sendEmail({ to: data.tenantEmail, toName: data.tenantName, subject, html })
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Maintenance status-change email (Phase 1)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export type MaintenanceStatus = 'open' | 'in_progress' | 'resolved' | 'cancelled'
+
+export interface MaintenanceStatusData {
+  tenantName: string
+  tenantEmail: string
+  requestTitle: string
+  status: MaintenanceStatus
+  propertyAddress?: string | null
+  propertyUnit?: string | null
+}
+
+const STATUS_LABEL: Record<MaintenanceStatus, string> = {
+  open: 'Open',
+  in_progress: 'In Progress',
+  resolved: 'Resolved',
+  cancelled: 'Cancelled',
+}
+
+const STATUS_BADGE: Record<MaintenanceStatus, { text: string; color: string; bg: string }> = {
+  open: { text: 'OPEN', color: C.amber, bg: '#F6EDD8' },
+  in_progress: { text: 'IN PROGRESS', color: C.teal, bg: '#DCEEEF' },
+  resolved: { text: '✓ RESOLVED', color: C.leaf, bg: '#E2EDE1' },
+  cancelled: { text: 'CANCELLED', color: C.muted, bg: '#EFEBE2' },
+}
+
+const STATUS_INTRO: Record<MaintenanceStatus, string> = {
+  open: 'We&rsquo;ve logged your maintenance request. Here&rsquo;s where it stands.',
+  in_progress: 'Good news — your landlord is now working on your request.',
+  resolved: 'Your maintenance request has been marked resolved. If anything&rsquo;s still not right, just open a new request.',
+  cancelled: 'Your maintenance request has been cancelled. Open a new one anytime if you still need help.',
+}
+
+export function renderMaintenanceStatusEmail(
+  data: MaintenanceStatusData,
+): { subject: string; html: string } {
+  const label = STATUS_LABEL[data.status]
+  const propertyLine = data.propertyAddress
+    ? escapeHtml(data.propertyAddress) + (data.propertyUnit ? `, Unit ${escapeHtml(data.propertyUnit)}` : '')
+    : 'Your residence'
+
+  const subject = `Your maintenance request is now ${label}`
+
+  const bodyHtml = `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${C.cream};border-radius:14px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:20px 24px;">
+          <div style="font-family:${SANS};font-size:12px;font-weight:600;color:${C.muted};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Request</div>
+          <div style="font-family:${SERIF};font-size:22px;font-weight:normal;color:${C.ink};line-height:1.25;">${escapeHtml(data.requestTitle)}</div>
+        </td>
+      </tr>
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      ${detailRow('Status', `<span style="color:${C.teal};">${escapeHtml(label)}</span>`)}
+      ${detailRow('Property', propertyLine)}
+    </table>`
+
+  const html = emailLayout({
+    subject,
+    preheader: `Your maintenance request "${data.requestTitle}" is now ${label}.`,
+    badge: STATUS_BADGE[data.status],
+    heading: `Hi ${escapeHtml(data.tenantName)},`,
+    intro: STATUS_INTRO[data.status],
+    bodyHtml,
+    footerNote:
+      'View the full request anytime in your tenant portal. Questions? Just reply to this email.',
+  })
+
+  return { subject, html }
+}
+
+/** Fire-and-forget: render + send a maintenance status-change email. */
+export async function sendMaintenanceStatusEmail(data: MaintenanceStatusData): Promise<void> {
+  const { subject, html } = renderMaintenanceStatusEmail(data)
   await sendEmail({ to: data.tenantEmail, toName: data.tenantName, subject, html })
 }

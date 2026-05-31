@@ -38,6 +38,12 @@ export default async function TenantDashboard() {
     .select('*', { count: 'exact', head: true })
     .eq('tenant_id', tenant.id)
 
+  const { count: openMaintenanceCount } = await supabase
+    .from('maintenance_requests')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tenant.id)
+    .in('status', ['open', 'in_progress'])
+
   const autoPayActive = !!tenant.stripe_subscription_id
 
   return (
@@ -123,8 +129,8 @@ export default async function TenantDashboard() {
           </Card>
         </div>
 
-        {/* Secondary: payment methods + auto-pay */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        {/* Secondary: payment methods + auto-pay + maintenance */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <Card className="lift">
             <CardHeader>
               <CardTitle className="text-lg">Payment methods</CardTitle>
@@ -163,6 +169,23 @@ export default async function TenantDashboard() {
                   </Link>
                 </>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="lift">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Maintenance</CardTitle>
+                {(openMaintenanceCount || 0) > 0 && (
+                  <Badge variant="warning">{openMaintenanceCount} open</Badge>
+                )}
+              </div>
+              <CardDescription>Report an issue with your place</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/tenant/maintenance">
+                <Button variant="outline" className="w-full">View requests</Button>
+              </Link>
             </CardContent>
           </Card>
         </div>

@@ -69,7 +69,28 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...          # JWT signed with same secret, role=se
 
 # App
 NEXT_PUBLIC_APP_URL=https://app.getezpm.com
+
+# Maintenance attachments (photos) storage — disk volume.
+# Mount a persistent Coolify volume at this path; files are written here and
+# served ONLY through the ownership-checked /api/.../maintenance/attachments/[id]
+# route (never a public URL). Auto-discovered by the nightly backup.
+UPLOADS_DIR=/app/uploads
 ```
+
+## Maintenance feature (Phase 1)
+
+Tenants report issues (title + category + priority + description + photos);
+admin moves status `open → in_progress → resolved`. New request → Mattermost
+ping; status change → branded email to tenant (shares `emailLayout()` with the
+receipt). Tables: `maintenance_requests`, `maintenance_attachments`. Photos on
+the `UPLOADS_DIR` volume, served through an auth-checked route. File security
+(size/type/path-strip/ownership) is covered by `lib/storage.test.ts` (run
+`npm test`). The two-way "updates thread" is a deferred Phase 2 (see
+`MAINTENANCE-PLAN.md`).
+
+**Coolify setup before deploy:** add a persistent volume mounted at `/app/uploads`
+(or set `UPLOADS_DIR` to wherever you mount it). Without it, uploaded photos are
+lost on redeploy.
 
 ## Database Schema (`supabase/schema.sql`)
 

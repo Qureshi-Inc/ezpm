@@ -18,7 +18,8 @@ export default async function AdminDashboard() {
       { count: totalTenants },
       { count: totalProperties },
       { data: monthlyPayments },
-      { data: pendingPayments }
+      { data: pendingPayments },
+      { count: openMaintenance }
     ] = await Promise.all([
       supabase.from('tenants').select('*', { count: 'exact', head: true }),
       supabase.from('properties').select('*', { count: 'exact', head: true }),
@@ -30,7 +31,11 @@ export default async function AdminDashboard() {
       supabase
         .from('payments')
         .select('amount')
-        .in('status', ['open', 'failed', 'processing'])
+        .in('status', ['open', 'failed', 'processing']),
+      supabase
+        .from('maintenance_requests')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['open', 'in_progress'])
     ])
 
     const monthlyRevenue = monthlyPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
@@ -77,6 +82,7 @@ export default async function AdminDashboard() {
               { title: 'Tenants', desc: 'Add and manage tenants', href: '/admin/tenants', cta: 'Manage tenants' },
               { title: 'Properties', desc: 'Add and manage properties', href: '/admin/properties', cta: 'Manage properties' },
               { title: 'Payments', desc: 'View all transactions', href: '/admin/payments', cta: 'View payments' },
+            { title: 'Maintenance', desc: (openMaintenance || 0) > 0 ? `${openMaintenance} open request${openMaintenance === 1 ? '' : 's'}` : 'No open requests', href: '/admin/maintenance', cta: 'View requests' },
             ].map(({ title, desc, href, cta }) => (
               <Card key={href} className="lift">
                 <CardHeader>
