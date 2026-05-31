@@ -96,6 +96,10 @@ export async function POST(request: NextRequest) {
         await zitadel.sendInvitation({
           userId: created.userId,
           applicationName: 'EZPM Rent Portal',
+          // login_hint baked into the email link so the OIDC flow on
+          // /auth/start can hand it to Zitadel's authorize endpoint and
+          // skip the loginname page.
+          loginHint: email,
         })
         zitadelStatus = 'invited'
         zitadelMessage = created.alreadyExisted

@@ -146,6 +146,16 @@ export async function findUserByEmail(email: string): Promise<{ userId: string }
 export interface SendInvitationInput {
   userId: string
   applicationName?: string  // shown in the email body, e.g. "EZPM Rent Portal"
+  // The tenant's login (email). Baked into the email-link URL as
+  // ?login_hint=... so the OIDC flow on /auth/start can pass it through
+  // to Zitadel's authorize endpoint, letting Zitadel skip the loginname
+  // page and route the user straight to the invite verify page.
+  //
+  // Can't use Zitadel's {{.LoginName}} URL placeholder here — that's only
+  // valid in EMAIL body templates, not URL templates. URL templates only
+  // accept {{.UserID}}, {{.Code}}, {{.OrgID}} (Zitadel returns
+  // "url template is invalid" otherwise).
+  loginHint?: string
 }
 
 export interface SendInvitationResult {
@@ -162,27 +172,34 @@ export interface SendInvitationResult {
  * (NOT Zitadel's default verify page) so the click initiates an OIDC
  * authorize flow. Difference:
  *
- *   - DEFAULT behavior (no urlTemplate): email -> auth.getezpm.com/ui/v2/login/verify
+ *   - DEFAULT (no urlTemplate): email -> auth.getezpm.com/ui/v2/login/verify
  *     -> user verifies + sets password -> Zitadel has NO OIDC context ->
- *     dumps user on Zitadel's own console. Tenants get stuck and confused.
+ *     dumps user on Zitadel's own console. Tenants stranded.
  *
- *   - OUR setup: email -> app.getezpm.com/auth/start?login_hint=<email> ->
- *     /auth/start fires signIn('zitadel') which generates an OIDC authorize
- *     URL with login_hint set -> Zitadel sees the hint, finds the user, sees
- *     the pending invite_code, shows verify page WITHIN the OIDC context ->
- *     after verify + password, Zitadel completes the OIDC dance ->
- *     /api/auth/callback/zitadel -> session created -> /tenant. No manual
- *     navigation, no stranded-on-Zitadel-console.
+ *   - OURS: email -> app.getezpm.com/auth/start?login_hint=<email> ->
+ *     /auth/start fires signIn('zitadel') with login_hint set -> Zitadel
+ *     OIDC authorize -> Zitadel sees the hint, finds the user, sees the
+ *     pending invite -> verify page within OIDC context -> verify + set
+ *     password -> Zitadel completes OIDC -> /api/auth/callback/zitadel
+ *     -> session -> /tenant.
  *
- * {{.LoginName}} is one of Zitadel's Go template vars for invite emails;
- * resolves to the user's primary login (email). Other available vars:
- * {{.Code}}, {{.UserID}}, {{.OrgID}}, {{.FirstName}}, etc. — see Zitadel
- * v4 docs. We don't include Code/UserID in our URL because the verify
- * form on Zitadel's UI doesn't auto-fill when reached via an OIDC flow
- * anyway, and we don't have a custom verify page to consume them.
+ * URL template constraints (Zitadel v4):
+ *   - Only {{.UserID}}, {{.Code}}, {{.OrgID}} placeholders are valid in
+ *     the URL template. {{.LoginName}} is valid in email body templates
+ *     but NOT URL templates — Zitadel returns 400 "url template is
+ *     invalid" if you use anything outside the allowed three.
+ *   - We bake login_hint=<email> directly into the URL at call time using
+ *     the loginHint parameter (passed from the admin tenant-create route,
+ *     which already knows the email).
  */
 export async function sendInvitation(input: SendInvitationInput): Promise<SendInvitationResult> {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.getezpm.com').replace(/\/$/, '')
+
+  const params = new URLSearchParams({ callbackUrl: '/tenant' })
+  if (input.loginHint) {
+    params.set('login_hint', input.loginHint)
+  }
+  const urlTemplate = `${appUrl}/auth/start?${params.toString()}`
 
   // applicationName MUST be inside sendCode — Zitadel silently ignores it at
   // the root level and the email shows the default "Zitadel Login" instead.
@@ -191,7 +208,7 @@ export async function sendInvitation(input: SendInvitationInput): Promise<SendIn
     body: JSON.stringify({
       sendCode: {
         applicationName: input.applicationName ?? 'EZPM',
-        urlTemplate: `${appUrl}/auth/start?callbackUrl=%2Ftenant&login_hint={{.LoginName}}`,
+        urlTemplate,
       },
     }),
   })
