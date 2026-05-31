@@ -97,17 +97,17 @@ export default function EditPropertyForm({ property }: EditPropertyFormProps) {
         <div className="mb-6">
           <Link
             href={`/admin/properties/${property.id}`}
-            className="flex items-center text-blue-600 hover:text-blue-700 mb-4"
+            className="flex items-center text-primary hover:text-primary mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Property Details
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Edit Property</h1>
-          <p className="text-gray-600 mt-2">Update property information</p>
+          <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">Edit Property</h1>
+          <p className="text-muted-foreground mt-2">Update property information</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+          <div className="mb-4 p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-center space-x-2">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>{error}</span>
           </div>
@@ -219,8 +219,8 @@ export default function EditPropertyForm({ property }: EditPropertyFormProps) {
 
         <Card className="mt-6">
           <CardContent className="pt-6">
-            <h3 className="font-medium text-gray-900 mb-2">Property Information</h3>
-            <div className="text-sm text-gray-600 space-y-1">
+            <h3 className="font-medium text-foreground mb-2">Property Information</h3>
+            <div className="text-sm text-muted-foreground space-y-1">
               <p>• Property ID: {property.id}</p>
               <p>• Created: {new Date(property.created_at).toLocaleDateString()}</p>
               <p>• Last Updated: {new Date(property.updated_at).toLocaleDateString()}</p>

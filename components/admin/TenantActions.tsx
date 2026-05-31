@@ -127,13 +127,13 @@ export function TenantActions({ tenant }: TenantActionsProps) {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm">
           {error}
         </div>
       )}
       
       {successMessage && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+        <div className="bg-success/10 border border-success/30 text-success px-4 py-3 rounded-lg text-sm">
           {successMessage}
         </div>
       )}
@@ -177,7 +177,7 @@ export function TenantActions({ tenant }: TenantActionsProps) {
         >
           {isForcingPasswordChange ? (
             <>
-              <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-border border-t-transparent rounded-full animate-spin" />
               <span>Processing...</span>
             </>
           ) : (
@@ -187,7 +187,7 @@ export function TenantActions({ tenant }: TenantActionsProps) {
             </>
           )}
         </Button>
-        <p className="text-xs text-gray-500 mt-1 text-center">
+        <p className="text-xs text-muted-foreground mt-1 text-center">
           Tenant will be required to change password on next login
         </p>
       </div>

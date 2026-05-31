@@ -94,13 +94,13 @@ export function RentPaymentForm({ payment, paymentMethods }: RentPaymentFormProp
 
   if (success) {
     return (
-      <Card className="border-green-200 bg-green-50">
+      <Card className="border-success/30 bg-success/10">
         <CardContent className="pt-6 text-center space-y-3">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-            <Check className="w-8 h-8 text-green-600" />
+          <div className="w-16 h-16 bg-success/15 rounded-full flex items-center justify-center mx-auto">
+            <Check className="w-8 h-8 text-success" />
           </div>
-          <h3 className="text-lg font-medium text-green-900">Payment submitted</h3>
-          <p className="text-sm text-green-800">
+          <h3 className="text-lg font-medium text-success">Payment submitted</h3>
+          <p className="text-sm text-success">
             {fee && fee.totalWithFee
               ? `${formatCurrency(fee.totalWithFee)} processed.`
               : `${formatCurrency(payment.amount)} processed.`}{' '}
@@ -123,7 +123,7 @@ export function RentPaymentForm({ payment, paymentMethods }: RentPaymentFormProp
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+            <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
@@ -143,10 +143,10 @@ export function RentPaymentForm({ payment, paymentMethods }: RentPaymentFormProp
                 />
                 <Label
                   htmlFor={`pm-${method.id}`}
-                  className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-gray-300 peer-checked:border-blue-500 peer-checked:bg-blue-50"
+                  className="flex items-center justify-between p-4 border-2 border-border rounded-lg cursor-pointer hover:border-border peer-checked:border-primary peer-checked:bg-accent"
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
                       <span className="text-lg">{getPaymentMethodIcon(method.type)}</span>
                     </div>
                     <div>
@@ -157,8 +157,8 @@ export function RentPaymentForm({ payment, paymentMethods }: RentPaymentFormProp
                             : 'Credit/Debit Card'
                           : method.bank_name || 'Bank account (ACH)'}
                       </p>
-                      <p className="text-sm text-gray-600">****{method.last4 ?? '••••'}</p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-sm text-muted-foreground">****{method.last4 ?? '••••'}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
                         {method.type === 'card' ? '2.9% + $0.30 fee' : '0.8% capped at $5'}
                       </p>
                     </div>
@@ -171,7 +171,7 @@ export function RentPaymentForm({ payment, paymentMethods }: RentPaymentFormProp
                     )}
                     <div
                       className={`w-4 h-4 border-2 rounded-full flex items-center justify-center ${
-                        selectedPmId === method.id ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                        selectedPmId === method.id ? 'border-primary bg-primary' : 'border-border'
                       }`}
                     >
                       {selectedPmId === method.id && <div className="w-2 h-2 bg-white rounded-full" />}
@@ -182,15 +182,15 @@ export function RentPaymentForm({ payment, paymentMethods }: RentPaymentFormProp
             ))}
           </div>
 
-          <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+          <div className="bg-muted p-4 rounded-lg space-y-2">
             <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-600">Rent amount:</span>
+              <span className="text-muted-foreground">Rent amount:</span>
               <span className="font-medium">{formatCurrency(payment.amount)}</span>
             </div>
             {fee && (
               <>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Processing fee:</span>
+                  <span className="text-muted-foreground">Processing fee:</span>
                   <span className="font-medium">{formatCurrency(fee.amount)}</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between items-center">
@@ -212,7 +212,7 @@ export function RentPaymentForm({ payment, paymentMethods }: RentPaymentFormProp
               : `Pay ${formatCurrency(fee ? fee.totalWithFee : payment.amount)}`}
           </Button>
 
-          <p className="text-xs text-gray-500 text-center">
+          <p className="text-xs text-muted-foreground text-center">
             Bank account (ACH) payments settle in about 4 business days. Card payments are instant.
           </p>
         </form>

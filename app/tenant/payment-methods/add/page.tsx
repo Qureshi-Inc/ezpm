@@ -19,12 +19,12 @@ export default async function AddPaymentMethodPage() {
       <main className="max-w-2xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="py-6">
           <div className="mb-6">
-            <Link href="/tenant/payment-methods" className="flex items-center text-blue-600 hover:text-blue-700 mb-4">
+            <Link href="/tenant/payment-methods" className="flex items-center text-primary hover:text-primary mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Payment Methods
             </Link>
-            <h1 className="text-3xl font-bold text-gray-900">Add Payment Method</h1>
-            <p className="text-gray-600 mt-2">
+            <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">Add Payment Method</h1>
+            <p className="text-muted-foreground mt-2">
               Add a card or US bank account. Stripe handles the secure entry &mdash;
               your details never touch our servers.
             </p>

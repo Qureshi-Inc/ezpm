@@ -40,10 +40,10 @@ export function PaymentMethodsList({ paymentMethods }: PaymentMethodsListProps) 
         const isPending = status === 'pending_microdeposits'
         const isFailed = status === 'failed'
         const borderClass = isPending
-          ? 'border-amber-300 bg-amber-50'
+          ? 'border-warning/30 bg-warning/10'
           : isFailed
-            ? 'border-red-300 bg-red-50'
-            : 'border-gray-200'
+            ? 'border-destructive/30 bg-destructive/10'
+            : 'border-border'
 
         return (
           <div
@@ -52,23 +52,23 @@ export function PaymentMethodsList({ paymentMethods }: PaymentMethodsListProps) 
           >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
               <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-12 h-12 bg-accent rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-xl">{getPaymentMethodIcon(method.type)}</span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-gray-900">{describe(method)}</p>
-                  <p className="text-sm text-gray-600">****{method.last4 ?? '••••'}</p>
+                  <p className="font-medium text-foreground">{describe(method)}</p>
+                  <p className="text-sm text-muted-foreground">****{method.last4 ?? '••••'}</p>
                   <div className="flex items-center gap-2 mt-1">
                     {method.is_default && (
                       <Badge variant="default" className="text-xs">Default</Badge>
                     )}
                     {isPending && (
-                      <Badge variant="outline" className="text-xs text-amber-700 border-amber-400">
+                      <Badge variant="outline" className="text-xs text-warning border-warning/40">
                         Pending verification
                       </Badge>
                     )}
                     {isFailed && (
-                      <Badge variant="outline" className="text-xs text-red-700 border-red-400">
+                      <Badge variant="outline" className="text-xs text-destructive border-destructive/40">
                         Verification failed
                       </Badge>
                     )}
@@ -82,10 +82,10 @@ export function PaymentMethodsList({ paymentMethods }: PaymentMethodsListProps) 
             </div>
 
             {isPending && (
-              <div className="flex items-start space-x-2 pt-2 border-t border-amber-200">
-                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="flex items-start space-x-2 pt-2 border-t border-warning/20">
+                <AlertCircle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="text-sm text-amber-900">
+                  <p className="text-sm text-warning">
                     Stripe sent two small test deposits. Check your bank in 1-2 business days, then verify the amounts here.
                   </p>
                   <Link href={`/tenant/payment-methods/${method.id}/verify`} className="inline-block mt-2">
@@ -96,9 +96,9 @@ export function PaymentMethodsList({ paymentMethods }: PaymentMethodsListProps) 
             )}
 
             {isFailed && (
-              <div className="flex items-start space-x-2 pt-2 border-t border-red-200">
-                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-red-900">
+              <div className="flex items-start space-x-2 pt-2 border-t border-destructive/20">
+                <AlertCircle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-destructive">
                   Too many failed attempts. Remove this account and add it again to retry.
                 </p>
               </div>

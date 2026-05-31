@@ -94,7 +94,7 @@ export function GeneratePaymentsButton() {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-medium text-gray-900">Admin Controls</h3>
+      <h3 className="text-lg font-medium text-foreground">Admin Controls</h3>
 
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
         <Button
@@ -138,35 +138,35 @@ export function GeneratePaymentsButton() {
       </div>
 
       {reconcileResult && (
-        <div className="p-3 text-xs text-green-900 bg-green-50 border border-green-200 rounded-lg whitespace-pre-line font-mono">
+        <div className="p-3 text-xs text-success bg-success/10 border border-success/30 rounded-lg whitespace-pre-line font-mono">
           {reconcileResult}
         </div>
       )}
 
       {debugResult && (
-        <div className="p-3 text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg whitespace-pre-line font-mono max-h-96 overflow-y-auto">
+        <div className="p-3 text-xs text-foreground bg-muted border border-border rounded-lg whitespace-pre-line font-mono max-h-96 overflow-y-auto">
           {debugResult}
         </div>
       )}
 
       {error && (
-        <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+        <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-center space-x-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <Card className="border-blue-200 bg-blue-50">
+      <Card className="border-primary/20 bg-accent">
         <CardContent className="pt-4">
           <div className="flex items-start space-x-3">
-            <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-primary mt-0.5" />
             <div>
-              <h4 className="font-medium text-blue-900">About these controls</h4>
-              <p className="text-sm text-blue-800 mt-1">
+              <h4 className="font-medium text-accent-foreground">About these controls</h4>
+              <p className="text-sm text-accent-foreground mt-1">
                 <strong>Debug tenants:</strong> shows which tenants still need a Zitadel invite, a Stripe Customer, or a Subscription.<br />
                 <strong>Run Stripe reconcile:</strong> replays Stripe events since the last successful sync. Run this after server downtime to catch any missed webhooks.
               </p>
-              <p className="text-xs text-blue-700 mt-2">
+              <p className="text-xs text-primary mt-2">
                 Routine monthly charges happen on Stripe&apos;s side (Subscriptions). You don&apos;t need to push a button for tenants to be billed.
               </p>
             </div>

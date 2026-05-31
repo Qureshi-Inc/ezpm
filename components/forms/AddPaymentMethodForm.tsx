@@ -153,7 +153,7 @@ function PaymentElementForm({ stripeCustomerId }: { stripeCustomerId: string }) 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+        <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-center space-x-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
@@ -225,7 +225,7 @@ export function AddPaymentMethodForm({ tenantId }: AddPaymentMethodFormProps) {
 
   if (error) {
     return (
-      <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+      <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-center space-x-2">
         <AlertCircle className="w-4 h-4 flex-shrink-0" />
         <span>{error}</span>
       </div>
@@ -233,7 +233,7 @@ export function AddPaymentMethodForm({ tenantId }: AddPaymentMethodFormProps) {
   }
   if (!clientSecret || !stripeCustomerId) {
     return (
-      <div className="flex items-center justify-center py-8 text-gray-500">
+      <div className="flex items-center justify-center py-8 text-muted-foreground">
         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
         Loading secure payment form...
       </div>

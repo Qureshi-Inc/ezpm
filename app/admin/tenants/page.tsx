@@ -45,8 +45,8 @@ export default async function TenantsPage() {
           <div className="px-4 py-6 sm:px-0">
             <div className="flex justify-between items-center mb-8">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Tenant Management</h1>
-                <p className="text-gray-600 mt-2">Manage and oversee all tenant accounts</p>
+                <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">Tenant Management</h1>
+                <p className="text-muted-foreground mt-2">Manage and oversee all tenant accounts</p>
               </div>
               <Link href="/admin/tenants/create">
                 <Button className="flex items-center space-x-2">
@@ -64,8 +64,8 @@ export default async function TenantsPage() {
                     <CardHeader className="pb-4">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center space-x-3">
-                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                            <User className="w-6 h-6 text-blue-600" />
+                          <div className="w-12 h-12 bg-accent rounded-full flex items-center justify-center">
+                            <User className="w-6 h-6 text-primary" />
                           </div>
                           <div>
                             <CardTitle className="text-lg">
@@ -85,7 +85,7 @@ export default async function TenantsPage() {
                     
                     <CardContent className="space-y-3">
                       {tenant.phone && (
-                        <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                           <Phone className="w-4 h-4" />
                           <span>{tenant.phone}</span>
                         </div>
@@ -93,19 +93,19 @@ export default async function TenantsPage() {
                       
                       {tenant.property ? (
                         <div className="flex items-start space-x-2 text-sm">
-                          <Building className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <Building className="w-4 h-4 text-muted-foreground mt-0.5" />
                           <div>
-                            <p className="font-medium text-gray-900">{tenant.property.address}</p>
+                            <p className="font-medium text-foreground">{tenant.property.address}</p>
                             {tenant.property.unit_number && (
-                              <p className="text-gray-600">Unit {tenant.property.unit_number}</p>
+                              <p className="text-muted-foreground">Unit {tenant.property.unit_number}</p>
                             )}
-                            <p className="text-blue-600 font-medium">
+                            <p className="text-primary font-medium">
                               ${tenant.property.rent_amount}/month
                             </p>
                           </div>
                         </div>
                       ) : (
-                        <div className="text-sm text-gray-500 italic">
+                        <div className="text-sm text-muted-foreground italic">
                           No property assigned
                         </div>
                       )}
@@ -123,7 +123,7 @@ export default async function TenantsPage() {
                             </Button>
                           </Link>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2 text-center">
+                        <p className="text-xs text-muted-foreground mt-2 text-center">
                           Use "View Details" for delete options
                         </p>
                       </div>
@@ -134,9 +134,9 @@ export default async function TenantsPage() {
                 <div className="col-span-full">
                   <Card className="text-center py-12">
                     <CardContent>
-                      <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No tenants yet</h3>
-                      <p className="text-gray-600 mb-6">
+                      <User className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-foreground mb-2">No tenants yet</h3>
+                      <p className="text-muted-foreground mb-6">
                         Get started by adding your first tenant to the system.
                       </p>
                       <Link href="/admin/tenants/create">

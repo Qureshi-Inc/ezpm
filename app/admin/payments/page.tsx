@@ -68,8 +68,8 @@ export default async function PaymentsPage() {
           <div className="py-3 sm:py-6">
             <div className="mb-8">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Payment Overview</h1>
-                <p className="text-gray-600 mt-2">Track all payment transactions and revenue</p>
+                <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-tight text-foreground">Payment Overview</h1>
+                <p className="text-muted-foreground mt-2">Track all payment transactions and revenue</p>
               </div>
             </div>
 
@@ -134,21 +134,21 @@ export default async function PaymentsPage() {
                     {payments.map((payment) => (
                       <div 
                         key={payment.id} 
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors space-y-3 sm:space-y-0"
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-muted transition-colors space-y-3 sm:space-y-0"
                       >
                         <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <DollarSign className="w-5 h-5 text-blue-600" />
+                          <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center flex-shrink-0">
+                            <DollarSign className="w-5 h-5 text-primary" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-gray-900 truncate">
+                            <p className="font-medium text-foreground truncate">
                               {payment.tenant?.first_name} {payment.tenant?.last_name}
                             </p>
-                            <p className="text-sm text-gray-500 truncate">
+                            <p className="text-sm text-muted-foreground truncate">
                               {payment.property?.address}
                               {payment.property?.unit_number && ` - Unit ${payment.property.unit_number}`}
                             </p>
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-muted-foreground">
                               Due: {formatDate(payment.due_date)}
                             </p>
                           </div>
@@ -164,7 +164,7 @@ export default async function PaymentsPage() {
                             >
                               {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
                             </Badge>
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-xs text-muted-foreground mt-1">
                               {formatDate(payment.created_at)}
                             </p>
                           </div>
@@ -174,9 +174,9 @@ export default async function PaymentsPage() {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <DollarSign className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No payments yet</h3>
-                    <p className="text-gray-600">
+                    <DollarSign className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-foreground mb-2">No payments yet</h3>
+                    <p className="text-muted-foreground">
                       Payment transactions will appear here once tenants start making payments.
                     </p>
                   </div>

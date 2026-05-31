@@ -67,13 +67,13 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
         <main className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="mb-6">
-              <Link href="/admin/properties" className="flex items-center text-blue-600 hover:text-blue-700 mb-4">
+              <Link href="/admin/properties" className="flex items-center text-primary hover:text-primary mb-4">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Properties
               </Link>
               
               {message === 'property_updated' && (
-                <div className="mb-4 p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
+                <div className="mb-4 p-3 text-sm text-success bg-success/10 border border-success/30 rounded-lg flex items-center space-x-2">
                   <CheckCircle className="w-4 h-4 flex-shrink-0" />
                   <span>Property updated successfully!</span>
                 </div>
@@ -81,11 +81,11 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
               
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">{property.address}</h1>
+                  <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">{property.address}</h1>
                   {property.unit_number && (
-                    <p className="text-gray-600 mt-1">Unit {property.unit_number}</p>
+                    <p className="text-muted-foreground mt-1">Unit {property.unit_number}</p>
                   )}
-                  <p className="text-gray-600 mt-2">Property Details</p>
+                  <p className="text-muted-foreground mt-2">Property Details</p>
                 </div>
                 <div className="min-w-[200px]">
                   <PropertyActions property={property} />
@@ -105,24 +105,24 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center space-x-2">
-                      <MapPin className="w-4 h-4 text-gray-400" />
+                      <MapPin className="w-4 h-4 text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Address</p>
+                        <p className="text-sm font-medium text-muted-foreground">Address</p>
                         <p className="text-lg">{property.address}</p>
                       </div>
                     </div>
                     
                     {property.unit_number && (
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Unit Number</p>
+                        <p className="text-sm font-medium text-muted-foreground">Unit Number</p>
                         <p className="text-lg">{property.unit_number}</p>
                       </div>
                     )}
 
-                    <div className="flex items-center space-x-2 text-green-600">
+                    <div className="flex items-center space-x-2 text-success">
                       <DollarSign className="w-4 h-4" />
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Monthly Rent</p>
+                        <p className="text-sm font-medium text-muted-foreground">Monthly Rent</p>
                         <p className="text-lg font-bold">{formatCurrency(property.rent_amount)}</p>
                       </div>
                     </div>
@@ -130,13 +130,13 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
                     <div className="grid grid-cols-2 gap-4">
                       {property.bedrooms && (
                         <div>
-                          <p className="text-sm font-medium text-gray-500">Bedrooms</p>
+                          <p className="text-sm font-medium text-muted-foreground">Bedrooms</p>
                           <p>{property.bedrooms}</p>
                         </div>
                       )}
                       {property.bathrooms && (
                         <div>
-                          <p className="text-sm font-medium text-gray-500">Bathrooms</p>
+                          <p className="text-sm font-medium text-muted-foreground">Bathrooms</p>
                           <p>{property.bathrooms}</p>
                         </div>
                       )}
@@ -144,13 +144,13 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
 
                     {property.description && (
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Description</p>
-                        <p className="text-gray-700">{property.description}</p>
+                        <p className="text-sm font-medium text-muted-foreground">Description</p>
+                        <p className="text-foreground">{property.description}</p>
                       </div>
                     )}
 
                     <div>
-                      <p className="text-sm font-medium text-gray-500">Property Added</p>
+                      <p className="text-sm font-medium text-muted-foreground">Property Added</p>
                       <p>{formatDate(property.created_at)}</p>
                     </div>
                   </CardContent>
@@ -170,14 +170,14 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
                         {tenants.map((tenant) => (
                           <div key={tenant.id} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                                <User className="w-5 h-5 text-blue-600" />
+                              <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center">
+                                <User className="w-5 h-5 text-primary" />
                               </div>
                               <div>
-                                <p className="font-medium text-gray-900">
+                                <p className="font-medium text-foreground">
                                   {tenant.first_name} {tenant.last_name}
                                 </p>
-                                <p className="text-sm text-gray-600">{tenant.user?.email}</p>
+                                <p className="text-sm text-muted-foreground">{tenant.user?.email}</p>
                               </div>
                             </div>
                             <Link href={`/admin/tenants/${tenant.id}`}>
@@ -190,8 +190,8 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
                       </div>
                     ) : (
                       <div className="text-center py-6">
-                        <Users className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                        <p className="text-gray-600">No tenants assigned</p>
+                        <Users className="w-12 h-12 text-muted-foreground/50 mx-auto mb-2" />
+                        <p className="text-muted-foreground">No tenants assigned</p>
                         <Button variant="outline" size="sm" className="mt-2">
                           Assign Tenant
                         </Button>
@@ -210,18 +210,18 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Occupancy</span>
+                      <span className="text-sm text-muted-foreground">Occupancy</span>
                       <Badge variant={tenants && tenants.length > 0 ? "default" : "secondary"}>
                         {tenants && tenants.length > 0 ? "Occupied" : "Vacant"}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Tenants</span>
+                      <span className="text-sm text-muted-foreground">Tenants</span>
                       <span className="font-medium">{tenants?.length || 0}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Monthly Revenue</span>
-                      <span className="font-medium text-green-600">
+                      <span className="text-sm text-muted-foreground">Monthly Revenue</span>
+                      <span className="font-medium text-success">
                         {formatCurrency(property.rent_amount)}
                       </span>
                     </div>
@@ -258,10 +258,10 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
                           <div key={payment.id} className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-medium">{formatCurrency(payment.amount)}</p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-muted-foreground">
                                 {payment.tenant?.first_name} {payment.tenant?.last_name}
                               </p>
-                              <p className="text-xs text-gray-500">{formatDate(payment.created_at)}</p>
+                              <p className="text-xs text-muted-foreground">{formatDate(payment.created_at)}</p>
                             </div>
                             <Badge 
                               variant={payment.status === 'succeeded' ? 'default' : 
@@ -273,7 +273,7 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500">No payments yet</p>
+                      <p className="text-sm text-muted-foreground">No payments yet</p>
                     )}
                   </CardContent>
                 </Card>

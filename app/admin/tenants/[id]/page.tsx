@@ -78,16 +78,16 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
         <main className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="mb-6">
-              <Link href="/admin/tenants" className="flex items-center text-blue-600 hover:text-blue-700 mb-4">
+              <Link href="/admin/tenants" className="flex items-center text-primary hover:text-primary mb-4">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Tenants
               </Link>
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">
+                  <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">
                     {tenantWithRelations.first_name} {tenantWithRelations.last_name}
                   </h1>
-                  <p className="text-gray-600 mt-2">Tenant Details</p>
+                  <p className="text-muted-foreground mt-2">Tenant Details</p>
                 </div>
                 <div className="min-w-[200px]">
                   <TenantActions tenant={tenantWithRelations} />
@@ -108,22 +108,22 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-sm font-medium text-gray-500">First Name</p>
+                        <p className="text-sm font-medium text-muted-foreground">First Name</p>
                         <p className="text-lg">{tenantWithRelations.first_name}</p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Last Name</p>
+                        <p className="text-sm font-medium text-muted-foreground">Last Name</p>
                         <p className="text-lg">{tenantWithRelations.last_name}</p>
                       </div>
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <Mail className="w-4 h-4 text-gray-400" />
+                      <Mail className="w-4 h-4 text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Email</p>
+                        <p className="text-sm font-medium text-muted-foreground">Email</p>
                         <p>{tenantWithRelations.email}</p>
                         {!tenantWithRelations.user_id && (
-                          <p className="text-xs text-amber-700">
+                          <p className="text-xs text-warning">
                             Tenant has not yet logged in via Zitadel.
                           </p>
                         )}
@@ -132,24 +132,24 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
 
                     {tenantWithRelations.phone && (
                       <div className="flex items-center space-x-2">
-                        <Phone className="w-4 h-4 text-gray-400" />
+                        <Phone className="w-4 h-4 text-muted-foreground" />
                         <div>
-                          <p className="text-sm font-medium text-gray-500">Phone</p>
+                          <p className="text-sm font-medium text-muted-foreground">Phone</p>
                           <p>{tenantWithRelations.phone}</p>
                         </div>
                       </div>
                     )}
 
                     <div className="flex items-center space-x-2">
-                      <DollarSign className="w-4 h-4 text-gray-400" />
+                      <DollarSign className="w-4 h-4 text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Payment Due Day</p>
+                        <p className="text-sm font-medium text-muted-foreground">Payment Due Day</p>
                         <p>{tenantWithRelations.payment_due_day === 1 ? '1st' : tenantWithRelations.payment_due_day === 2 ? '2nd' : tenantWithRelations.payment_due_day === 3 ? '3rd' : `${tenantWithRelations.payment_due_day}th`} of each month</p>
                       </div>
                     </div>
 
                     <div>
-                      <p className="text-sm font-medium text-gray-500">Account Created</p>
+                      <p className="text-sm font-medium text-muted-foreground">Account Created</p>
                       <p>{formatDate(tenantWithRelations.created_at)}</p>
                     </div>
                   </CardContent>
@@ -168,22 +168,22 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium text-gray-900">{tenantWithRelations.property.address}</p>
+                            <p className="font-medium text-foreground">{tenantWithRelations.property.address}</p>
                             {tenantWithRelations.property.unit_number && (
-                              <p className="text-gray-600">Unit {tenantWithRelations.property.unit_number}</p>
+                              <p className="text-muted-foreground">Unit {tenantWithRelations.property.unit_number}</p>
                             )}
                           </div>
                           <Badge variant="default">Assigned</Badge>
                         </div>
-                        <div className="flex items-center space-x-2 text-green-600">
+                        <div className="flex items-center space-x-2 text-success">
                           <DollarSign className="w-4 h-4" />
                           <span className="font-medium">{formatCurrency(tenantWithRelations.property.rent_amount)}/month</span>
                         </div>
                       </div>
                     ) : (
                       <div className="text-center py-6">
-                        <Building className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                        <p className="text-gray-600">No property assigned</p>
+                        <Building className="w-12 h-12 text-muted-foreground/50 mx-auto mb-2" />
+                        <p className="text-muted-foreground">No property assigned</p>
                         <Button variant="outline" size="sm" className="mt-2">
                           Assign Property
                         </Button>
@@ -225,7 +225,7 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                           <div key={payment.id} className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-medium">{formatCurrency(payment.amount)}</p>
-                              <p className="text-xs text-gray-500">{formatDate(payment.created_at)}</p>
+                              <p className="text-xs text-muted-foreground">{formatDate(payment.created_at)}</p>
                             </div>
                             <Badge 
                               variant={payment.status === 'succeeded' ? 'default' : 
@@ -237,7 +237,7 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500">No payments yet</p>
+                      <p className="text-sm text-muted-foreground">No payments yet</p>
                     )}
                   </CardContent>
                 </Card>

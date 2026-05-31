@@ -69,12 +69,12 @@ export function VerifyMicrodepositsForm({ paymentMethodId, last4 }: VerifyMicrod
 
   if (success) {
     return (
-      <div className="space-y-3 p-6 bg-green-50 border border-green-200 rounded-lg text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-          <Check className="w-8 h-8 text-green-600" />
+      <div className="space-y-3 p-6 bg-success/10 border border-success/30 rounded-lg text-center">
+        <div className="w-16 h-16 bg-success/15 rounded-full flex items-center justify-center mx-auto">
+          <Check className="w-8 h-8 text-success" />
         </div>
-        <h3 className="font-medium text-green-900">Bank verified</h3>
-        <p className="text-sm text-green-800">
+        <h3 className="font-medium text-success">Bank verified</h3>
+        <p className="text-sm text-success">
           Your bank account ending in {last4 ?? '••••'} is now active. Redirecting...
         </p>
       </div>
@@ -84,13 +84,13 @@ export function VerifyMicrodepositsForm({ paymentMethodId, last4 }: VerifyMicrod
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2">
+        <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-start space-x-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900 flex items-start space-x-2">
+      <div className="bg-accent border border-primary/20 rounded-lg p-3 text-sm text-accent-foreground flex items-start space-x-2">
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
         <div>
           <p className="font-medium mb-1">Where to find the deposits</p>
@@ -99,7 +99,7 @@ export function VerifyMicrodepositsForm({ paymentMethodId, last4 }: VerifyMicrod
             Look for two small deposits (each under $1) from <b>STRIPE</b> or <b>ACCTVERIFY</b>.
             Enter the cent amounts below.
           </p>
-          <p className="mt-2 text-xs text-blue-800">
+          <p className="mt-2 text-xs text-accent-foreground">
             Test mode: use 32 and 45.
           </p>
         </div>
@@ -151,7 +151,7 @@ export function VerifyMicrodepositsForm({ paymentMethodId, last4 }: VerifyMicrod
         </Button>
       </div>
 
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-muted-foreground">
         Order doesn&apos;t matter. You have up to 10 attempts before the bank account is rejected.
       </p>
     </form>

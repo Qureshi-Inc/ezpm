@@ -81,15 +81,15 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+        <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
           {error}
         </div>
       )}
       {warning && (
-        <div className="p-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md">
+        <div className="p-3 text-sm text-warning bg-warning/10 border border-warning/20 rounded-md">
           <p className="font-medium mb-1">Tenant saved, manual step required:</p>
           <p>{warning}</p>
-          <Link href="/admin/tenants" className="text-amber-900 underline mt-2 inline-block">
+          <Link href="/admin/tenants" className="text-warning underline mt-2 inline-block">
             Continue to tenants list →
           </Link>
         </div>
@@ -109,7 +109,7 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
       <div className="space-y-2">
         <Label htmlFor="email">Email Address *</Label>
         <Input id="email" name="email" type="email" placeholder="john.doe@example.com" required disabled={isSubmitting} />
-        <p className="text-xs text-gray-600">
+        <p className="text-xs text-muted-foreground">
           This must match the email you invite in Zitadel — the tenant is linked on first login by email match.
         </p>
       </div>
@@ -133,7 +133,7 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-gray-600">
+        <p className="text-xs text-muted-foreground">
           Capped at the 28th to avoid skipping months (no Feb 30th). Drives the Stripe Subscription billing anchor.
         </p>
       </div>
@@ -156,14 +156,14 @@ export function CreateTenantForm({ properties }: CreateTenantFormProps) {
         </Select>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
+      <div className="bg-accent border border-primary/20 rounded-lg p-3 text-sm text-accent-foreground">
         <p className="font-medium mb-1">What happens when you submit:</p>
         <ol className="list-decimal pl-4 space-y-1">
           <li>A tenant record is created and linked to this property.</li>
           <li>A Zitadel user is created with this email, and an invitation email is sent automatically.</li>
           <li>The tenant clicks the email link, sets their password through Zitadel, and lands on the rent portal automatically.</li>
         </ol>
-        <p className="mt-2 text-xs text-blue-700">
+        <p className="mt-2 text-xs text-primary">
           If Zitadel auto-invite is not configured (no service token), the form will show a fallback
           message and you can invite manually in the Zitadel admin UI.
         </p>
