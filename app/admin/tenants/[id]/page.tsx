@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatDate } from '@/utils/helpers'
 import { TenantActions } from '@/components/admin/TenantActions'
+import { DocumentsManager } from '@/components/documents/DocumentsManager'
 import Link from 'next/link'
 import { ArrowLeft, User, Mail, Phone, Building, DollarSign, Edit } from 'lucide-react'
 
@@ -242,6 +243,21 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                   </CardContent>
                 </Card>
               </div>
+            </div>
+
+            {/* Documents */}
+            <div className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Documents</CardTitle>
+                  <CardDescription>
+                    Share files with this tenant (lease, notices) and review what they&rsquo;ve uploaded.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DocumentsManager mode="admin" tenantId={id} />
+                </CardContent>
+              </Card>
             </div>
           </div>
         </main>

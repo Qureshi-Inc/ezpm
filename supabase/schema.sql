@@ -344,6 +344,63 @@ CREATE TABLE maintenance_attachments (
 CREATE INDEX idx_ma_request ON maintenance_attachments(request_id);
 
 -- ============================================================
+-- MAINTENANCE COMMENTS  (Phase 2: two-way updates thread)
+-- ============================================================
+-- Comments on a request from tenant or admin. Admin can attach photos to a
+-- comment via maintenance_attachments.comment_id (added below).
+CREATE TABLE maintenance_comments (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    request_id      UUID NOT NULL REFERENCES maintenance_requests(id) ON DELETE CASCADE,
+    author_role     VARCHAR(10) NOT NULL,
+    author_user_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+    body            TEXT NOT NULL,
+    created_at      TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT mc_author_check CHECK (author_role IN ('tenant','admin'))
+);
+CREATE INDEX idx_mc_request ON maintenance_comments(request_id);
+
+-- Link a photo to a specific comment (NULL = belongs to the request itself).
+ALTER TABLE maintenance_attachments
+    ADD COLUMN comment_id UUID REFERENCES maintenance_comments(id) ON DELETE CASCADE;
+CREATE INDEX idx_ma_comment ON maintenance_attachments(comment_id);
+
+-- ============================================================
+-- DOCUMENTS  (bidirectional per-tenant file sharing)
+-- ============================================================
+-- A per-tenant folder: both tenant and admin upload; both see all of that
+-- tenant's documents (labeled by uploader). Files live under UPLOADS_DIR as
+-- documents/<tenant_id>/<uuid>.<ext>, served only via an ownership-checked
+-- route. Uploader deletes own; admin deletes any.
+CREATE TABLE documents (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id           UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    category            VARCHAR(20) NOT NULL DEFAULT 'other',
+    file_path           TEXT NOT NULL,
+    file_name           VARCHAR(255) NOT NULL,
+    content_type        VARCHAR(150) NOT NULL,
+    size_bytes          INTEGER NOT NULL,
+    uploaded_by_role    VARCHAR(10) NOT NULL,
+    uploaded_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at          TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT doc_uploader_check CHECK (uploaded_by_role IN ('tenant','admin')),
+    CONSTRAINT doc_category_check CHECK (category IN ('lease','insurance','id','income','notice','receipt','other'))
+);
+CREATE INDEX idx_doc_tenant ON documents(tenant_id);
+
+-- ============================================================
+-- ANNOUNCEMENTS  (admin → all tenants)
+-- ============================================================
+CREATE TABLE announcements (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title       VARCHAR(200) NOT NULL,
+    body        TEXT NOT NULL,
+    created_by  UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_ann_created ON announcements(created_at DESC);
+
+-- ============================================================
 -- UPDATED_AT TRIGGERS
 -- ============================================================
 
@@ -362,6 +419,7 @@ CREATE TRIGGER trg_payment_methods_updated_at BEFORE UPDATE ON payment_methods F
 CREATE TRIGGER trg_payments_updated_at        BEFORE UPDATE ON payments        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_system_settings_updated_at BEFORE UPDATE ON system_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_maintenance_requests_updated_at BEFORE UPDATE ON maintenance_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_announcements_updated_at     BEFORE UPDATE ON announcements    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
 -- SEED DATA

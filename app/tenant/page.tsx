@@ -129,8 +129,8 @@ export default async function TenantDashboard() {
           </Card>
         </div>
 
-        {/* Secondary: payment methods + auto-pay + maintenance */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        {/* Secondary: payment methods + auto-pay + maintenance + documents */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <Card className="lift">
             <CardHeader>
               <CardTitle className="text-lg">Payment methods</CardTitle>
@@ -185,6 +185,18 @@ export default async function TenantDashboard() {
             <CardContent>
               <Link href="/tenant/maintenance">
                 <Button variant="outline" className="w-full">View requests</Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="lift">
+            <CardHeader>
+              <CardTitle className="text-lg">Documents</CardTitle>
+              <CardDescription>Leases, insurance &amp; shared files</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/tenant/documents">
+                <Button variant="outline" className="w-full">View documents</Button>
               </Link>
             </CardContent>
           </Card>

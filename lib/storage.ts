@@ -27,11 +27,13 @@ function uploadsRoot(): string {
   return process.env.UPLOADS_DIR || '/app/uploads'
 }
 
-export const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
+export const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB (photos)
 export const MAX_FILES_PER_REQUEST = 6
+export const MAX_DOC_BYTES = 25 * 1024 * 1024 // 25 MB (documents)
 
 // Allowed content-types → canonical file extension. Anything not in this map
 // is rejected server-side regardless of what the client claimed.
+// Photos/PDF (maintenance attachments + comment photos).
 const ALLOWED_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -39,6 +41,17 @@ const ALLOWED_TYPES: Record<string, string> = {
   'image/heic': 'heic',
   'image/heif': 'heic',
   'application/pdf': 'pdf',
+}
+
+// Documents: the photo/PDF set PLUS common office + text formats.
+const DOC_TYPES: Record<string, string> = {
+  ...ALLOWED_TYPES,
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'text/plain': 'txt',
+  'text/csv': 'csv',
 }
 
 export interface StoredFile {
@@ -53,39 +66,43 @@ export interface StoredFile {
 export class FileValidationError extends Error {}
 
 /**
- * Validate + persist one uploaded file to the request's folder.
+ * Core: validate + persist one uploaded file under <prefix>/<ownerId>/<uuid>.<ext>.
  * Throws FileValidationError on a bad type/size (caller returns 400).
  */
-export async function storeAttachment(
-  requestId: string,
+async function persist(
+  prefix: 'maintenance' | 'documents',
+  ownerId: string,
   file: File,
+  allowed: Record<string, string>,
+  maxBytes: number,
+  allowedLabel: string,
 ): Promise<StoredFile> {
   const contentType = (file.type || '').toLowerCase()
-  const ext = ALLOWED_TYPES[contentType]
+  const ext = allowed[contentType]
   if (!ext) {
     throw new FileValidationError(
-      `Unsupported file type "${file.type || 'unknown'}". Allowed: JPG, PNG, WEBP, HEIC, PDF.`,
+      `Unsupported file type "${file.type || 'unknown'}". Allowed: ${allowedLabel}.`,
     )
   }
   if (file.size <= 0) {
     throw new FileValidationError('Empty file.')
   }
-  if (file.size > MAX_FILE_BYTES) {
+  if (file.size > maxBytes) {
     throw new FileValidationError(
-      `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max is 10 MB.`,
+      `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max is ${Math.round(maxBytes / 1024 / 1024)} MB.`,
     )
   }
 
-  // requestId comes from our own DB lookup (a UUID), but guard anyway: only
+  // ownerId comes from our own DB lookup (a UUID), but guard anyway: only
   // allow the UUID charset so it can never escape the uploads dir.
-  if (!/^[0-9a-fA-F-]{36}$/.test(requestId)) {
-    throw new FileValidationError('Invalid request id.')
+  if (!/^[0-9a-fA-F-]{36}$/.test(ownerId)) {
+    throw new FileValidationError('Invalid owner id.')
   }
 
   const root = uploadsRoot()
   const storedName = `${randomUUID()}.${ext}`
-  const relativePath = path.posix.join('maintenance', requestId, storedName)
-  const absDir = path.join(root, 'maintenance', requestId)
+  const relativePath = path.posix.join(prefix, ownerId, storedName)
+  const absDir = path.join(root, prefix, ownerId)
   const absPath = path.join(absDir, storedName)
 
   // Defense in depth: the resolved absolute path MUST stay inside uploadsRoot.
@@ -103,6 +120,23 @@ export async function storeAttachment(
     contentType,
     sizeBytes: file.size,
   }
+}
+
+/** Maintenance photo/PDF attachment (request + comment photos). */
+export async function storeAttachment(requestId: string, file: File): Promise<StoredFile> {
+  return persist('maintenance', requestId, file, ALLOWED_TYPES, MAX_FILE_BYTES, 'JPG, PNG, WEBP, HEIC, PDF')
+}
+
+/** Tenant/admin document upload (broader formats, larger limit). */
+export async function storeDocument(tenantId: string, file: File): Promise<StoredFile> {
+  return persist(
+    'documents',
+    tenantId,
+    file,
+    DOC_TYPES,
+    MAX_DOC_BYTES,
+    'PDF, images, Word, Excel, TXT, CSV',
+  )
 }
 
 /**
@@ -124,6 +158,14 @@ export async function deleteRequestFiles(requestId: string): Promise<void> {
   if (!/^[0-9a-fA-F-]{36}$/.test(requestId)) return
   const dir = path.join(uploadsRoot(), 'maintenance', requestId)
   await rm(dir, { recursive: true, force: true }).catch(() => {})
+}
+
+/** Best-effort delete of a single stored file by its UPLOADS_DIR-relative path. */
+export async function deleteFile(relativePath: string): Promise<void> {
+  const root = uploadsRoot()
+  const absPath = path.join(root, relativePath)
+  if (!absPath.startsWith(path.resolve(root) + path.sep)) return
+  await rm(absPath, { force: true }).catch(() => {})
 }
 
 /**
@@ -148,4 +190,8 @@ function sanitizeDisplayName(name: string): string {
 
 export function isAllowedType(contentType: string): boolean {
   return !!ALLOWED_TYPES[(contentType || '').toLowerCase()]
+}
+
+export function isAllowedDocType(contentType: string): boolean {
+  return !!DOC_TYPES[(contentType || '').toLowerCase()]
 }
