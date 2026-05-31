@@ -174,6 +174,18 @@ async function botUserId(): Promise<string | null> {
   return cachedBotUserId
 }
 
+/** Fetch a post (used by the inbound webhook to resolve a reply's thread root). */
+export async function getMattermostPost(
+  postId: string,
+): Promise<{ id: string; root_id: string; user_id: string; message: string } | null> {
+  return api(`/posts/${encodeURIComponent(postId)}`)
+}
+
+/** The bot's own user id (exported for the inbound webhook's loop guard). */
+export async function getBotUserId(): Promise<string | null> {
+  return botUserId()
+}
+
 /** Quiet reaction call — a 404 when removing a missing reaction is expected. */
 async function reactionCall(path: string, method: 'POST' | 'DELETE', body?: object): Promise<void> {
   if (!TOKEN) return

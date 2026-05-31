@@ -354,6 +354,9 @@ CREATE TABLE maintenance_comments (
     author_role     VARCHAR(10) NOT NULL,
     author_user_id  UUID REFERENCES users(id) ON DELETE SET NULL,
     body            TEXT NOT NULL,
+    -- Set when this comment was mirrored IN from a Mattermost reply; dedupes
+    -- the outgoing-webhook callback so a reply is never ingested twice.
+    mattermost_post_id TEXT UNIQUE,
     created_at      TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT mc_author_check CHECK (author_role IN ('tenant','admin'))
 );
