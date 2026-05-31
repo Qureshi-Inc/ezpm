@@ -81,7 +81,6 @@ export function MaintenanceRequestForm() {
           placeholder="e.g. Kitchen sink is leaking"
           maxLength={200}
           disabled={submitting}
-          autoFocus
         />
       </div>
 

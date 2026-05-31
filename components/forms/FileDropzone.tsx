@@ -12,7 +12,7 @@
  * Controlled: parent owns the File[] via value/onChange.
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { UploadCloud, X, FileText } from 'lucide-react'
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf'
@@ -30,6 +30,21 @@ export function FileDropzone({ value, onChange, disabled }: FileDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState('')
+
+  // Build a preview URL per image ONCE per file (keyed off the file list), and
+  // revoke them on change/unmount. Doing this inline in render created a new
+  // object URL on every keystroke of the parent form — reloading the <img>s,
+  // leaking memory, and causing layout jank. This makes previews stable.
+  const [previews, setPreviews] = useState<string[]>([])
+  useEffect(() => {
+    const urls = value.map((f) =>
+      f.type.startsWith('image/') && f.type !== 'image/heic' && f.type !== 'image/heif'
+        ? URL.createObjectURL(f)
+        : '',
+    )
+    setPreviews(urls)
+    return () => urls.forEach((u) => u && URL.revokeObjectURL(u))
+  }, [value])
 
   const addFiles = useCallback(
     (incoming: FileList | File[]) => {
@@ -118,10 +133,10 @@ export function FileDropzone({ value, onChange, disabled }: FileDropzoneProps) {
           {value.map((f, i) => (
             <div key={`${f.name}-${i}`} className="relative group">
               <div className="aspect-square rounded-xl border border-border bg-muted overflow-hidden flex items-center justify-center">
-                {f.type.startsWith('image/') && f.type !== 'image/heic' && f.type !== 'image/heif' ? (
+                {previews[i] ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={URL.createObjectURL(f)}
+                    src={previews[i]}
                     alt={`Attached photo ${i + 1}`}
                     className="w-full h-full object-cover"
                   />
