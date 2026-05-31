@@ -136,10 +136,12 @@ Tenants see the latest on their dashboard banner + a full list at
 `/tenant/announcements`.
 
 ### Tenant notification preferences
-`tenants.notify_maintenance_replies` (default true). Toggle on `/tenant/settings`
-(`NotificationSettings`) via `PATCH /api/tenant/notifications`. Honored by
-`lib/maintenance-notify.ts` before sending a reply email. Structured so adding
-more per-tenant email toggles is one boolean column + one row in the UI.
+Per-tenant email toggles (default true) on `/tenant/settings`
+(`NotificationSettings`) via `PATCH /api/tenant/notifications`:
+- `notify_maintenance_replies` — honored by `lib/maintenance-notify.ts`.
+- `notify_payment_receipts` — honored by `sendReceiptEmailForInvoice` in
+  `lib/stripe-event-handler.ts`.
+Structured so adding more toggles is one boolean column + one row in the UI.
 
 ### Admin "Send Password Reset"
 `/admin/tenants/[id]` → emails the tenant a Zitadel password-reset link
@@ -185,7 +187,7 @@ Outbound (app → Mattermost) uses the bot API and works anywhere. **Inbound**
 - `maintenance_comments` — two-way request thread (tenant/admin). `mattermost_post_id` (UNIQUE) dedupes replies mirrored in from Mattermost.
 - `documents` — per-tenant bidirectional document folder (file metadata; bytes on `UPLOADS_DIR` under `documents/`).
 - `announcements` — admin → tenant notices.
-- `tenants.notify_maintenance_replies` — per-tenant email toggle (default true).
+- `tenants.notify_maintenance_replies`, `tenants.notify_payment_receipts` — per-tenant email toggles (default true; tenant Settings page).
 
 ## Key Flows
 
@@ -283,7 +285,8 @@ Zitadel password reset, SMTP email, and mobile layout fixes.
 Live-environment state already applied (so don't redo these):
 - DB tables created on the live DB + PostgREST schema reloaded: `documents`,
   `announcements`, `maintenance_comments`, `maintenance_attachments.comment_id`,
-  `tenants.notify_maintenance_replies`, `maintenance_comments.mattermost_post_id`.
+  `tenants.notify_maintenance_replies`, `tenants.notify_payment_receipts`,
+  `maintenance_comments.mattermost_post_id`.
 - Coolify env on the app: `SMTP_USER=...@smtp-brevo.com` set; `BREVO_API_KEY`
   holds the SMTP key (reused as `SMTP_PASS`); `MATTERMOST_OUTGOING_TOKEN` set.
 - Coolify persistent volume mounted at `/app/uploads` (maintenance + documents).
