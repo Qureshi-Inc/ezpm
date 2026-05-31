@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Home, CreditCard, Clock, LogOut, Users, Building, DollarSign, Menu, X } from 'lucide-react'
 
@@ -14,11 +13,14 @@ interface NavigationProps {
 export function Navigation({ role, userName }: NavigationProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Auth.js signOut clears the JWE cookie and (via callbackUrl) bounces us
-  // to a public landing. Federated logout from Zitadel itself is a follow-up
-  // (call Zitadel's end_session_endpoint with id_token_hint).
+  // Federated logout: navigate to our /auth/signout route which clears the
+  // Auth.js cookie AND redirects through Zitadel's end_session endpoint so
+  // the Zitadel session dies too. Without that round-trip, signOut() just
+  // bounces the user through /auth/start which silent-SSO's them right back
+  // in via the still-alive Zitadel session — making the Logout button look
+  // like a no-op.
   const handleLogout = () => {
-    void signOut({ callbackUrl: '/' })
+    window.location.href = '/auth/signout'
   }
 
   const tenantLinks = [

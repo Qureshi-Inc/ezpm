@@ -31,6 +31,13 @@ declare module '@auth/core/jwt' {
     user_id?: string
     role?: 'admin' | 'tenant'
     zitadel_subject?: string
+    // Raw id_token from Zitadel, kept server-side ONLY (never exposed via
+    // the session callback). Used by /auth/signout to call Zitadel's
+    // end_session endpoint with id_token_hint, which is required for
+    // federated logout — without it Zitadel would keep the user's session
+    // alive and our app's signout button would immediately silent-SSO them
+    // back in.
+    id_token?: string
   }
 }
 
@@ -84,6 +91,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const sub = (profile.sub as string) || (token.sub as string)
         if (sub) {
           token.zitadel_subject = sub
+          // Stash the id_token so /auth/signout can do federated logout via
+          // Zitadel's end_session endpoint (which requires id_token_hint).
+          if (typeof account.id_token === 'string') {
+            token.id_token = account.id_token
+          }
           // Provision (or look up) the local user. This call is server-side
           // and uses the service-role Supabase client; safe from the JWT
           // callback even though it doesn't have a session yet.
