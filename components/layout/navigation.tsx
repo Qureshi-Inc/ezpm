@@ -29,7 +29,6 @@ export function Navigation({ role, userName }: NavigationProps) {
     { href: '/tenant/payment-methods', label: 'Payment Methods', icon: CreditCard },
     { href: '/tenant/maintenance', label: 'Maintenance', icon: Wrench },
     { href: '/tenant/documents', label: 'Documents', icon: FileText },
-    { href: '/tenant/announcements', label: 'Announcements', icon: Megaphone },
     { href: '/tenant/payment-history', label: 'Payment History', icon: Clock },
   ]
 
