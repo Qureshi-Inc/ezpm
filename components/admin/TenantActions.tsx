@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
-import { Edit, Trash2, Key } from 'lucide-react'
+import { Edit, Trash2 } from 'lucide-react'
 
 interface Tenant {
   id: string
@@ -23,9 +23,7 @@ interface TenantActionsProps {
 export function TenantActions({ tenant }: TenantActionsProps) {
   const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isForcingPasswordChange, setIsForcingPasswordChange] = useState(false)
   const [error, setError] = useState('')
-  const [successMessage, setSuccessMessage] = useState('')
 
   const handleDelete = async () => {
     setIsDeleting(true)
@@ -56,7 +54,7 @@ export function TenantActions({ tenant }: TenantActionsProps) {
             `• The user account\n\n` +
             `This action CANNOT be undone!`
           )
-          
+
           if (confirmForceDelete) {
             // Perform force delete
             const forceResponse = await fetch(`/api/admin/tenants/${tenant.id}`, {
@@ -82,7 +80,7 @@ export function TenantActions({ tenant }: TenantActionsProps) {
             return
           }
         }
-        
+
         throw new Error(data.error || 'Failed to delete tenant')
       }
 
@@ -97,55 +95,24 @@ export function TenantActions({ tenant }: TenantActionsProps) {
     }
   }
 
-  const handleForcePasswordChange = async () => {
-    setIsForcingPasswordChange(true)
-    setError('')
-    setSuccessMessage('')
-
-    try {
-      const response = await fetch(`/api/admin/tenants/${tenant.id}/force-password-change`, {
-        method: 'POST',
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to force password change')
-      }
-
-      setSuccessMessage(data.message)
-      setTimeout(() => setSuccessMessage(''), 5000) // Clear success message after 5 seconds
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to force password change')
-    } finally {
-      setIsForcingPasswordChange(false)
-    }
-  }
-
   const tenantName = `${tenant.first_name} ${tenant.last_name}`
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm">
           {error}
         </div>
       )}
-      
-      {successMessage && (
-        <div className="bg-success/10 border border-success/30 text-success px-4 py-3 rounded-lg text-sm">
-          {successMessage}
-        </div>
-      )}
-      
-      <div className="flex space-x-2">
-        <Link href={`/admin/tenants/${tenant.id}/edit`} className="flex-1">
-          <Button className="w-full flex items-center justify-center space-x-2">
+
+      <div className="flex gap-2">
+        <Link href={`/admin/tenants/${tenant.id}/edit`} className="flex-1 min-w-0">
+          <Button className="w-full flex items-center justify-center gap-2">
             <Edit className="w-4 h-4" />
-            <span>Edit Tenant</span>
+            <span>Edit</span>
           </Button>
         </Link>
-        
+
         <DeleteConfirmationDialog
           title="Delete Tenant"
           description="This action cannot be undone. This will permanently delete the tenant account and remove all associated data."
@@ -157,7 +124,7 @@ export function TenantActions({ tenant }: TenantActionsProps) {
             <Button
               variant="destructive"
               size="default"
-              className="flex items-center space-x-2"
+              className="flex items-center justify-center gap-2 flex-shrink-0"
               disabled={isDeleting}
             >
               <Trash2 className="w-4 h-4" />
@@ -166,31 +133,6 @@ export function TenantActions({ tenant }: TenantActionsProps) {
           }
         />
       </div>
-      
-      <div className="pt-2 border-t">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleForcePasswordChange}
-          disabled={isForcingPasswordChange}
-          className="w-full flex items-center justify-center space-x-2"
-        >
-          {isForcingPasswordChange ? (
-            <>
-              <div className="w-4 h-4 border-2 border-border border-t-transparent rounded-full animate-spin" />
-              <span>Processing...</span>
-            </>
-          ) : (
-            <>
-              <Key className="w-4 h-4" />
-              <span>Force Password Change</span>
-            </>
-          )}
-        </Button>
-        <p className="text-xs text-muted-foreground mt-1 text-center">
-          Tenant will be required to change password on next login
-        </p>
-      </div>
     </div>
   )
-} 
+}

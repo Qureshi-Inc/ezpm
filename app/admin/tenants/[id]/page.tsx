@@ -82,14 +82,14 @@ export default async function TenantDetailsPage({ params }: TenantDetailsPagePro
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Tenants
               </Link>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-tight text-foreground break-words">
                     {tenantWithRelations.first_name} {tenantWithRelations.last_name}
                   </h1>
                   <p className="text-muted-foreground mt-2">Tenant Details</p>
                 </div>
-                <div className="min-w-[200px]">
+                <div className="w-full sm:w-auto sm:min-w-[220px] sm:flex-shrink-0">
                   <TenantActions tenant={tenantWithRelations} />
                 </div>
               </div>
