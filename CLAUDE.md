@@ -55,6 +55,10 @@ SMTP_PASS=<smtp key>             # falls back to BREVO_API_KEY if unset (back-co
 EMAIL_FROM_ADDRESS=receipts@getezpm.com   # sender domain must be authenticated in the relay
 EMAIL_FROM_NAME=EZPM
 EMAIL_REPLY_TO=hello@getezpm.com
+
+# Prometheus metrics endpoint (/api/metrics). Unset = endpoint returns 404.
+# Set to a random secret; Prometheus sends it as a Bearer token (or ?token=).
+METRICS_TOKEN=<openssl rand -hex 24>
 ```
 
 ## Required Environment Variables
@@ -153,6 +157,22 @@ status change (DB update + tenant email + Mattermost emoji). Triggered by:
   bridge catches `reaction_added` (🛠️→in_progress, ✅→resolved, 🚫→cancelled)
   and relays to `POST /api/webhooks/mattermost-reaction`. (No emoji maps to
   `open`; reopen via the web UI. `reaction_removed` is ignored — ambiguous.)
+
+### Admin analytics dashboard + metrics
+`/admin` shows KPI cards + charts (rent collected, payments succeeded/failed,
+tenant growth, maintenance created/resolved) with a timeframe selector
+(1M/3M/6M/1Y/2Y/Max). `components/admin/AnalyticsDashboard.tsx` (Recharts) fetches
+`GET /api/admin/metrics?range=…`. All aggregation lives in `lib/metrics.ts`
+(`getDashboardMetrics` for the dashboard, `getBusinessSnapshot` for gauges) —
+JS reducers over windowed rows; swap for SQL RPCs if it ever needs scale.
+
+**Prometheus / Grafana:** `GET /api/metrics` emits the business gauges in
+Prometheus text format, token-guarded by `METRICS_TOKEN` (Bearer or `?token=`;
+404 when unset). Point Prometheus at it (`metrics_path: /api/metrics`), graph in
+Grafana. Runtime/perf metrics (HTTP latency histograms, error rates) are the
+documented next step: add `prom-client`, register default + histogram metrics,
+and merge `register.metrics()` into the same endpoint so the scrape config never
+changes.
 
 ### Admin "Send Password Reset"
 `/admin/tenants/[id]` → emails the tenant a Zitadel password-reset link
