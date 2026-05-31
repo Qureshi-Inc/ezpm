@@ -42,10 +42,12 @@ export async function GET() {
       .eq('tenant_id', tenant.id)
       .order('created_at', { ascending: false })
     if (error) {
+      console.error('[maintenance/list] db error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
     return NextResponse.json({ requests: data ?? [] })
-  } catch {
+  } catch (err) {
+    console.error('[maintenance/list] failed:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -118,6 +120,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (insertError || !created) {
+      console.error('[maintenance/create] insert error:', insertError)
       return NextResponse.json(
         { error: `Failed to create request: ${insertError?.message}` },
         { status: 500 },
@@ -158,17 +161,22 @@ export async function POST(request: NextRequest) {
       `**${title}** _(${category})_\n**Tenant:** ${tenantName}${where}${details}`
 
     void (async () => {
-      const rootId = await postMaintenanceMessage(rootMessage)
-      if (rootId) {
-        await supabase
-          .from('maintenance_requests')
-          .update({ mattermost_root_id: rootId })
-          .eq('id', created.id)
+      try {
+        const rootId = await postMaintenanceMessage(rootMessage)
+        if (rootId) {
+          await supabase
+            .from('maintenance_requests')
+            .update({ mattermost_root_id: rootId })
+            .eq('id', created.id)
+        }
+      } catch (err) {
+        console.error('[maintenance/create] mattermost post failed (non-fatal):', err)
       }
     })()
 
     return NextResponse.json({ success: true, request: created })
-  } catch {
+  } catch (err) {
+    console.error('[maintenance/create] failed:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
