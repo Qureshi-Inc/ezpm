@@ -4,13 +4,27 @@ Rent-collection platform for a small portfolio of properties. Tenants log in via
 
 Production: https://app.getezpm.com
 
+## Features
+
+- **Auto-pay rent** — tenants save a card or US bank account (ACH); Stripe Subscriptions charges them on their monthly due date. Branded email receipts on every payment.
+- **Maintenance requests** — tenants report issues with photos; admin tracks status (`open → in_progress → resolved`); a two-way comment thread on each request. Status/reply emails to the tenant.
+- **Documents** — a per-tenant folder both the tenant and admin can upload to (lease, insurance, proof of income, notices) with ownership-checked file serving.
+- **Announcements** — admin posts notices that appear on every tenant's dashboard, optionally emailed.
+- **Notification preferences** — tenants opt out of specific emails in `/tenant/settings`.
+- **Invite-only auth** — Zitadel OIDC; first user becomes admin; one-click tenant invites; admin-triggered password resets.
+- **Optional Mattermost ops integration** — request/payment notifications, one thread per maintenance request with emoji status, and an optional bridge that mirrors Mattermost thread replies back into the app (see [`mattermost-bridge/`](./mattermost-bridge/)).
+
+All integrations are env-gated: leave the keys unset and that feature silently disables.
+
 ## Stack
 
 - **Next.js 15** (App Router, React 19, TypeScript, Tailwind, shadcn/ui)
 - **Auth.js v5** with Zitadel OIDC provider (`auth.getezpm.com`)
 - **Stripe** — cards + `us_bank_account` (ACH via Financial Connections), Subscriptions for monthly auto-pay
-- **Supabase Postgres** for data
+- **Supabase Postgres** for data (self-hosted Postgres + PostgREST works too)
+- **Email** — any SMTP relay via `SMTP_*` env (we use Brevo)
 - **Coolify** for self-hosted deploy (auto-deploy on push to main)
+- **Optional:** Mattermost ops notifications + two-way maintenance bridge
 
 See [CLAUDE.md](./CLAUDE.md) for full architecture, env vars, key flows, and security model.
 

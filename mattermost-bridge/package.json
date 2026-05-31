@@ -1,0 +1,13 @@
+{
+  "name": "ezpm-mattermost-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Relays Mattermost in-thread maintenance replies into the EZPM app (optional two-way sync)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

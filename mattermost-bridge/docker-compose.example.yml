@@ -1,0 +1,14 @@
+# Copy to docker-compose.yml and run: docker compose up -d --build
+# Stateless + restart:unless-stopped, so it survives reboots and redeploys.
+services:
+  mattermost-bridge:
+    build: .
+    container_name: ezpm-mm-bridge
+    restart: unless-stopped
+    env_file: .env
+    # Optional: Homepage (gethomepage.dev) dashboard labels — remove if unused.
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=EZPM Mattermost Bridge
+      - homepage.description=Relays Mattermost thread replies into EZPM maintenance
+      - homepage.icon=mattermost.svg
