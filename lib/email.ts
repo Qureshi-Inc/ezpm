@@ -1,28 +1,33 @@
 /**
- * Transactional email for EZPM — branded receipts + maintenance status updates.
+ * Transactional email for EZPM — branded receipts, maintenance updates, etc.
  *
- * Uses Brevo's HTTP transactional API (no SMTP/nodemailer dependency, just
- * fetch). FIRE-AND-FORGET: send failures are logged and swallowed so they can
- * never break a webhook handler or request.
+ * Sends over SMTP (Brevo relay — the same path Zitadel uses for this domain).
+ * FIRE-AND-FORGET: send failures are logged and swallowed so they can never
+ * break a webhook handler or request.
  *
  * Configuration:
- *   BREVO_API_KEY        - Brevo API key (Brevo → SMTP & API → API Keys,
- *                          format xkeysib-...). Different from the SMTP key
- *                          used by Zitadel.
- *   EMAIL_FROM_ADDRESS   - sender address, e.g. receipts@getezpm.com
- *                          (must be a verified sender/domain in Brevo)
+ *   SMTP_HOST            - default smtp-relay.brevo.com
+ *   SMTP_PORT            - default 587 (STARTTLS); 465 uses implicit TLS
+ *   SMTP_USER            - Brevo SMTP login (e.g. xxxxx@smtp-brevo.com)
+ *   SMTP_PASS            - the SMTP key (xsmtpsib-...). Falls back to
+ *                          BREVO_API_KEY for back-compat with the old env.
+ *   EMAIL_FROM_ADDRESS   - sender, default receipts@getezpm.com (domain must be
+ *                          authenticated in Brevo)
  *   EMAIL_FROM_NAME      - sender display name, default "EZPM"
- *   EMAIL_REPLY_TO       - optional reply-to (e.g. hello@getezpm.com)
+ *   EMAIL_REPLY_TO       - reply-to, default hello@getezpm.com
  *
- * If BREVO_API_KEY is unset, all sends are silent no-ops (no errors).
+ * If SMTP_USER/SMTP_PASS are unset, all sends are silent no-ops (no errors).
  *
- * Templates share ONE brand shell — emailLayout() — so the receipt and the
- * maintenance-status email can never drift in header/footer/palette. Add a new
- * email by writing its inner content and calling emailLayout().
+ * Templates share ONE brand shell — emailLayout() — so every email stays on
+ * palette. Add a new email by writing its inner content and calling it.
  */
 
-const BREVO_API = 'https://api.brevo.com/v3/smtp/email'
-const API_KEY = process.env.BREVO_API_KEY
+import nodemailer, { type Transporter } from 'nodemailer'
+
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp-relay.brevo.com'
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10)
+const SMTP_USER = process.env.SMTP_USER
+const SMTP_PASS = process.env.SMTP_PASS || process.env.BREVO_API_KEY
 const FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || 'receipts@getezpm.com'
 const FROM_NAME = process.env.EMAIL_FROM_NAME || 'EZPM'
 const REPLY_TO = process.env.EMAIL_REPLY_TO || 'hello@getezpm.com'
@@ -34,39 +39,38 @@ export interface SendEmailInput {
   html: string
 }
 
+let transporter: Transporter | null = null
+function getTransporter(): Transporter | null {
+  if (!SMTP_USER || !SMTP_PASS) return null
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_PORT === 465,
+      auth: { user: SMTP_USER, pass: SMTP_PASS },
+    })
+  }
+  return transporter
+}
+
 /**
  * Send one transactional email. Returns true on success, false on any failure
  * (including unconfigured). Never throws.
  */
 export async function sendEmail(input: SendEmailInput): Promise<boolean> {
-  if (!API_KEY) {
-    return false // unconfigured — silently skip
-  }
+  const t = getTransporter()
+  if (!t) return false // unconfigured — silently skip
   try {
-    const res = await fetch(BREVO_API, {
-      method: 'POST',
-      headers: {
-        'api-key': API_KEY,
-        'content-type': 'application/json',
-        accept: 'application/json',
-      },
-      body: JSON.stringify({
-        sender: { name: FROM_NAME, email: FROM_ADDRESS },
-        to: [{ email: input.to, name: input.toName || input.to }],
-        replyTo: { email: REPLY_TO, name: FROM_NAME },
-        subject: input.subject,
-        htmlContent: input.html,
-      }),
-      signal: AbortSignal.timeout(8000),
+    await t.sendMail({
+      from: { name: FROM_NAME, address: FROM_ADDRESS },
+      to: input.toName ? `"${input.toName}" <${input.to}>` : input.to,
+      replyTo: REPLY_TO,
+      subject: input.subject,
+      html: input.html,
     })
-    if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      console.warn(`[email] Brevo returned ${res.status}: ${body.slice(0, 200)}`)
-      return false
-    }
     return true
   } catch (err) {
-    console.warn('[email] send failed (non-fatal):', err instanceof Error ? err.message : err)
+    console.warn('[email] SMTP send failed (non-fatal):', err instanceof Error ? err.message : err)
     return false
   }
 }
