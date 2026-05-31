@@ -15,6 +15,17 @@ Production: https://app.getezpm.com (Coolify auto-deploy on push to main).
 - **Payments:** Stripe (cards + `us_bank_account`/ACH via Financial Connections), Stripe Subscriptions for monthly auto-charge
 - **Deploy:** Coolify on a self-hosted server. Domain `app.getezpm.com` routes through Cloudflare → cloudflared tunnel → Traefik (Coolify proxy on `localhost:443` with self-signed cert + `noTLSVerify`). The standalone Zitadel routes through Cloudflare → cloudflared tunnel → its own Caddy on `localhost:8091`.
 
+## Optional Environment Variables
+
+```
+# Mattermost operational notifications (lib/notify.ts)
+# Fires on: new tenant signup, subscription created, rent charged.
+# Leave unset to disable notifications silently (no errors, no-op).
+# Bot: 54doh4cy7ig8fpphwtqfw3h98c on mm.qureshi.io
+# In Mattermost: Integrations → Incoming Webhooks → Add Webhook → copy URL.
+MATTERMOST_WEBHOOK_URL=https://mm.qureshi.io/hooks/<token>
+```
+
 ## Required Environment Variables
 
 ```

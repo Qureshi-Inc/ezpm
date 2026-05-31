@@ -10,6 +10,7 @@
 
 import type Stripe from 'stripe'
 import type { createServerSupabaseClient } from './supabase'
+import { notify } from './notify'
 
 type Supabase = ReturnType<typeof createServerSupabaseClient>
 
@@ -28,6 +29,9 @@ export async function handleStripeEvent(event: Stripe.Event, supabase: Supabase)
           (invoice.status_transitions?.paid_at ?? invoice.created) * 1000,
         ).toISOString(),
       })
+      // Look up tenant info for the Mattermost notification. This is a
+      // separate query so mirrorInvoice stays unchanged and independent.
+      void notifyRentCharged(invoice, supabase)
       break
     }
 
@@ -153,6 +157,33 @@ async function tenantIdFromCustomer(
     .eq('stripe_customer_id', customerId)
     .maybeSingle()
   return data?.id ?? null
+}
+
+/**
+ * Fire-and-forget: looks up the tenant from the invoice's customer and sends
+ * a Mattermost notification. Errors are silently swallowed so they can never
+ * affect the webhook response or the mirrorInvoice result.
+ */
+async function notifyRentCharged(invoice: Stripe.Invoice, supabase: Supabase): Promise<void> {
+  try {
+    const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
+    if (!customerId) return
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('email, first_name, last_name')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle()
+    if (!tenant) return
+    notify.rentCharged({
+      email: tenant.email,
+      firstName: tenant.first_name,
+      lastName: tenant.last_name,
+      amount: invoice.amount_paid / 100,
+      invoiceId: invoice.id,
+    })
+  } catch {
+    // Never let a notification failure bubble up to the webhook handler.
+  }
 }
 
 function mapInvoiceStatus(stripeStatus: Stripe.Invoice.Status | null): string {

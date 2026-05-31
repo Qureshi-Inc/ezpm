@@ -16,6 +16,7 @@
  */
 
 import { createServerSupabaseClient } from '@/lib/supabase'
+import { notify } from '@/lib/notify'
 
 // Constant chosen with no significance other than uniqueness within ezpm.
 // pg_advisory_xact_lock takes a bigint and releases on transaction end.
@@ -80,8 +81,22 @@ export async function provisionUserFromZitadel(claims: {
   // ambiguity inside the function body — see provision_user_from_zitadel in
   // supabase/schema.sql for the why).
   const row = Array.isArray(provisioned) ? provisioned[0] : provisioned
-  return {
+  const result = {
     user_id: row.out_user_id as string,
     role: row.out_role as 'admin' | 'tenant',
   }
+
+  // Fire-and-forget Mattermost notification for new tenant sign-ups.
+  // Only fires on first-ever login (when provision_user_from_zitadel actually
+  // INSERTs a row), not on subsequent logins (which return via the fast-path
+  // SELECT at the top of this function, bypassing this block entirely).
+  if (result.role === 'tenant') {
+    notify.tenantSignedUp({
+      email: claims.email,
+      firstName: claims.first_name,
+      lastName: claims.last_name,
+    })
+  }
+
+  return result
 }

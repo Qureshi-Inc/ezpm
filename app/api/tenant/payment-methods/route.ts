@@ -21,6 +21,7 @@ import {
   ensureStripeCustomer,
   createSubscriptionForTenant,
 } from '@/lib/stripe-subscriptions'
+import { notify } from '@/lib/notify'
 
 export async function POST(request: NextRequest) {
   try {
@@ -157,6 +158,13 @@ export async function POST(request: NextRequest) {
             stripePaymentMethodId,
           )
           subscriptionCreated = true
+          notify.subscriptionCreated({
+            email: tenant.email,
+            firstName: tenant.first_name,
+            lastName: tenant.last_name,
+            rentAmount: Number(property.rent_amount),
+            paymentMethodType: type,
+          })
         } catch (err) {
           // Don't block the PM-add response on subscription-create failure —
           // the PM is saved and admin can manually trigger subscription
