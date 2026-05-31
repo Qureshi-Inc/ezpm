@@ -49,6 +49,12 @@ export async function POST(request: NextRequest) {
       return ok()
     }
 
+    // Diagnostic: confirms Mattermost actually delivered (root posts vs thread
+    // replies behave differently). Logs no message content beyond a short tag.
+    console.log(
+      `[webhooks/mattermost] hit: post_id=${payload.post_id || '-'} trigger=${payload.trigger_word || '-'} tokenOK=${!!expected && payload.token === expected}`,
+    )
+
     const postId = (payload.post_id || '').trim()
     const userId = (payload.user_id || '').trim()
 
