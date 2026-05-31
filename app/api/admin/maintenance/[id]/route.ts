@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { sendMaintenanceStatusEmail, type MaintenanceStatus } from '@/lib/email'
-import { postMaintenanceMessage } from '@/lib/mattermost'
+import { reactMaintenanceStatus } from '@/lib/mattermost'
 
 const STATUSES: MaintenanceStatus[] = ['open', 'in_progress', 'resolved', 'cancelled']
 
@@ -52,8 +52,9 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // On a real change: email the tenant AND reply in the request's Mattermost
-    // thread so the channel shows the full lifecycle under one root post.
+    // On a real change: email the tenant AND react on the request's Mattermost
+    // root post so the channel shows the live status as a single emoji (instead
+    // of stacking status messages in the thread).
     if (req.status !== status) {
       const tenant = req.tenant as unknown as { email: string; first_name: string | null; last_name: string | null } | null
       const property = req.property as unknown as { address: string | null; unit_number: string | null } | null
@@ -67,15 +68,7 @@ export async function PATCH(
           propertyUnit: property?.unit_number ?? null,
         })
       }
-      if (req.mattermost_root_id) {
-        const STATUS_TEXT: Record<string, string> = {
-          open: '↩️ Reopened',
-          in_progress: '🛠️ Marked **in progress**',
-          resolved: '✅ Marked **resolved**',
-          cancelled: '🚫 Cancelled',
-        }
-        void postMaintenanceMessage(STATUS_TEXT[status] ?? `Status: ${status}`, { rootId: req.mattermost_root_id })
-      }
+      void reactMaintenanceStatus(req.mattermost_root_id, status)
     }
 
     return NextResponse.json({ success: true })

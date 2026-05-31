@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentTenant } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase'
+import { reactMaintenanceStatus } from '@/lib/mattermost'
 
 export async function PATCH(
   request: NextRequest,
@@ -28,7 +29,7 @@ export async function PATCH(
     const supabase = createServerSupabaseClient()
     const { data: req } = await supabase
       .from('maintenance_requests')
-      .select('id, tenant_id, status')
+      .select('id, tenant_id, status, mattermost_root_id')
       .eq('id', id)
       .maybeSingle()
 
@@ -49,6 +50,10 @@ export async function PATCH(
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // Reflect the cancellation on the Mattermost root post (🚫). Non-blocking.
+    void reactMaintenanceStatus(req.mattermost_root_id, 'cancelled')
+
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

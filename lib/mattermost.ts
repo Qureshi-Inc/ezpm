@@ -150,3 +150,63 @@ export async function postMaintenanceMessage(
   })
   return post?.id ?? null
 }
+
+// ──────────────────────────────────────────────────────────────
+// Status reactions (instead of status messages)
+// ──────────────────────────────────────────────────────────────
+
+// Status → Mattermost emoji name (no colons). Only these three statuses get a
+// reaction; 'open'/reopen clears them so the root post shows the live status as
+// a single emoji.
+const STATUS_EMOJI: Record<string, string> = {
+  in_progress: 'hammer_and_wrench',
+  resolved: 'white_check_mark',
+  cancelled: 'no_entry_sign',
+}
+const ALL_STATUS_EMOJI = Object.values(STATUS_EMOJI)
+
+// The bot's own user id is required to add/remove reactions. Cache it.
+let cachedBotUserId: string | null = null
+async function botUserId(): Promise<string | null> {
+  if (cachedBotUserId) return cachedBotUserId
+  const me = await api<{ id: string }>('/users/me')
+  cachedBotUserId = me?.id ?? null
+  return cachedBotUserId
+}
+
+/** Quiet reaction call — a 404 when removing a missing reaction is expected. */
+async function reactionCall(path: string, method: 'POST' | 'DELETE', body?: object): Promise<void> {
+  if (!TOKEN) return
+  try {
+    await fetch(`${BASE}/api/v4${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(6000),
+    })
+  } catch {
+    /* non-fatal */
+  }
+}
+
+/**
+ * Reflect a request's status on its root post as a single emoji reaction
+ * (🛠️ in progress / ✅ resolved / 🚫 cancelled). Clears the other status
+ * emojis first so only the current one shows. 'open'/reopen clears all three.
+ * Fully non-fatal — never throws.
+ */
+export async function reactMaintenanceStatus(rootId: string | null | undefined, status: string): Promise<void> {
+  if (!TOKEN || !rootId) return
+  const uid = await botUserId()
+  if (!uid) return
+
+  const keep = STATUS_EMOJI[status]
+  // Remove every status emoji except the one we're about to (or want to) keep.
+  for (const emoji of ALL_STATUS_EMOJI) {
+    if (emoji === keep) continue
+    await reactionCall(`/users/${uid}/posts/${rootId}/reactions/${emoji}`, 'DELETE')
+  }
+  if (keep) {
+    await reactionCall('/reactions', 'POST', { user_id: uid, post_id: rootId, emoji_name: keep })
+  }
+}
