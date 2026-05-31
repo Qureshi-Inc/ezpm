@@ -79,15 +79,15 @@ export default async function PropertyDetailsPage({ params, searchParams }: Prop
                 </div>
               )}
               
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">{property.address}</h1>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-tight text-foreground break-words">{property.address}</h1>
                   {property.unit_number && (
                     <p className="text-muted-foreground mt-1">Unit {property.unit_number}</p>
                   )}
                   <p className="text-muted-foreground mt-2">Property Details</p>
                 </div>
-                <div className="min-w-[200px]">
+                <div className="w-full sm:w-auto sm:min-w-[220px] sm:flex-shrink-0">
                   <PropertyActions property={property} />
                 </div>
               </div>

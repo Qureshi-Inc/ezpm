@@ -60,11 +60,11 @@ export function PropertyActions({ property }: PropertyActionsProps) {
         </div>
       )}
       
-      <div className="flex space-x-2">
-        <Link href={`/admin/properties/${property.id}/edit`} className="flex-1">
-          <Button className="w-full flex items-center justify-center space-x-2">
+      <div className="flex gap-2">
+        <Link href={`/admin/properties/${property.id}/edit`} className="flex-1 min-w-0">
+          <Button className="w-full flex items-center justify-center gap-2">
             <Edit className="w-4 h-4" />
-            <span>Edit Property</span>
+            <span>Edit</span>
           </Button>
         </Link>
         
@@ -79,7 +79,7 @@ export function PropertyActions({ property }: PropertyActionsProps) {
             <Button
               variant="destructive"
               size="default"
-              className="flex items-center space-x-2"
+              className="flex items-center justify-center gap-2 flex-shrink-0"
               disabled={isDeleting}
             >
               <Trash2 className="w-4 h-4" />
