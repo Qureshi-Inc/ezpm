@@ -1,69 +1,184 @@
 # EZPM — EZ Property Manager
 
-Rent-collection platform for a small portfolio of properties. Tenants log in via Zitadel OIDC, save a card or bank account, and Stripe Subscriptions auto-charges them on their monthly due date.
+Self-hosted rent collection for small landlords. Tenants log in, save a card or bank account, and get charged automatically every month. You manage tenants, properties, maintenance, and documents from one admin UI. No SaaS middleman, no per-unit fees.
 
-Production: https://app.getezpm.com
+Production: **https://app.getezpm.com** · Marketing: **https://getezpm.com** · License: **AGPLv3**
 
-## Features
+> Built on Stripe (cards + ACH), Zitadel (OIDC auth), and a self-hosted Postgres. Every third-party integration is optional and turns itself off when you leave its keys unset.
 
-- **Auto-pay rent** — tenants save a card or US bank account (ACH); Stripe Subscriptions charges them on their monthly due date. Branded email receipts on every payment.
-- **Maintenance requests** — tenants report issues with photos; admin tracks status (`open → in_progress → resolved`); a two-way comment thread on each request. Status/reply emails to the tenant.
-- **Documents** — a per-tenant folder both the tenant and admin can upload to (lease, insurance, proof of income, notices) with ownership-checked file serving.
-- **Announcements** — admin posts notices that appear on every tenant's dashboard, optionally emailed.
-- **Notification preferences** — tenants opt out of specific emails in `/tenant/settings`.
-- **Invite-only auth** — Zitadel OIDC; first user becomes admin; one-click tenant invites; admin-triggered password resets.
-- **Optional Mattermost ops integration** — request/payment notifications, one thread per maintenance request with emoji status, and an optional bridge that mirrors Mattermost thread replies back into the app (see [`mattermost-bridge/`](./mattermost-bridge/)).
+---
 
-All integrations are env-gated: leave the keys unset and that feature silently disables.
+## What it does
 
-## Stack
+**For tenants**
+- **Auto-pay rent** with a saved card or US bank account (ACH). Stripe Subscriptions charges them on their due day; failed charges can be retried with another method.
+- **Email receipts** on every successful payment.
+- **Report maintenance issues** with photos, then follow status (open → in progress → resolved) and chat with the manager in a per-request thread.
+- **Documents** folder shared with the manager (renters insurance, proof of income, lease, notices).
+- **Announcements** on the dashboard.
+- **Notification settings** to opt out of specific emails.
 
-- **Next.js 15** (App Router, React 19, TypeScript, Tailwind, shadcn/ui)
-- **Auth.js v5** with Zitadel OIDC provider (`auth.getezpm.com`)
-- **Stripe** — cards + `us_bank_account` (ACH via Financial Connections), Subscriptions for monthly auto-pay
-- **Supabase Postgres** for data (self-hosted Postgres + PostgREST works too)
-- **Email** — any SMTP relay via `SMTP_*` env (we use Brevo)
-- **Coolify** for self-hosted deploy (auto-deploy on push to main)
-- **Optional:** Mattermost ops notifications + two-way maintenance bridge
+**For the landlord (admin)**
+- Pre-stage tenants and send **one-click Zitadel invites**.
+- Assign properties, set the monthly rent and due day; the Stripe Subscription follows.
+- Track every maintenance request, change status, reply (emails the tenant), and share documents.
+- Post announcements, trigger a tenant **password reset**, and reconcile Stripe after downtime.
 
-See [CLAUDE.md](./CLAUDE.md) for full architecture, env vars, key flows, and security model.
+**Optional ops integration (Mattermost)**
+- New signups, subscriptions, charges, and failures post to a channel.
+- Each maintenance request becomes its own thread with the tenant's photos; status shows as a single emoji reaction (🛠️ / ✅ / 🚫).
+- A small [bridge service](./mattermost-bridge/) lets your team reply **inside the thread** and have it land in the app as a comment plus an email to the tenant.
 
-## Local development
+---
+
+## Architecture
+
+```
+        Tenant / Admin browser
+                │ HTTPS
+                ▼
+   Cloudflare ──tunnel──▶ Traefik (Coolify) ──▶ Next.js 15 app  (app.getezpm.com)
+                                                      │
+        ┌──────────────┬───────────────┬─────────────┼──────────────┬───────────────┐
+        ▼              ▼               ▼             ▼              ▼               ▼
+   Zitadel OIDC    Stripe API     PostgREST +     SMTP relay    Mattermost     Disk volume
+ (auth.getezpm)  (Subscriptions)   Postgres       (email)       (bot + bridge)  (UPLOADS_DIR:
+   Auth.js v5     webhooks ▶ app   via JS SDK     nodemailer    notify/threads  photos + docs)
+```
+
+- **Auth** is OIDC against a dedicated Zitadel instance. The first user to log in becomes admin (atomic SQL lock); self-registration is off, so the platform is invite-only.
+- **Payments** live in Stripe. The local `payments` table is a mirror kept in sync by signed webhooks with an idempotency table so retries never double-count.
+- **Data** is plain Postgres reached through PostgREST. The app uses `@supabase/supabase-js` against a Caddy-shimmed endpoint, so the code is identical whether you point it at Supabase SaaS or your own box.
+- **Files** (maintenance photos, documents) are written to a mounted disk volume and served only through ownership-checked routes. There are no public file URLs.
+
+Full design, key flows, and the security model are in **[CLAUDE.md](./CLAUDE.md)**.
+
+---
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Web | Next.js 15 (App Router), React 19, TypeScript, Tailwind, shadcn/ui |
+| Auth | Auth.js v5 (`next-auth@beta`) + Zitadel OIDC |
+| Payments | Stripe (cards + `us_bank_account` via Financial Connections), Subscriptions |
+| Data | Postgres + PostgREST (Supabase JS client; Supabase SaaS also works) |
+| Email | Any SMTP relay via `nodemailer` (we use Brevo) |
+| Notifications | Mattermost bot API + optional WebSocket bridge |
+| Deploy | Coolify on a self-hosted server, behind Cloudflare |
+| Tests | Vitest (file-storage security suite) |
+
+---
+
+## Quick start (local dev)
 
 ```bash
 git clone git@github.com:Qureshi-Inc/ezpm.git
 cd ezpm
 npm install
-cp .env.example .env.local
-# Fill in .env.local — see CLAUDE.md for what each var means
-npm run dev
+cp .env.example .env.local   # fill in your keys — see Configuration below
+npm run dev                  # http://localhost:3000
 ```
 
-To run the app locally against the same Zitadel + Stripe accounts as prod:
-- Make sure your Zitadel OIDC app has `http://localhost:3000/api/auth/callback/zitadel` registered as a redirect URI AND dev mode is enabled (see `scripts/zitadel-setup-runbook.md`).
-- Use Stripe test keys (`sk_test_...`, `pk_test_...`) in `.env.local`.
+To run against the same Zitadel + Stripe as prod:
+- Register `http://localhost:3000/api/auth/callback/zitadel` as a redirect URI on your Zitadel OIDC app and enable dev mode (see [`scripts/zitadel-setup-runbook.md`](./scripts/zitadel-setup-runbook.md)).
+- Use Stripe **test** keys (`sk_test_…`, `pk_test_…`).
 
-## Operational scripts
+---
+
+## Configuration
+
+Set these as environment variables (Coolify in prod, `.env.local` for dev). The full annotated list lives in [CLAUDE.md](./CLAUDE.md#required-environment-variables).
+
+**Required**
+
+| Variable | What it is |
+|---|---|
+| `AUTH_SECRET` | `openssl rand -base64 32` |
+| `AUTH_ZITADEL_ID` / `AUTH_ZITADEL_SECRET` / `AUTH_ZITADEL_ISSUER` | OIDC client + issuer URL |
+| `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` | App base URL |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | Data layer |
+| `UPLOADS_DIR` | Mounted volume for photos + documents (e.g. `/app/uploads`) |
+
+**Optional (each disables silently when unset)**
+
+| Variable | Enables |
+|---|---|
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | All email (receipts, maintenance, announcements). Use the SMTP key, not an HTTP API key. |
+| `ZITADEL_SERVICE_TOKEN` / `ZITADEL_ORG_ID` | One-click tenant invites + admin password reset |
+| `MATTERMOST_WEBHOOK_URL` | Ops notifications (signup, subscription, rent) |
+| `MATTERMOST_URL` / `MATTERMOST_BOT_TOKEN` / `MATTERMOST_MAINTENANCE_CHANNEL_ID` | Maintenance threads + emoji status + photos |
+| `MATTERMOST_OUTGOING_TOKEN` | Inbound replies from Mattermost (with the bridge) |
+
+> One persistent volume at `UPLOADS_DIR` covers both maintenance photos and documents. Without it, uploaded files vanish on every redeploy.
+
+---
+
+## Deployment
+
+EZPM runs anywhere that hosts a Next.js app plus a Postgres. The reference setup is Coolify on a single server behind Cloudflare:
+
+1. Point your app domain at the server (Cloudflare tunnel → Traefik works well).
+2. Stand up Postgres + PostgREST (a Caddy-shimmed compose stack), or point the `SUPABASE_*` vars at Supabase SaaS.
+3. Create the Stripe webhook → `https://<app>/api/webhooks/stripe`, set `STRIPE_WEBHOOK_SECRET`.
+4. Set up Zitadel ([runbook](./scripts/zitadel-setup-runbook.md)).
+5. Mount a persistent volume at `UPLOADS_DIR`.
+6. Deploy; the first person to log in becomes admin.
+
+For the live cutover from an older schema, see [`MIGRATION.md`](./MIGRATION.md).
+
+---
+
+## Database
+
+`supabase/schema.sql` is the single source of truth. Core tables: `users`, `tenants`, `properties`, `payment_methods`, `payments`, `stripe_events`, `system_settings`. Feature tables: `maintenance_requests`, `maintenance_attachments`, `maintenance_comments`, `documents`, `announcements`. Per-tenant email toggles live on `tenants`.
+
+Apply to a fresh database by running the file in your SQL editor. The table-by-table rundown is in [CLAUDE.md](./CLAUDE.md#database-schema-supabaseschemasql).
+
+---
+
+## Scripts
 
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Local dev server on `http://localhost:3000` |
 | `npm run build` | Production build |
 | `npm run lint` | ESLint |
-| `npm run reconcile-stripe` | Replay Stripe events since the last successful sync. Use after server downtime to catch missed webhooks. Add `-- --dry-run` to preview. |
+| `npm test` | Vitest (file-storage security suite) |
+| `npm run reconcile-stripe` | Replay Stripe events since the last sync after downtime (add `-- --dry-run` to preview) |
+| `npm run preview-receipt` | Render the receipt email to `email-templates/receipt-preview.html` |
 
-## Database schema
+---
 
-`supabase/schema.sql` is the single source of truth. To apply to a fresh database:
-1. Drop everything: `DROP TABLE IF EXISTS auto_payments, payments, payment_methods, tenants, properties, users CASCADE;`
-2. Run the schema file in the Supabase SQL Editor.
+## Security highlights
 
-For the LIVE database cutover from the old (custom-auth + Moov) schema, see [`MIGRATION.md`](./MIGRATION.md).
+- Sessions are encrypted+signed JWE cookies (Auth.js v5).
+- Logout is federated: it kills both the app session and the Zitadel session, so the user isn't silently signed back in.
+- Admin is gated to the first authenticated user via an atomic SQL lock; self-registration is off.
+- Stripe webhooks verify the signature before doing anything; an idempotency table blocks replays.
+- Uploaded files use random UUID names, server-side type/size checks, path-traversal guards, and ownership-checked serving (`lib/storage.test.ts` covers these).
+- No raw card or bank numbers ever touch the server; everything is tokenized by Stripe.
 
-## Zitadel setup
+---
 
-One-time setup is in [`scripts/zitadel-setup-runbook.md`](./scripts/zitadel-setup-runbook.md). Run that first; come back here for the rest.
+## Documentation
+
+| Doc | Read it for |
+|---|---|
+| [CLAUDE.md](./CLAUDE.md) | Architecture, env reference, key flows, security model, schema |
+| [MIGRATION.md](./MIGRATION.md) | Live cutover from the old custom-auth + Moov schema |
+| [MAINTENANCE-PLAN.md](./MAINTENANCE-PLAN.md) | Design of the maintenance feature |
+| [scripts/zitadel-setup-runbook.md](./scripts/zitadel-setup-runbook.md) | One-time Zitadel setup |
+| [mattermost-bridge/README.md](./mattermost-bridge/README.md) | Optional two-way Mattermost sync |
+| [docs/README.md](./docs/README.md) | Marketing site (GitHub Pages) |
+
+---
+
+## Contributing
+
+Issues and PRs welcome. Keep new third-party integrations behind a config guard that no-ops when unset (see `lib/email.ts`, `lib/mattermost.ts`), and never hardcode instance IDs or credentials.
 
 ## License
 
-[AGPLv3](LICENSE).
+[AGPLv3](LICENSE). If you run a modified version as a network service, you must offer your users the source.
