@@ -213,6 +213,9 @@ export function statusButtonsAttachment(requestId: string, current: string): obj
     const isCurrent = s === current
     return {
       id: `set_${s}`,
+      // `type` is REQUIRED by Mattermost; without it the action is rejected as
+      // invalid and clicks 404.
+      type: 'button',
       // Each button is colored by its status (blue/green/red; open stays neutral).
       // The CURRENT status is marked with a ✓ so it's obvious at a glance.
       name: `${m.emoji} ${m.label}${isCurrent ? ' ✓' : ''}`,
@@ -242,6 +245,7 @@ export function replyButtonAttachment(requestId: string): object {
     actions: [
       {
         id: 'open_thread',
+        type: 'button',
         name: '💬 Reply to tenant',
         style: 'primary',
         integration: {
