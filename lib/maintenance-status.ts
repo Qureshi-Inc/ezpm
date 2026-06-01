@@ -9,14 +9,24 @@
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { sendMaintenanceStatusEmail, type MaintenanceStatus } from '@/lib/email'
 import { reactMaintenanceStatus } from '@/lib/mattermost'
+import { sendSMS } from '@/lib/sms'
 
 export const MAINT_STATUSES: MaintenanceStatus[] = ['open', 'in_progress', 'resolved', 'cancelled']
 
+const STATUS_LABELS: Record<MaintenanceStatus, string> = {
+  open: 'open',
+  in_progress: 'in progress',
+  resolved: 'resolved',
+  cancelled: 'cancelled',
+}
+
 interface TenantRow {
   email: string | null
+  phone: string | null
   first_name: string | null
   last_name: string | null
   notify_maintenance_status: boolean | null
+  notify_sms: boolean | null
 }
 interface PropertyRow {
   address: string | null
@@ -42,7 +52,7 @@ export async function applyMaintenanceStatus(
   const { data: req } = await supabase
     .from('maintenance_requests')
     .select(
-      'id, status, title, mattermost_root_id, tenant:tenants(email, first_name, last_name, notify_maintenance_status), property:properties(address, unit_number)',
+      'id, status, title, mattermost_root_id, tenant:tenants(email, phone, first_name, last_name, notify_maintenance_status, notify_sms), property:properties(address, unit_number)',
     )
     .eq('id', requestId)
     .maybeSingle()
@@ -69,6 +79,15 @@ export async function applyMaintenanceStatus(
       status,
       propertyAddress: property?.address ?? null,
       propertyUnit: property?.unit_number ?? null,
+    })
+  }
+
+  // SMS — separate opt-in (default off), only if a phone is on file.
+  if (tenant?.notify_sms === true && tenant.phone) {
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.getezpm.com').replace(/\/$/, '')
+    void sendSMS({
+      to: tenant.phone,
+      body: `EZPM: Maintenance request "${req.title}" is now ${STATUS_LABELS[status]}.\nView: ${appUrl}/tenant/maintenance/${req.id}`,
     })
   }
 

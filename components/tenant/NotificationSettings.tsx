@@ -7,17 +7,22 @@ interface Props {
   initialMaintenanceReplies: boolean
   initialMaintenanceStatus: boolean
   initialPaymentReceipts: boolean
+  initialSms: boolean
+  phone: string | null
 }
 
 export function NotificationSettings({
   initialMaintenanceReplies,
   initialMaintenanceStatus,
   initialPaymentReceipts,
+  initialSms,
+  phone,
 }: Props) {
   const [prefs, setPrefs] = useState({
     notify_maintenance_replies: initialMaintenanceReplies,
     notify_maintenance_status: initialMaintenanceStatus,
     notify_payment_receipts: initialPaymentReceipts,
+    notify_sms: initialSms,
   })
   const [savingKey, setSavingKey] = useState<string>('')
   const [error, setError] = useState('')
@@ -64,6 +69,13 @@ export function NotificationSettings({
       title: 'Payment receipts',
       desc: 'Email me a receipt each time my rent payment goes through.',
     },
+    {
+      key: 'notify_sms',
+      title: 'Text message alerts',
+      desc: phone
+        ? `Also text me maintenance updates at ${phone}. Message & data rates may apply.`
+        : 'Also text me maintenance updates. Ask your property manager to add a phone number to enable this.',
+    },
   ]
 
   return (
@@ -71,6 +83,8 @@ export function NotificationSettings({
       {error && <p className="text-sm text-destructive">{error}</p>}
       {ROWS.map((row) => {
         const on = prefs[row.key]
+        // SMS can't be enabled without a phone number on file.
+        const locked = row.key === 'notify_sms' && !phone
         const saving = savingKey === row.key
         return (
           <div
@@ -84,17 +98,17 @@ export function NotificationSettings({
             <button
               type="button"
               role="switch"
-              aria-checked={on}
+              aria-checked={on && !locked}
               aria-label={row.title}
-              disabled={saving}
+              disabled={saving || locked}
               onClick={() => toggle(row.key, !on)}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-60 ${
-                on ? 'bg-primary' : 'bg-muted-foreground/30'
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-60 disabled:cursor-not-allowed ${
+                on && !locked ? 'bg-primary' : 'bg-muted-foreground/30'
               }`}
             >
               <span
                 className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                  on ? 'translate-x-5' : 'translate-x-1'
+                  on && !locked ? 'translate-x-5' : 'translate-x-1'
                 }`}
               />
               {saving && <Loader2 className="absolute -right-6 h-4 w-4 animate-spin text-muted-foreground" />}

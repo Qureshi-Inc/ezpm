@@ -18,19 +18,21 @@ export default async function TenantSettingsPage() {
           <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-tight text-foreground">
             Notifications
           </h1>
-          <p className="text-muted-foreground mt-2">Choose which emails you&rsquo;d like to receive.</p>
+          <p className="text-muted-foreground mt-2">Choose which emails and texts you&rsquo;d like to receive.</p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Email notifications</CardTitle>
-            <CardDescription>Turn off anything you don&rsquo;t want in your inbox.</CardDescription>
+            <CardTitle>Notifications</CardTitle>
+            <CardDescription>Turn off anything you don&rsquo;t want, and opt in to text alerts.</CardDescription>
           </CardHeader>
           <CardContent>
             <NotificationSettings
               initialMaintenanceReplies={tenant.notify_maintenance_replies !== false}
               initialMaintenanceStatus={tenant.notify_maintenance_status !== false}
               initialPaymentReceipts={tenant.notify_payment_receipts !== false}
+              initialSms={tenant.notify_sms === true}
+              phone={tenant.phone ?? null}
             />
           </CardContent>
         </Card>

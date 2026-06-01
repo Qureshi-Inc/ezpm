@@ -59,6 +59,15 @@ EMAIL_REPLY_TO=hello@getezpm.com
 # Prometheus metrics endpoint (/api/metrics). Unset = endpoint returns 404.
 # Set to a random secret; Prometheus sends it as a Bearer token (or ?token=).
 METRICS_TOKEN=<openssl rand -hex 24>
+
+# Transactional SMS (lib/sms.ts) — Twilio for maintenance alerts (manager reply
+# + status change). Opt-in per tenant (tenants.notify_sms, default off) and only
+# fires if the tenant has a phone on file. Leave any of these unset to disable
+# all SMS silently (no-op). Prefer the Messaging Service SID (handles A2P 10DLC).
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=<auth token>
+TWILIO_MESSAGING_SERVICE_SID=MG...   # preferred sender
+TWILIO_FROM=+1XXXXXXXXXX             # fallback sender if no Messaging Service SID
 ```
 
 ## Required Environment Variables
@@ -317,7 +326,7 @@ Live-environment state already applied (so don't redo these):
 - DB tables created on the live DB + PostgREST schema reloaded: `documents`,
   `announcements`, `maintenance_comments`, `maintenance_attachments.comment_id`,
   `tenants.notify_maintenance_replies`, `tenants.notify_payment_receipts`,
-  `maintenance_comments.mattermost_post_id`.
+  `tenants.notify_sms`, `maintenance_comments.mattermost_post_id`.
 - Coolify env on the app: `SMTP_USER=...@smtp-brevo.com` set; `BREVO_API_KEY`
   holds the SMTP key (reused as `SMTP_PASS`); `MATTERMOST_OUTGOING_TOKEN` set.
 - Coolify persistent volume mounted at `/app/uploads` (maintenance + documents).
