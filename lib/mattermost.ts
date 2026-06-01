@@ -95,7 +95,9 @@ async function uploadFile(channelId: string, f: MattermostUpload): Promise<strin
   try {
     const fd = new FormData()
     fd.append('channel_id', channelId)
-    fd.append('files', new Blob([f.bytes], { type: f.contentType }), f.filename)
+    // Cast to BlobPart: TS 5.7+/newer DOM libs type Uint8Array as
+    // Uint8Array<ArrayBufferLike>, which isn't directly assignable to BlobPart.
+    fd.append('files', new Blob([f.bytes as BlobPart], { type: f.contentType }), f.filename)
     const res = await fetch(`${BASE}/api/v4/files`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${TOKEN}` },
