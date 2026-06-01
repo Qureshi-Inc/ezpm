@@ -25,9 +25,9 @@ Production: https://app.getezpm.com (Coolify auto-deploy on push to main).
 MATTERMOST_WEBHOOK_URL=https://mm.qureshi.io/hooks/<token>
 
 # Mattermost MAINTENANCE channel (lib/mattermost.ts) — bot API, NOT a webhook.
-# Used to post one THREAD PER maintenance request, react to status changes with
-# an emoji on the root post (🛠️ in_progress / ✅ resolved / 🚫 cancelled), and
-# attach the tenant's photos. Threads + reactions need the bot's API token
+# Used to post one THREAD PER maintenance request, render interactive STATUS
+# BUTTONS on the root post (Open / In progress / Resolved / Cancelled), and
+# attach the tenant's photos. Threads + buttons need the bot's API token
 # (incoming webhooks can't do either):
 #   System Console → Integrations → Bot Accounts → ezpm bot → Create Token.
 # The bot must be a MEMBER of the channel. Give EITHER the channel id OR the
@@ -42,6 +42,12 @@ MATTERMOST_MAINTENANCE_CHANNEL_ID=<26-char channel id>   # OR set MATTERMOST_TEA
 # mattermost-bridge (see mattermost-bridge/) sends so the app trusts the relay.
 # Any non-empty string; must match the bridge's MATTERMOST_OUTGOING_TOKEN.
 MATTERMOST_OUTGOING_TOKEN=<shared secret>
+
+# Authenticates Mattermost status-BUTTON clicks (POST /api/webhooks/mattermost-action).
+# Embedded in each button's context and verified on callback (button POSTs don't
+# carry the outgoing-webhook token). Any non-empty random string; unset disables
+# the buttons' callback. `openssl rand -hex 24`.
+MATTERMOST_ACTION_SECRET=<shared secret>
 
 # Transactional email (lib/email.ts) — SMTP via nodemailer.
 # Receipts, maintenance status/reply emails, and announcement blasts all go
@@ -119,9 +125,10 @@ webhooks, or settings) — safe to touch without risking payments.
   admin moves status `open → in_progress → resolved → cancelled`.
 - **Mattermost:** new request → one THREAD PER request (root post id stored on
   `maintenance_requests.mattermost_root_id`) with the tenant's photos attached.
-  Status changes **react** on the root post with a single emoji (🛠️/✅/🚫) —
-  the prior status emoji is cleared so it always shows the live status. Tenant
-  cancel reacts 🚫 too.
+  Status changes render as interactive **buttons** on the root post (Open / In
+  progress / Resolved / Cancelled); the current status is checked + colored and
+  re-rendered on every change, from any source, so the post always shows the
+  live status. Clicking a button calls `POST /api/webhooks/mattermost-action`.
 - **Two-way updates thread (Phase 2):** `maintenance_comments` table + a chat UI
   (`MaintenanceThread`) on both detail pages. Comments post to the request's
   Mattermost thread; **replies in Mattermost flow back as comments** via the
@@ -160,12 +167,17 @@ Structured so adding more toggles is one boolean column + one row in the UI.
 
 ### Status changes are bidirectional
 `lib/maintenance-status.ts` `applyMaintenanceStatus()` is the single path for a
-status change (DB update + tenant email + Mattermost emoji). Triggered by:
-- the admin web UI (`PATCH /api/admin/maintenance/[id]`), or
-- a **status emoji reaction in Mattermost** on the request's root post — the
-  bridge catches `reaction_added` (🛠️→in_progress, ✅→resolved, 🚫→cancelled)
-  and relays to `POST /api/webhooks/mattermost-reaction`. (No emoji maps to
-  `open`; reopen via the web UI. `reaction_removed` is ignored — ambiguous.)
+status change (DB update + tenant email/SMS + re-render of the Mattermost status
+buttons). Triggered by:
+- the admin web UI (`PATCH /api/admin/maintenance/[id]`),
+- a **status button click in Mattermost** → `POST /api/webhooks/mattermost-action`
+  (authenticated by `MATTERMOST_ACTION_SECRET` in the button context),
+- tenant self-cancel (`PATCH /api/tenant/maintenance/[id]`), or
+- the legacy **emoji reaction** path (bridge `reaction_added` →
+  `POST /api/webhooks/mattermost-reaction`), kept as a still-working input.
+One-time backfill of buttons onto existing threads:
+`POST /api/admin/maintenance/backfill-status-buttons` (admin-only; `?all=1` for
+resolved/cancelled too).
 
 ### Admin analytics dashboard + metrics
 `/admin` shows KPI cards + charts (rent collected, payments succeeded/failed,

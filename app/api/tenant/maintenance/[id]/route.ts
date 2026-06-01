@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentTenant } from '@/lib/auth'
 import { createServerSupabaseClient } from '@/lib/supabase'
-import { reactMaintenanceStatus } from '@/lib/mattermost'
+import { applyMaintenanceStatus } from '@/lib/maintenance-status'
 
 export async function PATCH(
   request: NextRequest,
@@ -29,7 +29,7 @@ export async function PATCH(
     const supabase = createServerSupabaseClient()
     const { data: req } = await supabase
       .from('maintenance_requests')
-      .select('id, tenant_id, status, mattermost_root_id')
+      .select('id, tenant_id, status')
       .eq('id', id)
       .maybeSingle()
 
@@ -43,16 +43,12 @@ export async function PATCH(
       )
     }
 
-    const { error } = await supabase
-      .from('maintenance_requests')
-      .update({ status: 'cancelled' })
-      .eq('id', id)
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    // Centralized path: updates the DB, notifies the tenant (if opted in), and
+    // re-renders the Mattermost status buttons to 🚫 Cancelled.
+    const result = await applyMaintenanceStatus(id, 'cancelled')
+    if (!result.ok) {
+      return NextResponse.json({ error: 'Failed to cancel request.' }, { status: 500 })
     }
-
-    // Reflect the cancellation on the Mattermost root post (🚫). Non-blocking.
-    void reactMaintenanceStatus(req.mattermost_root_id, 'cancelled')
 
     return NextResponse.json({ success: true })
   } catch {

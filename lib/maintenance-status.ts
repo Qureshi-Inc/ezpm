@@ -1,14 +1,14 @@
 /**
  * Single source of truth for changing a maintenance request's status.
- * Used by the admin web UI (PATCH /api/admin/maintenance/[id]) AND by inbound
- * Mattermost emoji reactions (POST /api/webhooks/mattermost-reaction), so both
- * paths behave identically: update the DB, email the tenant (if they haven't
- * opted out), and reflect the status as an emoji on the Mattermost root post.
+ * Used by the admin web UI (PATCH /api/admin/maintenance/[id]), the Mattermost
+ * status BUTTONS (POST /api/webhooks/mattermost-action), tenant cancel, and the
+ * legacy emoji webhook — so every path behaves identically: update the DB, email
+ * + text the tenant (if opted in), and re-render the Mattermost status buttons.
  */
 
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { sendMaintenanceStatusEmail, type MaintenanceStatus } from '@/lib/email'
-import { reactMaintenanceStatus } from '@/lib/mattermost'
+import { updateMaintenanceStatusPost } from '@/lib/mattermost'
 import { sendSMS } from '@/lib/sms'
 
 export const MAINT_STATUSES: MaintenanceStatus[] = ['open', 'in_progress', 'resolved', 'cancelled']
@@ -34,20 +34,16 @@ interface PropertyRow {
 }
 
 /**
- * Apply a status to a request. `react` controls whether we (re)assert the emoji
- * on Mattermost — true for app-driven changes; for reaction-driven changes it's
- * still safe (idempotent + clears stale status emojis).
+ * Apply a status to a request. `updatePost` controls whether we re-render the
+ * Mattermost status buttons (default true; harmless/idempotent on every path).
  * Returns whether the status actually changed (so callers can skip a no-op email).
  */
 export async function applyMaintenanceStatus(
   requestId: string,
   status: MaintenanceStatus,
-  opts: { react?: boolean; fromReaction?: boolean } = {},
+  opts: { updatePost?: boolean } = {},
 ): Promise<{ ok: boolean; changed: boolean; notFound?: boolean }> {
   const supabase = createServerSupabaseClient()
-  // When the change came from a human's Mattermost reaction, clear stale status
-  // emojis but DON'T add the bot's own copy (the human's reaction is the visual).
-  const reactOpts = { addOwn: !opts.fromReaction }
 
   const { data: req } = await supabase
     .from('maintenance_requests')
@@ -60,7 +56,7 @@ export async function applyMaintenanceStatus(
   if (!req) return { ok: false, changed: false, notFound: true }
 
   if (req.status === status) {
-    if (opts.react !== false) void reactMaintenanceStatus(req.mattermost_root_id, status, reactOpts)
+    if (opts.updatePost !== false) void updateMaintenanceStatusPost(req.mattermost_root_id, req.id, status)
     return { ok: true, changed: false }
   }
 
@@ -91,6 +87,6 @@ export async function applyMaintenanceStatus(
     })
   }
 
-  if (opts.react !== false) void reactMaintenanceStatus(req.mattermost_root_id, status, reactOpts)
+  if (opts.updatePost !== false) void updateMaintenanceStatusPost(req.mattermost_root_id, req.id, status)
   return { ok: true, changed: true }
 }

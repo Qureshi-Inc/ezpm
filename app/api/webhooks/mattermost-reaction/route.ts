@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (!req) return ok()
 
-    await applyMaintenanceStatus(req.id, status, { fromReaction: true })
+    await applyMaintenanceStatus(req.id, status)
     return ok()
   } catch (err) {
     console.error('[webhooks/mattermost-reaction] failed:', err)

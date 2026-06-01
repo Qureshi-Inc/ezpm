@@ -2,8 +2,8 @@
  * PATCH /api/admin/maintenance/[id] — admin changes a request's status.
  *
  * Admin-only (requireAdmin). Valid statuses: open | in_progress | resolved |
- * cancelled. All side effects (tenant email + Mattermost emoji reaction) live
- * in applyMaintenanceStatus so the web UI and Mattermost-reaction paths match.
+ * cancelled. All side effects (tenant email/SMS + re-render of the Mattermost
+ * status buttons) live in applyMaintenanceStatus so every status path matches.
  */
 
 import { NextRequest, NextResponse } from 'next/server'

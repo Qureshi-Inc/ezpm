@@ -31,6 +31,11 @@ const TOKEN = process.env.MATTERMOST_BOT_TOKEN
 const EXPLICIT_CHANNEL_ID = process.env.MATTERMOST_MAINTENANCE_CHANNEL_ID
 const TEAM = process.env.MATTERMOST_TEAM
 const CHANNEL_NAME = process.env.MATTERMOST_MAINTENANCE_CHANNEL || 'ezpm-maintenance'
+// Public base URL the Mattermost server calls back when a status button is
+// clicked, and the shared secret we embed in each button's context to
+// authenticate that callback (button POSTs don't carry the webhook token).
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.getezpm.com').replace(/\/$/, '')
+const ACTION_SECRET = process.env.MATTERMOST_ACTION_SECRET || ''
 
 export function isMattermostBotConfigured(): boolean {
   return !!TOKEN && (!!EXPLICIT_CHANNEL_ID || !!TEAM)
@@ -126,7 +131,7 @@ async function uploadFile(channelId: string, f: MattermostUpload): Promise<strin
  */
 export async function postMaintenanceMessage(
   message: string,
-  opts: { rootId?: string | null; files?: MattermostUpload[] } = {},
+  opts: { rootId?: string | null; files?: MattermostUpload[]; attachments?: object[] } = {},
 ): Promise<string | null> {
   if (!TOKEN) return null
   const channelId = await maintenanceChannelId()
@@ -148,26 +153,13 @@ export async function postMaintenanceMessage(
       message,
       ...(opts.rootId ? { root_id: opts.rootId } : {}),
       ...(fileIds.length ? { file_ids: fileIds } : {}),
+      ...(opts.attachments?.length ? { props: { attachments: opts.attachments } } : {}),
     }),
   })
   return post?.id ?? null
 }
 
-// ──────────────────────────────────────────────────────────────
-// Status reactions (instead of status messages)
-// ──────────────────────────────────────────────────────────────
-
-// Status → Mattermost emoji name (no colons). Only these three statuses get a
-// reaction; 'open'/reopen clears them so the root post shows the live status as
-// a single emoji.
-const STATUS_EMOJI: Record<string, string> = {
-  in_progress: 'hammer_and_wrench',
-  resolved: 'white_check_mark',
-  cancelled: 'no_entry_sign',
-}
-const ALL_STATUS_EMOJI = Object.values(STATUS_EMOJI)
-
-// The bot's own user id is required to add/remove reactions. Cache it.
+// The bot's own user id is required by the inbound reply webhook's loop guard.
 let cachedBotUserId: string | null = null
 async function botUserId(): Promise<string | null> {
   if (cachedBotUserId) return cachedBotUserId
@@ -188,46 +180,68 @@ export async function getBotUserId(): Promise<string | null> {
   return botUserId()
 }
 
-/** Quiet reaction call — a 404 when removing a missing reaction is expected. */
-async function reactionCall(path: string, method: 'POST' | 'DELETE', body?: object): Promise<void> {
-  if (!TOKEN) return
-  try {
-    await fetch(`${BASE}/api/v4${path}`, {
-      method,
-      headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-      signal: AbortSignal.timeout(6000),
-    })
-  } catch {
-    /* non-fatal */
+// ──────────────────────────────────────────────────────────────
+// Status buttons (interactive message — replaces emoji reactions)
+// ──────────────────────────────────────────────────────────────
+
+interface StatusMeta {
+  label: string
+  emoji: string
+  /** Mattermost message-button style applied only to the CURRENT status. */
+  style?: 'primary' | 'success' | 'danger'
+  color: string
+}
+const STATUS_META: Record<string, StatusMeta> = {
+  open: { label: 'Open', emoji: '🆕', color: '#eab308' },
+  in_progress: { label: 'In progress', emoji: '🛠️', style: 'primary', color: '#3b82f6' },
+  resolved: { label: 'Resolved', emoji: '✅', style: 'success', color: '#22c55e' },
+  cancelled: { label: 'Cancelled', emoji: '🚫', style: 'danger', color: '#ef4444' },
+}
+const STATUS_ORDER = ['open', 'in_progress', 'resolved', 'cancelled'] as const
+
+/**
+ * Build the interactive status-button attachment for a request's root post.
+ * The CURRENT status is marked with a check and colored; clicking any button
+ * POSTs to /api/webhooks/mattermost-action with a secret-bearing context.
+ * Re-rendered (via updateMaintenanceStatusPost) whenever the status changes,
+ * from any source, so the post always shows the live status.
+ */
+export function statusButtonsAttachment(requestId: string, current: string): object {
+  const meta = STATUS_META[current] ?? STATUS_META.open
+  const actions = STATUS_ORDER.map((s) => {
+    const m = STATUS_META[s]
+    const isCurrent = s === current
+    return {
+      id: `set_${s}`,
+      name: isCurrent ? `${m.emoji} ${m.label} ✓` : m.label,
+      ...(isCurrent && m.style ? { style: m.style } : {}),
+      integration: {
+        url: `${APP_URL}/api/webhooks/mattermost-action`,
+        context: { requestId, status: s, secret: ACTION_SECRET },
+      },
+    }
+  })
+  return {
+    color: meta.color,
+    text: `**Status:** ${meta.emoji} ${meta.label}`,
+    actions,
   }
 }
 
 /**
- * Reflect a request's status on its root post as a single emoji reaction
- * (🛠️ in progress / ✅ resolved / 🚫 cancelled). Clears the other status
- * emojis first so only the current one shows. 'open'/reopen clears all three.
+ * Re-render a request's root post to reflect `status` on its status buttons.
+ * Used by every status-change path (web UI, button click, tenant cancel,
+ * legacy emoji) so the Mattermost thread always shows the live status.
  * Fully non-fatal — never throws.
  */
-export async function reactMaintenanceStatus(
+export async function updateMaintenanceStatusPost(
   rootId: string | null | undefined,
+  requestId: string,
   status: string,
-  opts: { addOwn?: boolean } = {},
 ): Promise<void> {
   if (!TOKEN || !rootId) return
-  const uid = await botUserId()
-  if (!uid) return
-
-  const keep = STATUS_EMOJI[status]
-  // Remove every status emoji except the one we want to keep.
-  for (const emoji of ALL_STATUS_EMOJI) {
-    if (emoji === keep) continue
-    await reactionCall(`/users/${uid}/posts/${rootId}/reactions/${emoji}`, 'DELETE')
-  }
-  // Add the bot's own copy of the current status emoji — UNLESS the change was
-  // driven by a human's reaction (addOwn: false), in which case their emoji is
-  // already there and a second bot copy would just show a count of 2.
-  if (keep && opts.addOwn !== false) {
-    await reactionCall('/reactions', 'POST', { user_id: uid, post_id: rootId, emoji_name: keep })
-  }
+  await api(`/posts/${encodeURIComponent(rootId)}/patch`, {
+    method: 'PUT',
+    body: JSON.stringify({ props: { attachments: [statusButtonsAttachment(requestId, status)] } }),
+  })
 }
