@@ -213,8 +213,10 @@ export function statusButtonsAttachment(requestId: string, current: string): obj
     const isCurrent = s === current
     return {
       id: `set_${s}`,
-      name: isCurrent ? `${m.emoji} ${m.label} ✓` : m.label,
-      ...(isCurrent && m.style ? { style: m.style } : {}),
+      // Each button is colored by its status (blue/green/red; open stays neutral).
+      // The CURRENT status is marked with a ✓ so it's obvious at a glance.
+      name: `${m.emoji} ${m.label}${isCurrent ? ' ✓' : ''}`,
+      ...(m.style ? { style: m.style } : {}),
       integration: {
         url: `${APP_URL}/api/webhooks/mattermost-action`,
         context: { requestId, status: s, secret: ACTION_SECRET },
@@ -229,10 +231,38 @@ export function statusButtonsAttachment(requestId: string, current: string): obj
 }
 
 /**
- * Re-render a request's root post to reflect `status` on its status buttons.
- * Used by every status-change path (web UI, button click, tenant cancel,
- * legacy emoji) so the Mattermost thread always shows the live status.
- * Fully non-fatal — never throws.
+ * A separate, darker-barred "Reply to tenant" button. Mattermost action buttons
+ * can't be plain hyperlinks, so clicking it calls the action endpoint, which
+ * replies (ephemerally, to the clicker) with a permalink that jumps straight to
+ * this request's thread.
+ */
+export function replyButtonAttachment(requestId: string): object {
+  return {
+    color: '#0f172a', // dark slate bar to set the reply action apart from status
+    actions: [
+      {
+        id: 'open_thread',
+        name: '💬 Reply to tenant',
+        style: 'primary',
+        integration: {
+          url: `${APP_URL}/api/webhooks/mattermost-action`,
+          context: { requestId, action: 'reply', secret: ACTION_SECRET },
+        },
+      },
+    ],
+  }
+}
+
+/** The full set of root-post attachments: status buttons + the reply button. */
+export function maintenanceRootAttachments(requestId: string, status: string): object[] {
+  return [statusButtonsAttachment(requestId, status), replyButtonAttachment(requestId)]
+}
+
+/**
+ * Re-render a request's root post to reflect `status` on its status buttons
+ * (and re-assert the reply button). Used by every status-change path (web UI,
+ * button click, tenant cancel, legacy emoji) so the Mattermost thread always
+ * shows the live status. Fully non-fatal — never throws.
  */
 export async function updateMaintenanceStatusPost(
   rootId: string | null | undefined,
@@ -242,6 +272,6 @@ export async function updateMaintenanceStatusPost(
   if (!TOKEN || !rootId) return
   await api(`/posts/${encodeURIComponent(rootId)}/patch`, {
     method: 'PUT',
-    body: JSON.stringify({ props: { attachments: [statusButtonsAttachment(requestId, status)] } }),
+    body: JSON.stringify({ props: { attachments: maintenanceRootAttachments(requestId, status) } }),
   })
 }

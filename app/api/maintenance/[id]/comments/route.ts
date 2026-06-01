@@ -82,8 +82,28 @@ export async function GET(
       ...c,
       attachments: attachments.filter((a) => a.comment_id === c.id),
     }))
+
+    // The opening message of the conversation: the tenant's original report
+    // (description + the photos they submitted at creation — those rows have a
+    // null comment_id). Surfaced so the thread reads as one complete history.
+    const { data: reqRow } = await supabase
+      .from('maintenance_requests')
+      .select('description, created_at')
+      .eq('id', id)
+      .maybeSingle()
+    const { data: origAtt } = await supabase
+      .from('maintenance_attachments')
+      .select('id, comment_id, file_name, content_type')
+      .eq('request_id', id)
+      .is('comment_id', null)
+    const original = {
+      body: reqRow?.description ?? '',
+      created_at: reqRow?.created_at ?? null,
+      attachments: (origAtt ?? []) as AttachmentRow[],
+    }
+
     return NextResponse.json(
-      { comments: withAttachments },
+      { original, comments: withAttachments },
       { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
     )
   } catch (err) {

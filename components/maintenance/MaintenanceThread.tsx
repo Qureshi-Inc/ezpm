@@ -23,10 +23,16 @@ interface Comment {
   created_at: string
   attachments: Attachment[]
 }
+interface Original {
+  body: string
+  created_at: string | null
+  attachments: Attachment[]
+}
 
 export function MaintenanceThread({ requestId, viewerRole }: { requestId: string; viewerRole: 'tenant' | 'admin' }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [comments, setComments] = useState<Comment[]>([])
+  const [original, setOriginal] = useState<Original | null>(null)
   const [loading, setLoading] = useState(true)
   const [body, setBody] = useState('')
   const [photos, setPhotos] = useState<File[]>([])
@@ -37,7 +43,10 @@ export function MaintenanceThread({ requestId, viewerRole }: { requestId: string
     try {
       const res = await fetch(`/api/maintenance/${requestId}/comments`, { cache: 'no-store' })
       const data = await res.json()
-      if (res.ok) setComments(data.comments ?? [])
+      if (res.ok) {
+        setComments(data.comments ?? [])
+        setOriginal(data.original ?? null)
+      }
     } catch {
       /* ignore */
     } finally {
@@ -79,14 +88,63 @@ export function MaintenanceThread({ requestId, viewerRole }: { requestId: string
     return role === 'admin' ? 'Property manager' : 'Tenant'
   }
 
+  const AttachmentGrid = ({ atts }: { atts: Attachment[] }) =>
+    atts.length > 0 ? (
+      <div className="mt-2 flex flex-wrap gap-2">
+        {atts.map((a) =>
+          a.content_type.startsWith('image/') ? (
+            <a key={a.id} href={`/api/tenant/maintenance/attachments/${a.id}`} target="_blank" rel="noopener noreferrer">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/tenant/maintenance/attachments/${a.id}`}
+                alt={a.file_name}
+                className="h-20 w-20 rounded-lg object-cover"
+              />
+            </a>
+          ) : (
+            <a
+              key={a.id}
+              href={`/api/tenant/maintenance/attachments/${a.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs underline"
+            >
+              {a.file_name}
+            </a>
+          ),
+        )}
+      </div>
+    ) : null
+
+  const hasOriginal = !!original && (original.attachments.length > 0 || !!original.body.trim())
+
   return (
     <div className="space-y-4">
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : comments.length === 0 ? (
+      ) : !hasOriginal && comments.length === 0 ? (
         <p className="text-sm text-muted-foreground">No updates yet. Start the conversation below.</p>
       ) : (
         <div className="space-y-3">
+          {hasOriginal && original && (
+            <div className={`flex ${viewerRole === 'tenant' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
+                  viewerRole === 'tenant' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
+                }`}
+              >
+                <p
+                  className={`text-xs font-medium ${
+                    viewerRole === 'tenant' ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                  }`}
+                >
+                  {authorLabel('tenant')} · Original request{original.created_at ? ` · ${formatDate(original.created_at)}` : ''}
+                </p>
+                {original.body.trim() && <p className="mt-0.5 whitespace-pre-wrap text-sm">{original.body}</p>}
+                <AttachmentGrid atts={original.attachments} />
+              </div>
+            </div>
+          )}
           {comments.map((c) => {
             const mine = c.author_role === viewerRole
             return (
@@ -100,37 +158,7 @@ export function MaintenanceThread({ requestId, viewerRole }: { requestId: string
                     {authorLabel(c.author_role)} · {formatDate(c.created_at)}
                   </p>
                   {c.body && c.body !== '(photo)' && <p className="mt-0.5 whitespace-pre-wrap text-sm">{c.body}</p>}
-                  {c.attachments.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {c.attachments.map((a) =>
-                        a.content_type.startsWith('image/') ? (
-                          <a
-                            key={a.id}
-                            href={`/api/tenant/maintenance/attachments/${a.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={`/api/tenant/maintenance/attachments/${a.id}`}
-                              alt={a.file_name}
-                              className="h-20 w-20 rounded-lg object-cover"
-                            />
-                          </a>
-                        ) : (
-                          <a
-                            key={a.id}
-                            href={`/api/tenant/maintenance/attachments/${a.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs underline"
-                          >
-                            {a.file_name}
-                          </a>
-                        ),
-                      )}
-                    </div>
-                  )}
+                  <AttachmentGrid atts={c.attachments} />
                 </div>
               </div>
             )
