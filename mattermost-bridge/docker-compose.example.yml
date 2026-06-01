@@ -6,6 +6,11 @@ services:
     container_name: ezpm-mm-bridge
     restart: unless-stopped
     env_file: .env
+    # Liveness endpoint on :8080 (/healthz → 200 when the Mattermost WebSocket is
+    # connected, 503 otherwise). Expose it to your monitor (e.g. Uptime Kuma) by
+    # putting both on a shared network, or publish it with: ports: ["8080:8080"].
+    expose:
+      - "8080"
     # Optional: Homepage (gethomepage.dev) dashboard labels — remove if unused.
     labels:
       - homepage.group=Infrastructure

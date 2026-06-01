@@ -22,6 +22,7 @@
  */
 
 const WebSocket = require('ws')
+const http = require('http')
 
 const BASE = (process.env.MATTERMOST_URL || 'https://your-mattermost.example.com').replace(/\/$/, '')
 const TOKEN = process.env.MATTERMOST_BOT_TOKEN
@@ -54,6 +55,34 @@ if (!TOKEN || !CHANNEL_ID || !APP_WEBHOOK_URL || !OUTGOING_TOKEN) {
 
 let botUserId = null
 const ignoreUserIds = new Set()
+
+// --- Health state (exposed via /healthz for Uptime Kuma) -------------------
+const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || '8080', 10)
+let wsAuthed = false
+let lastConnectedAt = null
+let lastEventAt = null
+
+http
+  .createServer((req, res) => {
+    if (req.url === '/healthz' || req.url === '/') {
+      const healthy = wsAuthed
+      res.writeHead(healthy ? 200 : 503, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          ok: healthy,
+          service: 'ezpm-mm-bridge',
+          wsConnected: wsAuthed,
+          lastConnectedAt,
+          lastEventAt,
+          uptimeSec: Math.round(process.uptime()),
+        }),
+      )
+      return
+    }
+    res.writeHead(404)
+    res.end()
+  })
+  .listen(HEALTH_PORT, () => log('healthz listening on', HEALTH_PORT))
 
 async function resolveBotId() {
   try {
@@ -186,17 +215,24 @@ function connect() {
     } catch {
       return
     }
-    if (msg.event === 'hello') log('authenticated, listening for replies in channel', CHANNEL_ID)
+    if (msg.event === 'hello') {
+      wsAuthed = true
+      lastConnectedAt = new Date().toISOString()
+      log('authenticated, listening for replies in channel', CHANNEL_ID)
+    }
+    lastEventAt = new Date().toISOString()
     handleEvent(msg)
   })
 
   ws.on('close', () => {
+    wsAuthed = false
     log(`ws closed — reconnecting in ${reconnectDelay}ms`)
     setTimeout(connect, reconnectDelay)
     reconnectDelay = Math.min(reconnectDelay * 2, 30000)
   })
 
   ws.on('error', (err) => {
+    wsAuthed = false
     log('ws error:', err.message)
     ws.close()
   })
