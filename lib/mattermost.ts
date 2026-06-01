@@ -31,11 +31,6 @@ const TOKEN = process.env.MATTERMOST_BOT_TOKEN
 const EXPLICIT_CHANNEL_ID = process.env.MATTERMOST_MAINTENANCE_CHANNEL_ID
 const TEAM = process.env.MATTERMOST_TEAM
 const CHANNEL_NAME = process.env.MATTERMOST_MAINTENANCE_CHANNEL || 'ezpm-maintenance'
-// Public base URL the Mattermost server calls back when a status button is
-// clicked, and the shared secret we embed in each button's context to
-// authenticate that callback (button POSTs don't carry the webhook token).
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.getezpm.com').replace(/\/$/, '')
-const ACTION_SECRET = process.env.MATTERMOST_ACTION_SECRET || ''
 
 export function isMattermostBotConfigured(): boolean {
   return !!TOKEN && (!!EXPLICIT_CHANNEL_ID || !!TEAM)
@@ -181,101 +176,57 @@ export async function getBotUserId(): Promise<string | null> {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Status buttons (interactive message — replaces emoji reactions)
+// Status reactions (a single emoji on the root post)
 // ──────────────────────────────────────────────────────────────
 
-interface StatusMeta {
-  label: string
-  emoji: string
-  /** Mattermost message-button style applied only to the CURRENT status. */
-  style?: 'primary' | 'success' | 'danger'
-  color: string
+// Status → Mattermost emoji name (no colons). Only these three statuses get a
+// reaction; 'open'/reopen clears them so the root post shows the live status as
+// a single emoji. Add 🛠️ / ✅ / 🚫 yourself in Mattermost to drive the status
+// (the bridge relays reaction_added → /api/webhooks/mattermost-reaction).
+const STATUS_EMOJI: Record<string, string> = {
+  in_progress: 'hammer_and_wrench',
+  resolved: 'white_check_mark',
+  cancelled: 'no_entry_sign',
 }
-const STATUS_META: Record<string, StatusMeta> = {
-  open: { label: 'Open', emoji: '🆕', color: '#eab308' },
-  in_progress: { label: 'In progress', emoji: '🛠️', style: 'primary', color: '#3b82f6' },
-  resolved: { label: 'Resolved', emoji: '✅', style: 'success', color: '#22c55e' },
-  cancelled: { label: 'Cancelled', emoji: '🚫', style: 'danger', color: '#ef4444' },
-}
-const STATUS_ORDER = ['open', 'in_progress', 'resolved', 'cancelled'] as const
+const ALL_STATUS_EMOJI = Object.values(STATUS_EMOJI)
 
-/**
- * Build the interactive status-button attachment for a request's root post.
- * The CURRENT status is marked with a check and colored; clicking any button
- * POSTs to /api/webhooks/mattermost-action with a secret-bearing context.
- * Re-rendered (via updateMaintenanceStatusPost) whenever the status changes,
- * from any source, so the post always shows the live status.
- */
-export function statusButtonsAttachment(requestId: string, current: string): object {
-  const meta = STATUS_META[current] ?? STATUS_META.open
-  const actions = STATUS_ORDER.map((s) => {
-    const m = STATUS_META[s]
-    const isCurrent = s === current
-    return {
-      id: `set_${s}`,
-      // `type` is REQUIRED by Mattermost; without it the action is rejected as
-      // invalid and clicks 404.
-      type: 'button',
-      // Each button is colored by its status (blue/green/red; open stays neutral).
-      // The CURRENT status is marked with a ✓ so it's obvious at a glance.
-      name: `${m.emoji} ${m.label}${isCurrent ? ' ✓' : ''}`,
-      ...(m.style ? { style: m.style } : {}),
-      integration: {
-        url: `${APP_URL}/api/webhooks/mattermost-action`,
-        context: { requestId, status: s, secret: ACTION_SECRET },
-      },
-    }
-  })
-  return {
-    color: meta.color,
-    text: `**Status:** ${meta.emoji} ${meta.label}`,
-    actions,
+/** Quiet reaction call — a 404 when removing a missing reaction is expected. */
+async function reactionCall(path: string, method: 'POST' | 'DELETE', body?: object): Promise<void> {
+  if (!TOKEN) return
+  try {
+    await fetch(`${BASE}/api/v4${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(6000),
+    })
+  } catch {
+    /* non-fatal */
   }
 }
 
 /**
- * A separate, darker-barred "Reply to tenant" button. Mattermost action buttons
- * can't be plain hyperlinks, so clicking it calls the action endpoint, which
- * replies (ephemerally, to the clicker) with a permalink that jumps straight to
- * this request's thread.
+ * Reflect a request's status on its root post as a single emoji reaction
+ * (🛠️ in progress / ✅ resolved / 🚫 cancelled). Clears the other status
+ * emojis first so only the current one shows. 'open'/reopen clears all three.
+ * `addOwn:false` skips adding the bot's own copy (used when a human's reaction
+ * already supplied the emoji). Fully non-fatal — never throws.
  */
-export function replyButtonAttachment(requestId: string): object {
-  return {
-    color: '#0f172a', // dark slate bar to set the reply action apart from status
-    actions: [
-      {
-        id: 'open_thread',
-        type: 'button',
-        name: '💬 Reply to tenant',
-        style: 'primary',
-        integration: {
-          url: `${APP_URL}/api/webhooks/mattermost-action`,
-          context: { requestId, action: 'reply', secret: ACTION_SECRET },
-        },
-      },
-    ],
-  }
-}
-
-/** The full set of root-post attachments: status buttons + the reply button. */
-export function maintenanceRootAttachments(requestId: string, status: string): object[] {
-  return [statusButtonsAttachment(requestId, status), replyButtonAttachment(requestId)]
-}
-
-/**
- * Re-render a request's root post to reflect `status` on its status buttons
- * (and re-assert the reply button). Used by every status-change path (web UI,
- * button click, tenant cancel, legacy emoji) so the Mattermost thread always
- * shows the live status. Fully non-fatal — never throws.
- */
-export async function updateMaintenanceStatusPost(
+export async function reactMaintenanceStatus(
   rootId: string | null | undefined,
-  requestId: string,
   status: string,
+  opts: { addOwn?: boolean } = {},
 ): Promise<void> {
   if (!TOKEN || !rootId) return
-  await api(`/posts/${encodeURIComponent(rootId)}/patch`, {
-    method: 'PUT',
-    body: JSON.stringify({ props: { attachments: maintenanceRootAttachments(requestId, status) } }),
-  })
+  const uid = await botUserId()
+  if (!uid) return
+
+  const keep = STATUS_EMOJI[status]
+  for (const emoji of ALL_STATUS_EMOJI) {
+    if (emoji === keep) continue
+    await reactionCall(`/users/${uid}/posts/${rootId}/reactions/${emoji}`, 'DELETE')
+  }
+  if (keep && opts.addOwn !== false) {
+    await reactionCall('/reactions', 'POST', { user_id: uid, post_id: rootId, emoji_name: keep })
+  }
 }

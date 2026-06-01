@@ -8,7 +8,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { sendMaintenanceStatusEmail, type MaintenanceStatus } from '@/lib/email'
-import { updateMaintenanceStatusPost } from '@/lib/mattermost'
+import { reactMaintenanceStatus } from '@/lib/mattermost'
 import { sendSMS } from '@/lib/sms'
 
 export const MAINT_STATUSES: MaintenanceStatus[] = ['open', 'in_progress', 'resolved', 'cancelled']
@@ -34,16 +34,18 @@ interface PropertyRow {
 }
 
 /**
- * Apply a status to a request. `updatePost` controls whether we re-render the
- * Mattermost status buttons (default true; harmless/idempotent on every path).
+ * Apply a status to a request. `react` controls whether we (re)assert the emoji
+ * on Mattermost; `fromReaction` means a human's reaction already supplied the
+ * emoji, so the bot shouldn't add a duplicate copy.
  * Returns whether the status actually changed (so callers can skip a no-op email).
  */
 export async function applyMaintenanceStatus(
   requestId: string,
   status: MaintenanceStatus,
-  opts: { updatePost?: boolean } = {},
+  opts: { react?: boolean; fromReaction?: boolean } = {},
 ): Promise<{ ok: boolean; changed: boolean; notFound?: boolean }> {
   const supabase = createServerSupabaseClient()
+  const reactOpts = { addOwn: !opts.fromReaction }
 
   const { data: req } = await supabase
     .from('maintenance_requests')
@@ -56,7 +58,7 @@ export async function applyMaintenanceStatus(
   if (!req) return { ok: false, changed: false, notFound: true }
 
   if (req.status === status) {
-    if (opts.updatePost !== false) void updateMaintenanceStatusPost(req.mattermost_root_id, req.id, status)
+    if (opts.react !== false) void reactMaintenanceStatus(req.mattermost_root_id, status, reactOpts)
     return { ok: true, changed: false }
   }
 
@@ -87,6 +89,6 @@ export async function applyMaintenanceStatus(
     })
   }
 
-  if (opts.updatePost !== false) void updateMaintenanceStatusPost(req.mattermost_root_id, req.id, status)
+  if (opts.react !== false) void reactMaintenanceStatus(req.mattermost_root_id, status, reactOpts)
   return { ok: true, changed: true }
 }

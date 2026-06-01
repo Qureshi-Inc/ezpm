@@ -22,7 +22,7 @@ import {
   MAX_FILE_BYTES,
   MAX_FILES_PER_REQUEST,
 } from '@/lib/storage'
-import { postMaintenanceMessage, maintenanceRootAttachments, type MattermostUpload } from '@/lib/mattermost'
+import { postMaintenanceMessage, type MattermostUpload } from '@/lib/mattermost'
 
 const CATEGORIES = ['plumbing', 'electrical', 'appliance', 'hvac', 'other']
 const PRIORITIES = ['normal', 'urgent']
@@ -177,10 +177,7 @@ export async function POST(request: NextRequest) {
 
     void (async () => {
       try {
-        const rootId = await postMaintenanceMessage(rootMessage, {
-          files: mmUploads,
-          attachments: maintenanceRootAttachments(created.id, 'open'),
-        })
+        const rootId = await postMaintenanceMessage(rootMessage, { files: mmUploads })
         if (rootId) {
           await supabase
             .from('maintenance_requests')
