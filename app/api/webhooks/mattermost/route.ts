@@ -27,6 +27,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { getMattermostPost, getBotUserId } from '@/lib/mattermost'
 import { notifyTenantOfReply } from '@/lib/maintenance-notify'
+import { safeEqual } from '@/lib/secure-compare'
 
 function ok() {
   // Empty body — never return { text }, or Mattermost posts it back (loop).
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     const expected = process.env.MATTERMOST_OUTGOING_TOKEN
-    if (!expected || payload.token !== expected) {
+    if (!expected || !safeEqual(payload.token, expected)) {
       // Unconfigured or spoofed — acknowledge quietly, do nothing.
       return ok()
     }
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
     // Diagnostic: confirms Mattermost actually delivered (root posts vs thread
     // replies behave differently). Logs no message content beyond a short tag.
     console.log(
-      `[webhooks/mattermost] hit: post_id=${payload.post_id || '-'} trigger=${payload.trigger_word || '-'} tokenOK=${!!expected && payload.token === expected}`,
+      `[webhooks/mattermost] hit: post_id=${payload.post_id || '-'} trigger=${payload.trigger_word || '-'}`,
     )
 
     const postId = (payload.post_id || '').trim()

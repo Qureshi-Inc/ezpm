@@ -2,8 +2,8 @@
  * GET /api/metrics — Prometheus exposition endpoint (business metrics).
  *
  * Scrapeable by Prometheus → graphable in Grafana. Token-guarded so it isn't
- * public: send `Authorization: Bearer $METRICS_TOKEN` or `?token=`. Disabled
- * (404) when METRICS_TOKEN is unset.
+ * public: send `Authorization: Bearer $METRICS_TOKEN` (header only — no query
+ * param, which would leak into logs). Disabled (404) when METRICS_TOKEN is unset.
  *
  * Today this exposes current business gauges from lib/metrics. To add RUNTIME
  * metrics (HTTP latency histograms, error rates, event-loop lag) for app
@@ -23,6 +23,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { getBusinessSnapshot } from '@/lib/metrics'
+import { safeEqual } from '@/lib/secure-compare'
 
 // Human-readable HELP/TYPE lines per gauge (Prometheus best practice).
 const HELP: Record<string, string> = {
@@ -39,10 +40,11 @@ const HELP: Record<string, string> = {
 }
 
 function authorized(request: NextRequest, token: string): boolean {
+  // Bearer header only — a `?token=` query param leaks into proxy/access logs,
+  // browser history, and shared URLs. Constant-time compare avoids timing leaks.
   const auth = request.headers.get('authorization') || ''
   const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : ''
-  const qp = request.nextUrl.searchParams.get('token') || ''
-  return bearer === token || qp === token
+  return safeEqual(bearer, token)
 }
 
 export async function GET(request: NextRequest) {

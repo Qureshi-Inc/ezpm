@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { applyMaintenanceStatus } from '@/lib/maintenance-status'
 import { type MaintenanceStatus } from '@/lib/email'
+import { safeEqual } from '@/lib/secure-compare'
 
 const EMOJI_TO_STATUS: Record<string, MaintenanceStatus> = {
   hammer_and_wrench: 'in_progress',
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     const expected = process.env.MATTERMOST_OUTGOING_TOKEN
-    if (!expected || payload.token !== expected) return ok()
+    if (!expected || !safeEqual(payload.token, expected)) return ok()
 
     const postId = (payload.post_id || '').trim()
     const emoji = (payload.emoji || '').trim()
