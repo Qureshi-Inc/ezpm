@@ -63,7 +63,10 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+/* overflow-x: clip stops any stray horizontal scroll without creating a scroll
+   container (so the sticky banner keeps working, unlike overflow:hidden/auto). */
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; overflow-x: clip; }
+body { overflow-x: clip; }
 body {
   background: var(--paper);
   color: var(--ink);
@@ -97,10 +100,11 @@ img { display: block; max-width: 100%; }
 h1.display {
   font-family: var(--font-serif);
   font-weight: 500;
-  font-size: clamp(40px, 6.5vw, 72px);
+  font-size: clamp(33px, 7.5vw, 72px);
   line-height: 1.05;
   letter-spacing: -0.02em;
   color: var(--ink);
+  overflow-wrap: break-word;
 }
 h1.display em {
   font-style: italic;
@@ -293,6 +297,7 @@ h3.subhead {
   font-size: 12px;
   color: var(--ink);
   position: relative;
+  overflow: hidden; /* clip the rotated "paid" watermark so it can't widen the page on mobile */
 }
 .statement-header {
   display: flex; justify-content: space-between; align-items: baseline;
@@ -608,6 +613,7 @@ section.doc.tinted { background: var(--paper-tint); }
   line-height: 1.7;
   padding: 20px;
   color: var(--ink);
+  overflow-x: auto; /* long lines scroll inside the box instead of widening the page */
 }
 .console-body .k { color: var(--accent); font-weight: 600; }
 .console-body .c { color: var(--ink-3); font-style: italic; }
@@ -756,6 +762,24 @@ section.doc.tinted { background: var(--paper-tint); }
 /* ── Small utilities ────────────────────────────────────────── */
 .divider-bold { height: 0; border-bottom: var(--rule-w-bold) solid var(--rule); }
 .divider-soft { height: 0; border-bottom: var(--rule-w) solid var(--rule-soft); }
+
+/* ── Mobile hardening ───────────────────────────────────────── */
+@media (max-width: 560px) {
+  :root { --gutter: 18px; }
+  body { font-size: 14.5px; }
+  .hero { padding: 44px 0 52px; }
+  .hero-actions .btn { width: 100%; }   /* full-width tap targets */
+  .article { padding: 22px; }
+  /* Banner: drop the "/ for builders" tagline + tighten so brand + CTA fit. */
+  .banner-row { gap: 12px; }
+  .brand > span > span { display: none; }
+  .brand { font-size: 17px; min-width: 0; }
+  .banner-cta .btn { white-space: nowrap; }
+  /* Ledger reads better as one column on a phone. */
+  .ledger-row { grid-template-columns: 1fr; }
+  .ledger-cell { border-left: none; border-top: var(--rule-w) solid var(--rule-soft); }
+  .ledger-cell:first-child { border-top: none; }
+}
 </style>
 </head>
 <body>
@@ -904,7 +928,7 @@ section.doc.tinted { background: var(--paper-tint); }
         <h2 class="heading">Features</h2>
       </div>
       <div class="right">
-        Nine articles of working code. Each one is something you would otherwise build, debug, and re-debug yourself over a long weekend.
+        Working code for the whole rental lifecycle &mdash; payments, people, maintenance, documents, and the ops glue around them. Each article is something you would otherwise build, debug, and re-debug yourself.
       </div>
     </div>
     <div class="articles">
@@ -920,36 +944,66 @@ section.doc.tinted { background: var(--paper-tint); }
       </article>
       <article class="article">
         <div class="art-num">Art. III</div>
-        <h3>Zitadel OIDC auth</h3>
-        <p>Tenants log in via email + password, passkeys, or federated identity. Auth.js v5 JWE session cookies. Federated logout kills both client and IdP sessions.</p>
+        <h3>Bank verification, both paths</h3>
+        <p>Instant verification via Stripe Financial Connections. Microdeposit fallback for banks that need it. Either path lands the same verified PaymentMethod.</p>
       </article>
       <article class="article">
         <div class="art-num">Art. IV</div>
-        <h3>Bank verification, both paths</h3>
-        <p>Instant verification via Stripe Financial Connections (Plaid). Microdeposit fallback for banks that need it. Either path lands the same verified PaymentMethod.</p>
+        <h3>Zitadel OIDC auth</h3>
+        <p>Email + password, passkeys, or federated identity. Auth.js v5 JWE cookies; federated logout kills both sessions. Admins can fire a Zitadel password-reset email from the tenant page.</p>
       </article>
       <article class="article">
         <div class="art-num">Art. V</div>
-        <h3>Admin dashboard</h3>
-        <p>Properties, tenants, payment history, reconciliation tools. Edit a tenant&rsquo;s rent and the Stripe Subscription price updates atomically; next invoice reflects it.</p>
+        <h3>Maintenance requests with photos</h3>
+        <p>Tenants report issues with photos from their phone; admins move status open &rarr; in&nbsp;progress &rarr; resolved. Files get UUID names, server-side type/size checks, and ownership-checked serving &mdash; no public URLs.</p>
       </article>
       <article class="article">
         <div class="art-num">Art. VI</div>
-        <h3>Webhook idempotency</h3>
-        <p>Every Stripe event INSERTs into a unique-id table with ON CONFLICT DO NOTHING. Retries become no-ops. Reconcile CLI replays anything Stripe couldn&rsquo;t deliver.</p>
+        <h3>Two-way maintenance thread</h3>
+        <p>A comment thread per request. Replies sync both directions with Mattermost; status shows as a single emoji reaction (&#128296;/&#9989;/&#128683;). Reply from chat, it lands in the app and emails the tenant.</p>
       </article>
       <article class="article">
         <div class="art-num">Art. VII</div>
-        <h3>Self-hostable, end-to-end</h3>
-        <p>Docker compose for postgres + PostgREST + Caddy. Coolify-friendly. Runs on a $5/mo VPS or a home server behind a Cloudflare tunnel. Tenants&rsquo; data never touches a third party.</p>
+        <h3>Documents</h3>
+        <p>A per-tenant folder both sides upload to &mdash; lease, insurance, proof of income, notices. PDF, images, and office files up to 25&nbsp;MB, served only through an ownership-checked route.</p>
       </article>
       <article class="article">
         <div class="art-num">Art. VIII</div>
-        <h3>Next.js 15 &middot; TypeScript</h3>
-        <p>App Router, React 19, server actions, edge middleware. Tailwind + shadcn/ui. Code you can actually read, fork, and modify without an internal SDK getting in the way.</p>
+        <h3>Announcements</h3>
+        <p>Post a notice every tenant sees on their dashboard, optionally emailed to all of them in one click. Water shut-offs, reminders, policy changes.</p>
       </article>
       <article class="article">
         <div class="art-num">Art. IX</div>
+        <h3>Branded email, opt-out per tenant</h3>
+        <p>Receipts, maintenance status, and reply emails on one shared template, sent over any SMTP relay. Each tenant turns off the emails they don&rsquo;t want in their settings.</p>
+      </article>
+      <article class="article">
+        <div class="art-num">Art. X</div>
+        <h3>Mattermost ops integration</h3>
+        <p>Signups, subscriptions, charges, and failures post to a channel. Each maintenance request is its own thread. An optional WebSocket bridge gives you two-way replies &mdash; works with a private channel.</p>
+      </article>
+      <article class="article">
+        <div class="art-num">Art. XI</div>
+        <h3>Admin analytics dashboard</h3>
+        <p>KPI cards plus charts for revenue, payments, tenant growth, and maintenance, over 1M / 3M / 6M / 1Y / 2Y / Max. Every card clicks through to the exact filtered list.</p>
+      </article>
+      <article class="article">
+        <div class="art-num">Art. XII</div>
+        <h3>Prometheus &amp; Grafana ready</h3>
+        <p>A token-guarded <span class="mono">/api/metrics</span> endpoint exposes business gauges in Prometheus format &mdash; scrape it, graph it in Grafana today. Runtime metrics drop into the same endpoint later.</p>
+      </article>
+      <article class="article">
+        <div class="art-num">Art. XIII</div>
+        <h3>Webhook idempotency</h3>
+        <p>Every Stripe event INSERTs into a unique-id table with ON CONFLICT DO NOTHING. Retries become no-ops. A reconcile CLI replays anything Stripe couldn&rsquo;t deliver during an outage.</p>
+      </article>
+      <article class="article">
+        <div class="art-num">Art. XIV</div>
+        <h3>Self-hosted, Next.js 15</h3>
+        <p>App Router, React 19, TypeScript. Docker compose for postgres + PostgREST + Caddy. Coolify-friendly, runs on a $5/mo VPS or a home server behind a Cloudflare tunnel.</p>
+      </article>
+      <article class="article">
+        <div class="art-num">Art. XV</div>
         <h3>AGPL-3.0 licensed</h3>
         <p>Source available. Modify, redeploy, fork. Derivative SaaS must release modifications. No license server, no callbacks, no telemetry.</p>
       </article>
@@ -1140,9 +1194,29 @@ section.doc.tinted { background: var(--paper-tint); }
         <div class="inv-desc">Reverse proxy with automatic TLS. The DB stack uses it to map Supabase-shaped URLs to plain PostgREST.</div>
       </div>
       <div class="inv">
+        <div class="inv-role">Email</div>
+        <div class="inv-name">SMTP &middot; nodemailer</div>
+        <div class="inv-desc">Branded receipts, status, and reply emails over any SMTP relay (Brevo, SES, Postfix). Unset the keys and email turns off.</div>
+      </div>
+      <div class="inv">
+        <div class="inv-role">Notifications</div>
+        <div class="inv-name">Mattermost</div>
+        <div class="inv-desc">Bot API for per-request threads + emoji status. Optional WebSocket bridge ships in-repo for two-way replies.</div>
+      </div>
+      <div class="inv">
+        <div class="inv-role">Charts</div>
+        <div class="inv-name">Recharts</div>
+        <div class="inv-desc">Dashboard graphs for revenue, payments, tenants, and maintenance, code-split into the admin route only.</div>
+      </div>
+      <div class="inv">
+        <div class="inv-role">Observability</div>
+        <div class="inv-name">Prometheus</div>
+        <div class="inv-desc">Token-guarded /api/metrics in Prometheus text format. Point Grafana at it; add runtime metrics to the same endpoint.</div>
+      </div>
+      <div class="inv">
         <div class="inv-role">Runtime</div>
         <div class="inv-name">Docker compose</div>
-        <div class="inv-desc">Two compose files: app and DB stack. Coolify-friendly. Works on any docker host.</div>
+        <div class="inv-desc">App + DB stack, plus optional Zitadel and the Mattermost bridge. Coolify-friendly. Works on any docker host.</div>
       </div>
       <div class="inv">
         <div class="inv-role">License</div>

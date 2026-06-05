@@ -42,18 +42,18 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
       .order('address', { ascending: true })
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navigation role="admin" userName="Admin" />
         
         <main className="max-w-2xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="mb-6">
-              <Link href={`/admin/tenants/${id}`} className="flex items-center text-blue-600 hover:text-blue-700 mb-4">
+              <Link href={`/admin/tenants/${id}`} className="flex items-center text-primary hover:text-primary mb-4">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Tenant Details
               </Link>
-              <h1 className="text-3xl font-bold text-gray-900">Edit Tenant</h1>
-              <p className="text-gray-600 mt-2">Update tenant information</p>
+              <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">Edit Tenant</h1>
+              <p className="text-muted-foreground mt-2">Update tenant information</p>
             </div>
 
             <Card>
@@ -73,8 +73,8 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
 
             <Card className="mt-6">
               <CardContent className="pt-6">
-                <h3 className="font-medium text-gray-900 mb-2">Account Information</h3>
-                <div className="text-sm text-gray-600 space-y-1">
+                <h3 className="font-medium text-foreground mb-2">Account Information</h3>
+                <div className="text-sm text-muted-foreground space-y-1">
                   <p>• Account ID: {tenantWithUser.id}</p>
                   <p>• Zitadel-linked user ID: {tenantWithUser.user_id ?? 'not yet (tenant has not logged in)'}</p>
                   <p>• Stripe Customer: {tenantWithUser.stripe_customer_id ?? 'not yet created'}</p>

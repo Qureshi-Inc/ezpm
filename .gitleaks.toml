@@ -1,0 +1,32 @@
+# gitleaks config for EZPM — secret scanning for pre-commit / CI.
+# Run locally:  gitleaks detect --config .gitleaks.toml --redact
+# Or scan staged changes:  gitleaks protect --staged --config .gitleaks.toml --redact
+#
+# Uses gitleaks' built-in rule set (Stripe sk_live, GitHub PATs, AWS keys,
+# Slack tokens, generic high-entropy, etc.) and allowlists this repo's known
+# placeholders so docs/examples don't trip it.
+
+title = "EZPM gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Docs/example placeholders and example env files (no real secrets)"
+
+# Example/template files never hold live values.
+paths = [
+  '''mattermost-bridge/\.env\.example''',
+  '''.*\.example$''',
+]
+
+# Documentation placeholders written with an ellipsis or angle-bracket stub.
+regexes = [
+  '''sk_live_\.\.\.''',
+  '''pk_live_\.\.\.''',
+  '''whsec_\.\.\.''',
+  '''xkeysib-\.\.\.''',
+  '''xsmtpsib-\.\.\.''',
+  '''<[^>]*(token|key|secret|password)[^>]*>''',
+  '''your-[a-z-]*(token|key|secret)''',
+]

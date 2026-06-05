@@ -69,26 +69,26 @@ export function DeleteConfirmationDialog({
             <button
               onClick={() => setOpen(false)}
               disabled={isDeleting}
-              className="absolute right-4 top-4 p-1 hover:bg-gray-100 rounded-full transition-colors"
+              className="absolute right-4 top-4 p-1 hover:bg-muted rounded-full transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
-            <CardTitle className="flex items-center space-x-2 text-red-600 pr-8">
+            <CardTitle className="flex items-center space-x-2 text-destructive pr-8">
               <AlertTriangle className="w-5 h-5" />
               <span>{title}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <p className="text-gray-700">{description}</p>
-              <p className="font-medium text-gray-900">
-                Item to delete: <span className="text-red-600">{itemName}</span>
+              <p className="text-foreground">{description}</p>
+              <p className="font-medium text-foreground">
+                Item to delete: <span className="text-destructive">{itemName}</span>
               </p>
               {destructiveWarning && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-3">
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-3">
                   <div className="flex items-start space-x-2">
-                    <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                    <p className="text-red-800 text-sm font-medium">
+                    <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                    <p className="text-destructive text-sm font-medium">
                       {destructiveWarning}
                     </p>
                   </div>

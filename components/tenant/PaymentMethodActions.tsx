@@ -51,7 +51,7 @@ export function PaymentMethodActions({ paymentMethod }: PaymentMethodActionsProp
   return (
     <div className="flex items-center space-x-2">
       {error && (
-        <div className="fixed top-4 right-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm z-50">
+        <div className="fixed top-4 right-4 bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm z-50">
           {error}
         </div>
       )}
@@ -72,7 +72,7 @@ export function PaymentMethodActions({ paymentMethod }: PaymentMethodActionsProp
           <Button
             variant="outline"
             size="sm"
-            className="text-red-600 hover:text-red-700"
+            className="text-destructive hover:text-destructive"
             disabled={isDeleting}
           >
             <Trash2 className="w-4 h-4" />

@@ -22,7 +22,7 @@ export default async function EditPropertyPage({ params }: { params: Promise<{ i
     }
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navigation role="admin" userName="Admin" />
         <EditPropertyForm property={property} />
       </div>

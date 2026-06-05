@@ -90,15 +90,15 @@ export function EditTenantForm({ tenant, properties }: EditTenantFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+        <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
           {error}
         </div>
       )}
       {warning && (
-        <div className="p-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md">
+        <div className="p-3 text-sm text-warning bg-warning/10 border border-warning/20 rounded-md">
           <p className="font-medium">Heads up:</p>
           <p>{warning}</p>
-          <Link href={`/admin/tenants/${tenant.id}`} className="text-amber-900 underline">
+          <Link href={`/admin/tenants/${tenant.id}`} className="text-warning underline">
             Continue to tenant details →
           </Link>
         </div>
@@ -119,7 +119,7 @@ export function EditTenantForm({ tenant, properties }: EditTenantFormProps) {
         <Label htmlFor="email">Email Address *</Label>
         <Input id="email" name="email" type="email" defaultValue={tenant.email} required disabled={isSubmitting} />
         {tenant.user_id && (
-          <p className="text-xs text-amber-700">
+          <p className="text-xs text-warning">
             Tenant has already logged in via Zitadel. Changing email here only updates this app's mirror — change the
             Zitadel email separately if you want auth to move too.
           </p>

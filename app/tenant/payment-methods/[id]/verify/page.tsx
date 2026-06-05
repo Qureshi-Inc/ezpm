@@ -38,18 +38,18 @@ export default async function VerifyMicrodepositsPage({ params }: VerifyPageProp
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Navigation role="tenant" userName={tenant.first_name} />
 
       <main className="max-w-2xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="py-6">
           <div className="mb-6">
-            <Link href="/tenant/payment-methods" className="flex items-center text-blue-600 hover:text-blue-700 mb-4">
+            <Link href="/tenant/payment-methods" className="flex items-center text-primary hover:text-primary mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Payment Methods
             </Link>
-            <h1 className="text-3xl font-bold text-gray-900">Verify Bank Account</h1>
-            <p className="text-gray-600 mt-2">
+            <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">Verify Bank Account</h1>
+            <p className="text-muted-foreground mt-2">
               Confirm the two small deposits Stripe sent to your account so we can activate it for rent payments.
             </p>
           </div>
@@ -57,8 +57,8 @@ export default async function VerifyMicrodepositsPage({ params }: VerifyPageProp
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Building className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center">
+                  <Building className="w-5 h-5 text-primary" />
                 </div>
                 <span>{pm.bank_name || 'Bank account'} ••••{pm.last4 ?? '••••'}</span>
               </CardTitle>

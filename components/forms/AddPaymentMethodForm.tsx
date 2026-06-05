@@ -153,7 +153,7 @@ function PaymentElementForm({ stripeCustomerId }: { stripeCustomerId: string }) 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+        <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-center space-x-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
@@ -225,7 +225,7 @@ export function AddPaymentMethodForm({ tenantId }: AddPaymentMethodFormProps) {
 
   if (error) {
     return (
-      <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+      <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-center space-x-2">
         <AlertCircle className="w-4 h-4 flex-shrink-0" />
         <span>{error}</span>
       </div>
@@ -233,7 +233,7 @@ export function AddPaymentMethodForm({ tenantId }: AddPaymentMethodFormProps) {
   }
   if (!clientSecret || !stripeCustomerId) {
     return (
-      <div className="flex items-center justify-center py-8 text-gray-500">
+      <div className="flex items-center justify-center py-8 text-muted-foreground">
         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
         Loading secure payment form...
       </div>
@@ -245,7 +245,48 @@ export function AddPaymentMethodForm({ tenantId }: AddPaymentMethodFormProps) {
       stripe={getStripe()}
       options={{
         clientSecret,
-        appearance: { theme: 'stripe' },
+        // Load Inter so the Stripe iframe matches the app's body font.
+        fonts: [
+          {
+            cssSrc: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap',
+          },
+        ],
+        // Theme the hosted PaymentElement to the EZPM palette (cream/teal/ink).
+        appearance: {
+          theme: 'stripe',
+          variables: {
+            colorPrimary: '#0D7377',
+            colorText: '#2A2520',
+            colorTextSecondary: '#897F73',
+            colorBackground: '#FFFFFF',
+            colorDanger: '#B05446',
+            fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+            fontSizeBase: '15px',
+            borderRadius: '12px',
+            spacingUnit: '4px',
+          },
+          rules: {
+            '.Tab': {
+              border: '1px solid #E8DFC9',
+              boxShadow: '0 1px 2px rgba(42,37,32,0.04)',
+            },
+            '.Tab:hover': { color: '#0D7377' },
+            '.Tab--selected': {
+              borderColor: '#0D7377',
+              boxShadow: '0 0 0 1px #0D7377',
+              color: '#0D7377',
+            },
+            '.Input': {
+              border: '1px solid #E8DFC9',
+              boxShadow: '0 1px 2px rgba(42,37,32,0.04)',
+            },
+            '.Input:focus': {
+              border: '1px solid #0D7377',
+              boxShadow: '0 0 0 3px rgba(13,115,119,0.15)',
+            },
+            '.Label': { color: '#5C534A', fontWeight: '500' },
+          },
+        },
       }}
     >
       <PaymentElementForm stripeCustomerId={stripeCustomerId} />

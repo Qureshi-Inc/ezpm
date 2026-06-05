@@ -214,7 +214,37 @@ export async function sendInvitation(input: SendInvitationInput): Promise<SendIn
 }
 
 // ──────────────────────────────────────────────────────────────
-// 3. Quick capability check (for graceful degradation)
+// 3. Send password-reset link
+// ──────────────────────────────────────────────────────────────
+
+export interface SendPasswordResetInput {
+  // The Zitadel user id (== the OIDC `sub` we store as users.zitadel_subject).
+  userId: string
+}
+
+/**
+ * Ask Zitadel to email the user a password-reset link. This is the OIDC-world
+ * equivalent of the old "force password change": Zitadel owns passwords now,
+ * so the admin can't set one — instead the tenant gets a secure link to choose
+ * a new password on Zitadel's hosted page.
+ *
+ * No urlTemplate (same rationale as sendInvitation): Zitadel's default email
+ * links to its hosted reset page with the code pre-filled.
+ */
+export async function sendPasswordReset(input: SendPasswordResetInput): Promise<{ sent: true }> {
+  await call(`/v2/users/${encodeURIComponent(input.userId)}/password_reset`, {
+    method: 'POST',
+    body: JSON.stringify({
+      sendLink: {
+        notificationType: 'NOTIFICATION_TYPE_Email',
+      },
+    }),
+  })
+  return { sent: true }
+}
+
+// ──────────────────────────────────────────────────────────────
+// 4. Quick capability check (for graceful degradation)
 // ──────────────────────────────────────────────────────────────
 
 export function isConfigured(): boolean {

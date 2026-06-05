@@ -12,18 +12,18 @@ export default async function CreatePropertyPage() {
     const session = await requireAdmin()
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navigation role="admin" userName="Admin" />
         
         <main className="max-w-2xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="mb-6">
-              <Link href="/admin/properties" className="flex items-center text-blue-600 hover:text-blue-700 mb-4">
+              <Link href="/admin/properties" className="flex items-center text-primary hover:text-primary mb-4">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Properties
               </Link>
-              <h1 className="text-3xl font-bold text-gray-900">Add New Property</h1>
-              <p className="text-gray-600 mt-2">Create a new rental property listing</p>
+              <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">Add New Property</h1>
+              <p className="text-muted-foreground mt-2">Create a new rental property listing</p>
             </div>
 
             <Card>
@@ -43,8 +43,8 @@ export default async function CreatePropertyPage() {
 
             <Card className="mt-6">
               <CardContent className="pt-6">
-                <h3 className="font-medium text-gray-900 mb-2">Next Steps</h3>
-                <div className="text-sm text-gray-600 space-y-1">
+                <h3 className="font-medium text-foreground mb-2">Next Steps</h3>
+                <div className="text-sm text-muted-foreground space-y-1">
                   <p>• After creating the property, you can assign tenants to it</p>
                   <p>• Set up rent collection schedules</p>
                   <p>• Configure property-specific settings</p>

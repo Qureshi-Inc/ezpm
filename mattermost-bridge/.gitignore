@@ -1,0 +1,5 @@
+.env
+node_modules/
+docker-compose.yml
+# Re-include the example (root .gitignore ignores .env*).
+!.env.example

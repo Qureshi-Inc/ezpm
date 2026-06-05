@@ -58,6 +58,12 @@ CREATE TABLE tenants (
     payment_due_day         INTEGER DEFAULT 1 CHECK (payment_due_day BETWEEN 1 AND 28),
     stripe_customer_id      VARCHAR(255) UNIQUE,
     stripe_subscription_id  VARCHAR(255) UNIQUE,
+    -- Tenant-controlled email notification toggles (tenant Settings page).
+    notify_maintenance_replies BOOLEAN NOT NULL DEFAULT true,
+    notify_maintenance_status  BOOLEAN NOT NULL DEFAULT true,
+    notify_payment_receipts    BOOLEAN NOT NULL DEFAULT true,
+    -- SMS (Twilio) is opt-in: defaults OFF, requires a phone on file + consent.
+    notify_sms                 BOOLEAN NOT NULL DEFAULT false,
     created_at              TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at              TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -298,6 +304,112 @@ END;
 $$;
 
 -- ============================================================
+-- MAINTENANCE REQUESTS  (Phase 1: report + photos + status)
+-- ============================================================
+-- A tenant raises a request; the landlord moves status. Photos live on a
+-- mounted disk volume (see lib/storage.ts) and are served ONLY through an
+-- ownership-checked route, never a public URL. The two-way "updates thread"
+-- is Phase 2 (a separate maintenance_updates table) — not in this schema yet.
+
+CREATE TABLE maintenance_requests (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
+    title       VARCHAR(200) NOT NULL,
+    description TEXT,
+    category    VARCHAR(30)  NOT NULL DEFAULT 'other',
+    priority    VARCHAR(10)  NOT NULL DEFAULT 'normal',
+    status      VARCHAR(20)  NOT NULL DEFAULT 'open',
+    -- Root post id of this request's Mattermost thread (set when the bot posts
+    -- the initial message); status changes reply under it to keep one thread
+    -- per request.
+    mattermost_root_id TEXT,
+    created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMPTZ,
+    CONSTRAINT mr_category_check CHECK (category IN ('plumbing','electrical','appliance','hvac','other')),
+    CONSTRAINT mr_priority_check CHECK (priority IN ('normal','urgent')),
+    CONSTRAINT mr_status_check   CHECK (status   IN ('open','in_progress','resolved','cancelled'))
+);
+CREATE INDEX idx_mr_tenant ON maintenance_requests(tenant_id);
+CREATE INDEX idx_mr_status ON maintenance_requests(status);
+
+-- Photo/PDF attachments. file_path is RELATIVE to UPLOADS_DIR; file_name is
+-- the original (display only). Stored on disk as <uuid>.<ext> by lib/storage.ts.
+CREATE TABLE maintenance_attachments (
+    id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    request_id       UUID NOT NULL REFERENCES maintenance_requests(id) ON DELETE CASCADE,
+    file_path        TEXT NOT NULL,
+    file_name        VARCHAR(255) NOT NULL,
+    content_type     VARCHAR(100) NOT NULL,
+    size_bytes       INTEGER NOT NULL,
+    uploaded_by_role VARCHAR(10) NOT NULL,
+    created_at       TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ma_uploader_check CHECK (uploaded_by_role IN ('tenant','admin'))
+);
+CREATE INDEX idx_ma_request ON maintenance_attachments(request_id);
+
+-- ============================================================
+-- MAINTENANCE COMMENTS  (Phase 2: two-way updates thread)
+-- ============================================================
+-- Comments on a request from tenant or admin. Admin can attach photos to a
+-- comment via maintenance_attachments.comment_id (added below).
+CREATE TABLE maintenance_comments (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    request_id      UUID NOT NULL REFERENCES maintenance_requests(id) ON DELETE CASCADE,
+    author_role     VARCHAR(10) NOT NULL,
+    author_user_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+    body            TEXT NOT NULL,
+    -- Set when this comment was mirrored IN from a Mattermost reply; dedupes
+    -- the outgoing-webhook callback so a reply is never ingested twice.
+    mattermost_post_id TEXT UNIQUE,
+    created_at      TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT mc_author_check CHECK (author_role IN ('tenant','admin'))
+);
+CREATE INDEX idx_mc_request ON maintenance_comments(request_id);
+
+-- Link a photo to a specific comment (NULL = belongs to the request itself).
+ALTER TABLE maintenance_attachments
+    ADD COLUMN comment_id UUID REFERENCES maintenance_comments(id) ON DELETE CASCADE;
+CREATE INDEX idx_ma_comment ON maintenance_attachments(comment_id);
+
+-- ============================================================
+-- DOCUMENTS  (bidirectional per-tenant file sharing)
+-- ============================================================
+-- A per-tenant folder: both tenant and admin upload; both see all of that
+-- tenant's documents (labeled by uploader). Files live under UPLOADS_DIR as
+-- documents/<tenant_id>/<uuid>.<ext>, served only via an ownership-checked
+-- route. Uploader deletes own; admin deletes any.
+CREATE TABLE documents (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id           UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    category            VARCHAR(20) NOT NULL DEFAULT 'other',
+    file_path           TEXT NOT NULL,
+    file_name           VARCHAR(255) NOT NULL,
+    content_type        VARCHAR(150) NOT NULL,
+    size_bytes          INTEGER NOT NULL,
+    uploaded_by_role    VARCHAR(10) NOT NULL,
+    uploaded_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at          TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT doc_uploader_check CHECK (uploaded_by_role IN ('tenant','admin')),
+    CONSTRAINT doc_category_check CHECK (category IN ('lease','insurance','id','income','notice','receipt','other'))
+);
+CREATE INDEX idx_doc_tenant ON documents(tenant_id);
+
+-- ============================================================
+-- ANNOUNCEMENTS  (admin → all tenants)
+-- ============================================================
+CREATE TABLE announcements (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title       VARCHAR(200) NOT NULL,
+    body        TEXT NOT NULL,
+    created_by  UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_ann_created ON announcements(created_at DESC);
+
+-- ============================================================
 -- UPDATED_AT TRIGGERS
 -- ============================================================
 
@@ -315,6 +427,8 @@ CREATE TRIGGER trg_tenants_updated_at         BEFORE UPDATE ON tenants         F
 CREATE TRIGGER trg_payment_methods_updated_at BEFORE UPDATE ON payment_methods FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_payments_updated_at        BEFORE UPDATE ON payments        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER trg_system_settings_updated_at BEFORE UPDATE ON system_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_maintenance_requests_updated_at BEFORE UPDATE ON maintenance_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_announcements_updated_at     BEFORE UPDATE ON announcements    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
 -- SEED DATA

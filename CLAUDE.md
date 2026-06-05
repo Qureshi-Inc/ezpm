@@ -15,6 +15,61 @@ Production: https://app.getezpm.com (Coolify auto-deploy on push to main).
 - **Payments:** Stripe (cards + `us_bank_account`/ACH via Financial Connections), Stripe Subscriptions for monthly auto-charge
 - **Deploy:** Coolify on a self-hosted server. Domain `app.getezpm.com` routes through Cloudflare → cloudflared tunnel → Traefik (Coolify proxy on `localhost:443` with self-signed cert + `noTLSVerify`). The standalone Zitadel routes through Cloudflare → cloudflared tunnel → its own Caddy on `localhost:8091`.
 
+## Optional Environment Variables
+
+```
+# Mattermost operational notifications (lib/notify.ts) — incoming webhook.
+# Fires on: new tenant signup, subscription created, rent charged/failed.
+# Leave unset to disable notifications silently (no errors, no-op).
+# In Mattermost: Integrations → Incoming Webhooks → Add Webhook → copy URL.
+MATTERMOST_WEBHOOK_URL=https://mm.qureshi.io/hooks/<token>
+
+# Mattermost MAINTENANCE channel (lib/mattermost.ts) — bot API, NOT a webhook.
+# Used to post one THREAD PER maintenance request, react to status changes with
+# an emoji on the root post (🛠️ in_progress / ✅ resolved / 🚫 cancelled), and
+# attach the tenant's photos. Threads + reactions need the bot's API token
+# (incoming webhooks can't do either):
+#   System Console → Integrations → Bot Accounts → ezpm bot → Create Token.
+# The bot must be a MEMBER of the channel. Give EITHER the channel id OR the
+# team name (channel name defaults to ezpm-maintenance). Unset = no-op.
+MATTERMOST_URL=https://mm.qureshi.io
+MATTERMOST_BOT_TOKEN=<bot access token>
+MATTERMOST_MAINTENANCE_CHANNEL_ID=<26-char channel id>   # OR set MATTERMOST_TEAM instead
+# MATTERMOST_TEAM=<team name>
+# MATTERMOST_MAINTENANCE_CHANNEL=ezpm-maintenance
+
+# Inbound Mattermost replies (POST /api/webhooks/mattermost). Shared secret the
+# mattermost-bridge (see mattermost-bridge/) sends so the app trusts the relay.
+# Any non-empty string; must match the bridge's MATTERMOST_OUTGOING_TOKEN.
+MATTERMOST_OUTGOING_TOKEN=<shared secret>
+
+# Transactional email (lib/email.ts) — SMTP via nodemailer.
+# Receipts, maintenance status/reply emails, and announcement blasts all go
+# through here. Uses an SMTP relay (we use Brevo — the same relay Zitadel uses
+# for this domain). NOTE: this is the SMTP key (xsmtpsib-...), NOT the HTTP API
+# key. Leave SMTP_USER/SMTP_PASS unset to disable all email silently (no-op).
+SMTP_HOST=smtp-relay.brevo.com   # default; any SMTP relay works
+SMTP_PORT=587                    # 587 STARTTLS (default) or 465 implicit TLS
+SMTP_USER=<smtp login>           # Brevo: the SMTP "Login", e.g. xxxxx@smtp-brevo.com
+SMTP_PASS=<smtp key>             # falls back to BREVO_API_KEY if unset (back-compat)
+EMAIL_FROM_ADDRESS=receipts@getezpm.com   # sender domain must be authenticated in the relay
+EMAIL_FROM_NAME=EZPM
+EMAIL_REPLY_TO=hello@getezpm.com
+
+# Prometheus metrics endpoint (/api/metrics). Unset = endpoint returns 404.
+# Set to a random secret; Prometheus sends it as a Bearer token (or ?token=).
+METRICS_TOKEN=<openssl rand -hex 24>
+
+# Transactional SMS (lib/sms.ts) — Twilio for maintenance alerts (manager reply
+# + status change). Opt-in per tenant (tenants.notify_sms, default off) and only
+# fires if the tenant has a phone on file. Leave any of these unset to disable
+# all SMS silently (no-op). Prefer the Messaging Service SID (handles A2P 10DLC).
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=<auth token>
+TWILIO_MESSAGING_SERVICE_SID=MG...   # preferred sender
+TWILIO_FROM=+1XXXXXXXXXX             # fallback sender if no Messaging Service SID
+```
+
 ## Required Environment Variables
 
 ```
@@ -46,7 +101,120 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...          # JWT signed with same secret, role=se
 
 # App
 NEXT_PUBLIC_APP_URL=https://app.getezpm.com
+
+# Maintenance attachments (photos) storage — disk volume.
+# Mount a persistent Coolify volume at this path; files are written here and
+# served ONLY through the ownership-checked /api/.../maintenance/attachments/[id]
+# route (never a public URL). Auto-discovered by the nightly backup.
+UPLOADS_DIR=/app/uploads
 ```
+
+## Tenant-facing features
+
+All of these are independent of the Stripe payment flow (no shared code paths,
+webhooks, or settings) — safe to touch without risking payments.
+
+### Maintenance requests (Phase 1 + Phase 2)
+- Tenants report issues (title + category + priority + description + photos);
+  admin moves status `open → in_progress → resolved → cancelled`.
+- **Mattermost:** new request → one THREAD PER request (root post id stored on
+  `maintenance_requests.mattermost_root_id`) with the tenant's photos attached.
+  Status changes **react** on the root post with a single emoji (🛠️/✅/🚫) —
+  the prior status emoji is cleared so it always shows the live status. React
+  with 🛠️/✅/🚫 in Mattermost to drive the status (relayed by the bridge).
+- **Two-way updates thread (Phase 2):** `maintenance_comments` table + a chat UI
+  (`MaintenanceThread`) on both detail pages. Comments post to the request's
+  Mattermost thread; **replies in Mattermost flow back as comments** via the
+  bridge (see "Two-way Mattermost sync" below). Comment photos attach via
+  `maintenance_attachments.comment_id`.
+- **Emails:** status change → branded status email; an admin reply → branded
+  reply email with the message + a "View & reply" link (respects the tenant's
+  notification toggle). All share `emailLayout()` with the receipt.
+- Tables: `maintenance_requests`, `maintenance_attachments` (+ `comment_id`),
+  `maintenance_comments`. Photos on the `UPLOADS_DIR` volume, served through an
+  ownership-checked route (never a public URL). File security is covered by
+  `lib/storage.test.ts` (`npm test`).
+
+### Documents (`documents` table)
+Per-tenant document folder, **bidirectional**: both tenant and admin upload into
+the same folder and both see everything (labeled by uploader). Uploader deletes
+own; admin deletes any. Tenant page `/tenant/documents`; admin manages from the
+tenant-detail page (shared `DocumentsManager` component). PDF/images/Office/
+txt/csv up to 25 MB, stored on the SAME `UPLOADS_DIR` volume under `documents/`,
+served via an ownership-checked route. Reuses `lib/storage` (`storeDocument`).
+
+### Announcements (`announcements` table)
+Admin posts a notice (`/admin/announcements`) optionally emailing every tenant.
+Tenants see the latest on their dashboard banner + a full list at
+`/tenant/announcements`.
+
+### Tenant notification preferences
+Per-tenant email toggles (default true) on `/tenant/settings`
+(`NotificationSettings`) via `PATCH /api/tenant/notifications`:
+- `notify_maintenance_replies` — honored by `lib/maintenance-notify.ts`.
+- `notify_maintenance_status` — honored by `applyMaintenanceStatus` in
+  `lib/maintenance-status.ts`.
+- `notify_payment_receipts` — honored by `sendReceiptEmailForInvoice` in
+  `lib/stripe-event-handler.ts`.
+Structured so adding more toggles is one boolean column + one row in the UI.
+
+### Status changes are bidirectional
+`lib/maintenance-status.ts` `applyMaintenanceStatus()` is the single path for a
+status change (DB update + tenant email/SMS + Mattermost emoji reaction).
+Triggered by:
+- the admin web UI (`PATCH /api/admin/maintenance/[id]`),
+- tenant self-cancel (`PATCH /api/tenant/maintenance/[id]`), or
+- a **status emoji reaction in Mattermost** on the request's root post — the
+  bridge catches `reaction_added` (🛠️→in_progress, ✅→resolved, 🚫→cancelled)
+  and relays to `POST /api/webhooks/mattermost-reaction`. (No emoji maps to
+  `open`; reopen via the web UI. `reaction_removed` is ignored — ambiguous.)
+
+### Admin analytics dashboard + metrics
+`/admin` shows KPI cards + charts (rent collected, payments succeeded/failed,
+tenant growth, maintenance created/resolved) with a timeframe selector
+(1M/3M/6M/1Y/2Y/Max). `components/admin/AnalyticsDashboard.tsx` (Recharts) fetches
+`GET /api/admin/metrics?range=…`. All aggregation lives in `lib/metrics.ts`
+(`getDashboardMetrics` for the dashboard, `getBusinessSnapshot` for gauges) —
+JS reducers over windowed rows; swap for SQL RPCs if it ever needs scale.
+
+**Prometheus / Grafana:** `GET /api/metrics` emits the business gauges in
+Prometheus text format, token-guarded by `METRICS_TOKEN` (Bearer or `?token=`;
+404 when unset). Point Prometheus at it (`metrics_path: /api/metrics`), graph in
+Grafana. Runtime/perf metrics (HTTP latency histograms, error rates) are the
+documented next step: add `prom-client`, register default + histogram metrics,
+and merge `register.metrics()` into the same endpoint so the scrape config never
+changes.
+
+### Admin "Send Password Reset"
+`/admin/tenants/[id]` → emails the tenant a Zitadel password-reset link
+(`lib/zitadel.ts` `sendPasswordReset` → `POST /v2/users/{id}/password_reset`).
+Replaced the dead bcrypt-era "Force Password Change" button.
+
+**Coolify setup before deploy:** add ONE persistent volume mounted at
+`/app/uploads` (covers BOTH maintenance photos and documents; or set
+`UPLOADS_DIR`). Without it, uploaded files are lost on redeploy.
+
+## Two-way Mattermost sync (mattermost-bridge/) — INSTANCE-SPECIFIC
+
+Outbound (app → Mattermost) uses the bot API and works anywhere. **Inbound**
+(Mattermost reply → app comment) is the tricky half:
+
+- Mattermost **outgoing webhooks only fire on root channel messages, never on
+  in-thread replies** — so they can't drive a per-request thread conversation.
+- Solution: a tiny always-on **WebSocket bridge** (`mattermost-bridge/`) that
+  authenticates with the bot token, listens for `posted` events in the channel,
+  and relays in-thread replies to `POST /api/webhooks/mattermost` (authenticated
+  with `MATTERMOST_OUTGOING_TOKEN`). The app maps the reply's `root_id` → request
+  and inserts a "Property manager" comment + emails the tenant.
+- Loop-safe: ignores the bot's own posts; `IGNORE_USERNAMES` (default
+  `matter-bot`) drops an AI assistant's posts AND any reply that @-mentions it,
+  so internal AI Q&A stays private; dedupes by `mattermost_comments`'
+  `mattermost_post_id` (UNIQUE).
+- The channel can be **private** with the bridge (the bot is a member). The
+  outgoing-webhook path required a public channel; the bridge does not.
+- Live deployment runs as a standalone docker-compose service at
+  `/home/opti3/services/ezpm-mm-bridge/` (NOT in this repo's deploy; secrets in
+  its own `.env`). A portable copy of the code lives in `mattermost-bridge/`.
 
 ## Database Schema (`supabase/schema.sql`)
 
@@ -57,6 +225,11 @@ NEXT_PUBLIC_APP_URL=https://app.getezpm.com
 - `payments` — local mirror of Stripe Invoices. Webhook-driven. Status values mirror Stripe Invoice states: `open`, `processing`, `succeeded`, `failed`, `uncollectible`, `void`.
 - `stripe_events` — idempotency table. Webhook handler INSERTs every `event.id` with `ON CONFLICT DO NOTHING` so Stripe retries don't double-mirror.
 - `system_settings` — bootstrap flags and the reconcile watermark (`last_stripe_event_synced_at`).
+- `maintenance_requests` / `maintenance_attachments` — issues + photo/PDF files (file metadata only; bytes on `UPLOADS_DIR`). `mattermost_root_id` links the Mattermost thread; `maintenance_attachments.comment_id` ties a photo to a thread comment.
+- `maintenance_comments` — two-way request thread (tenant/admin). `mattermost_post_id` (UNIQUE) dedupes replies mirrored in from Mattermost.
+- `documents` — per-tenant bidirectional document folder (file metadata; bytes on `UPLOADS_DIR` under `documents/`).
+- `announcements` — admin → tenant notices.
+- `tenants.notify_maintenance_replies`, `tenants.notify_maintenance_status`, `tenants.notify_payment_receipts` — per-tenant email toggles (default true; tenant Settings page).
 
 ## Key Flows
 
@@ -142,6 +315,58 @@ See the migration plan for the full list. The big ones:
 - **T13** — `pg_dump` + documented rollback procedure for the schema cutover (see `MIGRATION.md`).
 - **T14** — introduce Vitest + Playwright. Zero tests today.
 - **T15** — enforce MFA on the Zitadel admin role.
+
+## Session handoff (current state — read me first when resuming)
+
+Work is on the **`mattermost` branch, NOT yet pushed** (`git push origin mattermost`
+when ready). The branch adds, on top of the Zitadel/Stripe migration:
+maintenance Phase 1 + Phase 2 thread, Mattermost threading/photos/emoji-status/
+two-way bridge, documents, announcements, tenant notification prefs, admin
+Zitadel password reset, SMTP email, and mobile layout fixes.
+
+Live-environment state already applied (so don't redo these):
+- DB tables created on the live DB + PostgREST schema reloaded: `documents`,
+  `announcements`, `maintenance_comments`, `maintenance_attachments.comment_id`,
+  `tenants.notify_maintenance_replies`, `tenants.notify_payment_receipts`,
+  `tenants.notify_sms`, `maintenance_comments.mattermost_post_id`.
+- Coolify env on the app: `SMTP_USER=...@smtp-brevo.com` set; `BREVO_API_KEY`
+  holds the SMTP key (reused as `SMTP_PASS`); `MATTERMOST_OUTGOING_TOKEN` set.
+- Coolify persistent volume mounted at `/app/uploads` (maintenance + documents).
+- The **bridge** runs at `/home/opti3/services/ezpm-mm-bridge/` (docker compose,
+  `restart: unless-stopped`, Homepage card under Infrastructure).
+- Email verified working over Brevo SMTP (HTTP API key was the wrong key type).
+- Maintenance channel `maint-requests` can be private (bridge handles inbound).
+
+Pending / nice-to-have:
+- Push the `mattermost` branch → redeploy to ship the app commits.
+- Rotate the Brevo SMTP key (was pasted in plaintext during setup).
+- GitHub Pages landing (`docs/index.html`) builds from a different branch — merge
+  there to publish the updated feature cards.
+
+## Open-source portability
+
+This repo is AGPLv3 and public. Notes for other operators:
+
+**Portable as-is (config-only, no code specific to our instance):**
+- Core app (auth, payments, maintenance, documents, announcements, notification
+  prefs). All integrations are env-gated and no-op when unset.
+- Email: any SMTP relay via `SMTP_*` (we use Brevo; Mailgun/SES/Postfix all work).
+- Mattermost OUTBOUND notifications (`lib/notify.ts` incoming webhook +
+  `lib/mattermost.ts` bot API): set the env vars or leave unset to disable.
+
+**Instance-specific — needs the operator's own setup (not a code change):**
+- Zitadel (`auth.getezpm.com`), Stripe keys, Brevo creds, all IDs (org id,
+  channel id, OIDC client) — every one is an env var; nothing hardcoded.
+- The **two-way Mattermost bridge** is the only piece that needs an extra
+  always-on process. It's shipped in `mattermost-bridge/` with a
+  `docker-compose.example.yml` + `.env.example` so any operator can run it
+  (or skip it — outbound notifications still work without it). `IGNORE_USERNAMES`
+  is configurable; nothing about our AI bot is hardcoded.
+
+**To make a feature more portable when extending:** keep integrations behind an
+`isConfigured()`-style guard that returns a silent no-op when env is missing
+(see `lib/mattermost.ts`, `lib/email.ts`), and never hardcode IDs/usernames —
+read them from env with sensible defaults.
 
 ## Skill routing
 

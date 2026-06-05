@@ -29,14 +29,14 @@ export default async function PaymentMethodsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Navigation role="tenant" userName={tenant.first_name} />
 
       <main className="max-w-4xl mx-auto py-3 sm:py-6 px-4 sm:px-6 lg:px-8">
         <div className="py-3 sm:py-6">
           <div className="mb-6 sm:mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Payment Methods</h1>
-            <p className="text-gray-600 mt-2">
+            <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-tight text-foreground">Payment Methods</h1>
+            <p className="text-muted-foreground mt-2">
               Manage the cards and bank accounts used for rent payments. Your
               landlord runs auto-pay through Stripe Subscriptions — your default
               payment method is charged automatically each month.
@@ -44,20 +44,20 @@ export default async function PaymentMethodsPage() {
           </div>
 
           {/* Processing fee notice */}
-          <Card className="mb-4 sm:mb-6 border-amber-200 bg-amber-50">
+          <Card className="mb-4 sm:mb-6 border-warning/20 bg-warning/10">
             <CardContent className="pt-6">
-              <h3 className="font-medium text-amber-900 mb-2">Processing Fees</h3>
+              <h3 className="font-medium text-warning mb-2">Processing Fees</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between items-center">
-                  <span className="text-amber-700">Credit/Debit Cards</span>
-                  <span className="font-medium text-amber-900">2.9% + $0.30</span>
+                  <span className="text-warning">Credit/Debit Cards</span>
+                  <span className="font-medium text-warning">2.9% + $0.30</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-amber-700">Bank Account (ACH)</span>
-                  <span className="font-medium text-amber-900">0.8% capped at $5.00</span>
+                  <span className="text-warning">Bank Account (ACH)</span>
+                  <span className="font-medium text-warning">0.8% capped at $5.00</span>
                 </div>
               </div>
-              <p className="text-xs text-amber-700 mt-3">
+              <p className="text-xs text-warning mt-3">
                 Example: $2,000 rent + card = $2,058.30 total | $2,000 rent + ACH = $2,005.00 total.
               </p>
             </CardContent>
@@ -67,13 +67,13 @@ export default async function PaymentMethodsPage() {
           {!paymentMethods || paymentMethods.length === 0 ? (
             <Card>
               <CardContent className="text-center py-8">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CreditCard className="w-8 h-8 text-gray-400" />
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CreditCard className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <h3 className="text-lg font-medium text-foreground mb-2">
                   No payment methods yet
                 </h3>
-                <p className="text-gray-600 mb-6">
+                <p className="text-muted-foreground mb-6">
                   Add a card or bank account to start paying rent online.
                 </p>
                 <Link href="/tenant/payment-methods/add">

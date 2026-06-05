@@ -28,15 +28,15 @@ export default async function PropertiesPage() {
     }
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navigation role="admin" userName="Admin" />
         
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="flex justify-between items-center mb-8">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Property Management</h1>
-                <p className="text-gray-600 mt-2">Manage rental properties and track occupancy</p>
+                <h1 className="font-display text-3xl font-medium tracking-tight text-foreground">Property Management</h1>
+                <p className="text-muted-foreground mt-2">Manage rental properties and track occupancy</p>
               </div>
               <Link href="/admin/properties/create">
                 <Button className="flex items-center space-x-2">
@@ -58,8 +58,8 @@ export default async function PropertiesPage() {
                       <CardHeader className="pb-4">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                              <Building className="w-6 h-6 text-green-600" />
+                            <div className="w-12 h-12 bg-success/15 rounded-full flex items-center justify-center">
+                              <Building className="w-6 h-6 text-success" />
                             </div>
                             <div className="flex-1">
                               <CardTitle className="text-lg">{property.address}</CardTitle>
@@ -76,17 +76,17 @@ export default async function PropertiesPage() {
                       
                       <CardContent className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2 text-sm text-gray-600">
+                          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                             <DollarSign className="w-4 h-4" />
                             <span>Monthly Rent</span>
                           </div>
-                          <span className="text-lg font-bold text-green-600">
+                          <span className="text-lg font-bold text-success">
                             {formatCurrency(property.rent_amount)}
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2 text-sm text-gray-600">
+                          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                             <Users className="w-4 h-4" />
                             <span>Tenants</span>
                           </div>
@@ -95,7 +95,7 @@ export default async function PropertiesPage() {
                           </span>
                         </div>
 
-                        <div className="flex items-start space-x-2 text-sm text-gray-600">
+                        <div className="flex items-start space-x-2 text-sm text-muted-foreground">
                           <MapPin className="w-4 h-4 mt-0.5" />
                           <span>{property.address}</span>
                         </div>
@@ -113,7 +113,7 @@ export default async function PropertiesPage() {
                               </Button>
                             </Link>
                           </div>
-                          <p className="text-xs text-gray-500 mt-2 text-center">
+                          <p className="text-xs text-muted-foreground mt-2 text-center">
                             Use "View Details" for delete options
                           </p>
                         </div>
@@ -125,9 +125,9 @@ export default async function PropertiesPage() {
                 <div className="col-span-full">
                   <Card className="text-center py-12">
                     <CardContent>
-                      <Building className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No properties yet</h3>
-                      <p className="text-gray-600 mb-6">
+                      <Building className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-foreground mb-2">No properties yet</h3>
+                      <p className="text-muted-foreground mb-6">
                         Add your first rental property to start managing tenants and payments.
                       </p>
                       <Link href="/admin/properties/create">
