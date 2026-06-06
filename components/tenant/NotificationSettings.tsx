@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react'
 interface Props {
   initialMaintenanceReplies: boolean
   initialMaintenanceStatus: boolean
-  initialPaymentReceipts: boolean
+  initialPaymentCharged: boolean
   initialSms: boolean
   phone: string | null
 }
@@ -14,14 +14,14 @@ interface Props {
 export function NotificationSettings({
   initialMaintenanceReplies,
   initialMaintenanceStatus,
-  initialPaymentReceipts,
+  initialPaymentCharged,
   initialSms,
   phone,
 }: Props) {
   const [prefs, setPrefs] = useState({
     notify_maintenance_replies: initialMaintenanceReplies,
     notify_maintenance_status: initialMaintenanceStatus,
-    notify_payment_receipts: initialPaymentReceipts,
+    notify_payment_charged: initialPaymentCharged,
     notify_sms: initialSms,
   })
   const [savingKey, setSavingKey] = useState<string>('')
@@ -65,9 +65,9 @@ export function NotificationSettings({
       desc: 'Email me when my property manager replies to a maintenance request.',
     },
     {
-      key: 'notify_payment_receipts',
-      title: 'Payment receipts',
-      desc: 'Email me a receipt each time my rent payment goes through.',
+      key: 'notify_payment_charged',
+      title: 'Payment updates',
+      desc: 'Email me when my rent is charged — a receipt for card payments, or an “on its way” note with the clearing ETA for bank payments.',
     },
     {
       key: 'notify_sms',

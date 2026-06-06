@@ -62,6 +62,9 @@ CREATE TABLE tenants (
     notify_maintenance_replies BOOLEAN NOT NULL DEFAULT true,
     notify_maintenance_status  BOOLEAN NOT NULL DEFAULT true,
     notify_payment_receipts    BOOLEAN NOT NULL DEFAULT true,
+    -- Single "payment charged" email (instant receipt for cards / "on its way"
+    -- with the ACH clearing ETA for bank payments). Supersedes notify_payment_receipts.
+    notify_payment_charged     BOOLEAN NOT NULL DEFAULT true,
     -- SMS (Twilio) is opt-in: defaults OFF, requires a phone on file + consent.
     notify_sms                 BOOLEAN NOT NULL DEFAULT false,
     created_at              TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

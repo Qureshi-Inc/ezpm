@@ -30,7 +30,7 @@ export default async function TenantSettingsPage() {
             <NotificationSettings
               initialMaintenanceReplies={tenant.notify_maintenance_replies !== false}
               initialMaintenanceStatus={tenant.notify_maintenance_status !== false}
-              initialPaymentReceipts={tenant.notify_payment_receipts !== false}
+              initialPaymentCharged={tenant.notify_payment_charged !== false}
               initialSms={tenant.notify_sms === true}
               phone={tenant.phone ?? null}
             />

@@ -278,6 +278,109 @@ export async function sendReceipt(data: ReceiptData): Promise<void> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Payment-charged email — the single email a tenant gets when rent is charged.
+//
+// Card payments clear instantly (isProcessing = false) so this reads like a
+// receipt. Bank/ACH payments enter Stripe's `processing` state for a few days
+// (isProcessing = true) so this reads as "on its way" and quotes the clearing
+// ETA. There is intentionally only ONE payment email per charge — ACH sends it
+// at processing-start and stays silent when funds finally settle.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// The clearing window we quote for ACH/bank payments. Conservative on purpose:
+// fewer "why isn't it done yet?" replies. Stripe ACH typically settles in ~4.
+export const ACH_CLEARING_ETA = 'up to 5-7 business days'
+
+export interface PaymentChargedData {
+  tenantName: string
+  tenantEmail: string
+  amount: number              // dollars, e.g. 1500.00
+  invoiceId: string
+  chargedDate: Date
+  isProcessing: boolean       // true = bank/ACH still clearing; false = instant (card)
+  propertyAddress?: string | null
+  propertyUnit?: string | null
+  paymentMethodType?: string | null  // 'card' | 'us_bank_account'
+  paymentMethodLast4?: string | null
+}
+
+export function renderPaymentChargedEmail(data: PaymentChargedData): { subject: string; html: string } {
+  const propertyLine = data.propertyAddress
+    ? escapeHtml(data.propertyAddress) + (data.propertyUnit ? `, Unit ${escapeHtml(data.propertyUnit)}` : '')
+    : 'Your residence'
+
+  const methodLabel = data.paymentMethodType === 'us_bank_account'
+    ? `Bank account ${data.paymentMethodLast4 ? '••' + escapeHtml(data.paymentMethodLast4) : '(ACH)'}`
+    : data.paymentMethodType === 'card'
+      ? `Card ${data.paymentMethodLast4 ? '••' + escapeHtml(data.paymentMethodLast4) : ''}`
+      : 'On file'
+
+  const subject = data.isProcessing
+    ? `Payment received — ${money(data.amount)} is on its way`
+    : `Receipt — ${money(data.amount)} rent payment received`
+
+  // ETA callout only for in-flight bank payments.
+  const etaBlock = data.isProcessing
+    ? `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 18px;background-color:#FFFFFF;border:1px solid ${C.border};border-left:3px solid ${C.teal};border-radius:10px;">
+          <div style="font-family:${SANS};font-size:12px;font-weight:600;color:${C.muted};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">What happens next</div>
+          <div style="font-family:${SANS};font-size:15px;color:${C.ink};line-height:1.55;">Bank (ACH) payments take <strong>${ACH_CLEARING_ETA}</strong> to clear. There&rsquo;s nothing more you need to do — we&rsquo;ll handle the rest and your account will update automatically once it settles.</div>
+        </td>
+      </tr>
+    </table>`
+    : ''
+
+  const amountLabel = data.isProcessing ? 'Amount charged' : 'Amount paid'
+  const dateLabel = data.isProcessing ? 'Date initiated' : 'Date paid'
+
+  const bodyHtml = `
+    <!-- Amount -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${C.cream};border-radius:14px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:22px 24px;text-align:center;">
+          <div style="font-family:${SANS};font-size:12px;font-weight:600;color:${C.muted};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">${amountLabel}</div>
+          <div style="font-family:${SERIF};font-size:44px;font-weight:normal;color:${C.teal};line-height:1;">${money(data.amount)}</div>
+        </td>
+      </tr>
+    </table>
+    ${etaBlock}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      ${detailRow(dateLabel, longDate(data.chargedDate))}
+      ${detailRow('Property', propertyLine)}
+      ${detailRow('Payment method', methodLabel)}
+      ${detailRow(data.isProcessing ? 'Reference #' : 'Receipt #', escapeHtml(data.invoiceId), true)}
+    </table>`
+
+  const html = emailLayout({
+    subject,
+    preheader: data.isProcessing
+      ? `Your ${money(data.amount)} rent payment is processing and on its way.`
+      : `Your ${money(data.amount)} rent payment was received. Thank you!`,
+    badge: data.isProcessing
+      ? { text: 'PAYMENT ON ITS WAY', color: C.teal, bg: '#DCEEEF' }
+      : { text: '✓ PAYMENT RECEIVED', color: C.leaf, bg: '#E2EDE1' },
+    heading: `Thank you, ${escapeHtml(data.tenantName)}.`,
+    intro: data.isProcessing
+      ? 'We&rsquo;ve received your rent payment and it&rsquo;s now processing through your bank.'
+      : 'We&rsquo;ve received your rent payment. Here&rsquo;s your receipt for your records.',
+    bodyHtml,
+    footerNote: data.isProcessing
+      ? 'This payment was initiated securely by Stripe. No action is needed — your auto-pay remains active for next month. Questions? Just reply to this email.'
+      : 'This payment was processed securely by Stripe. No action is needed — your auto-pay remains active for next month. Questions about your account? Just reply to this email.',
+  })
+
+  return { subject, html }
+}
+
+/** Fire-and-forget: render + send the payment-charged email. */
+export async function sendPaymentChargedEmail(data: PaymentChargedData): Promise<void> {
+  const { subject, html } = renderPaymentChargedEmail(data)
+  await sendEmail({ to: data.tenantEmail, toName: data.tenantName, subject, html })
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Maintenance status-change email (Phase 1)
 // ──────────────────────────────────────────────────────────────────────────────
 

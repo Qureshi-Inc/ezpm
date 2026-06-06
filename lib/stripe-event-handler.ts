@@ -11,7 +11,7 @@
 import type Stripe from 'stripe'
 import type { createServerSupabaseClient } from './supabase'
 import { notify } from './notify'
-import { sendReceipt } from './email'
+import { sendPaymentChargedEmail } from './email'
 
 type Supabase = ReturnType<typeof createServerSupabaseClient>
 
@@ -24,6 +24,12 @@ export async function handleStripeEvent(event: Stripe.Event, supabase: Supabase)
 
     case 'invoice.payment_succeeded': {
       const invoice = event.data.object as Stripe.Invoice
+      // Read the prior mirror status BEFORE upserting so we can tell an
+      // instant (card) payment from a bank/ACH one that already announced
+      // itself at `payment_intent.processing`. Only instant payments get the
+      // charged email here; ACH already emailed at processing-start (we send
+      // exactly one payment email per charge).
+      const priorStatus = await currentPaymentStatus(invoice.id, supabase)
       await mirrorInvoice(invoice, supabase, {
         status: 'succeeded',
         paid_at: new Date(
@@ -33,9 +39,35 @@ export async function handleStripeEvent(event: Stripe.Event, supabase: Supabase)
       // Look up tenant info for the Mattermost notification. This is a
       // separate query so mirrorInvoice stays unchanged and independent.
       void notifyRentCharged(invoice, supabase)
-      // Email the tenant a branded receipt. Fire-and-forget — a Brevo
-      // outage or missing API key can never break webhook processing.
-      void sendReceiptEmailForInvoice(invoice, supabase)
+      if (priorStatus !== 'processing' && priorStatus !== 'succeeded') {
+        // Instant payment (card) — email the branded receipt. Fire-and-forget:
+        // a Brevo outage or missing key can never break webhook processing.
+        void sendChargedEmail(
+          {
+            customerId: customerIdOf(invoice.customer),
+            amount: invoice.amount_paid / 100,
+            invoiceId: invoice.id ?? '',
+            chargedDate: new Date(
+              (invoice.status_transitions?.paid_at ?? invoice.created) * 1000,
+            ),
+            paymentMethodStripeId:
+              typeof invoice.default_payment_method === 'string'
+                ? invoice.default_payment_method
+                : null,
+            isProcessing: false,
+          },
+          supabase,
+        )
+      }
+      break
+    }
+
+    case 'payment_intent.processing': {
+      // Bank/ACH payment submitted but not yet cleared. The invoice stays
+      // `open` on Stripe's side the whole time it clears, so without this the
+      // tenant would keep seeing "Pay Now". Mark the mirror `processing` and
+      // send the single "on its way" email (with the clearing ETA).
+      await handlePaymentProcessing(event.data.object as Stripe.PaymentIntent, supabase)
       break
     }
 
@@ -129,30 +161,30 @@ async function mirrorInvoice(
   }
 
   // Stripe API 2026-05-27.dahlia removed invoice.charge and invoice.payment_intent
-  // at the top level. The new shape is invoice.payments[] (an ApiList<InvoicePayment>).
-  // For the T12 ACH-return follow-up we'll want to walk this list to find the
-  // most recent PaymentIntent + Charge. For now (this PR), we leave both columns
-  // null and look up via stripe_invoice_id when needed.
-  // TODO (T12): populate stripeChargeId from invoice.payments to support
-  // charge.failed / charge.dispute.created webhook handling.
-  const stripeChargeId: string | null = null
-  const stripePaymentIntentId: string | null = null
+  // at the top level. The new shape is invoice.payments[] (an ApiList<InvoicePayment>),
+  // where each entry maps the invoice to a PaymentIntent (or charge). Best-effort
+  // pull the PaymentIntent id so the row carries it (powers the payment-history
+  // ID display and lets payment_intent.* events match by id). The processing
+  // handler also stamps it, so this is belt-and-suspenders; never fatal if absent.
+  // TODO (T12): also surface the charge id to support charge.failed / disputes.
+  const stripePaymentIntentId: string | null = paymentIntentIdFromInvoice(invoice)
 
-  await supabase.from('payments').upsert(
-    {
-      stripe_invoice_id: invoice.id,
-      tenant_id: tenantId,
-      property_id: tenant?.property_id ?? null,
-      amount: invoice.amount_due / 100,
-      status,
-      stripe_payment_intent_id: stripePaymentIntentId,
-      stripe_charge_id: stripeChargeId,
-      payment_method_id: paymentMethodId,
-      due_date: dueDate,
-      paid_at: override?.paid_at ?? null,
-    },
-    { onConflict: 'stripe_invoice_id' },
-  )
+  const row: Record<string, unknown> = {
+    stripe_invoice_id: invoice.id,
+    tenant_id: tenantId,
+    property_id: tenant?.property_id ?? null,
+    amount: invoice.amount_due / 100,
+    status,
+    payment_method_id: paymentMethodId,
+    due_date: dueDate,
+    paid_at: override?.paid_at ?? null,
+  }
+  // Only write the PaymentIntent id when we actually have one, so a later
+  // event (or a draft mirror) can't clobber an id stamped by the processing
+  // handler with null.
+  if (stripePaymentIntentId) row.stripe_payment_intent_id = stripePaymentIntentId
+
+  await supabase.from('payments').upsert(row, { onConflict: 'stripe_invoice_id' })
 }
 
 async function tenantIdFromCustomer(
@@ -228,26 +260,36 @@ async function notifyRentFailed(
   }
 }
 
+interface ChargedEmailInput {
+  customerId: string | null
+  amount: number              // dollars
+  invoiceId: string
+  chargedDate: Date
+  paymentMethodStripeId: string | null
+  isProcessing: boolean       // true = bank/ACH still clearing
+}
+
 /**
- * Fire-and-forget: send the tenant a branded receipt email after a successful
- * payment. Looks up the full context (name, property, payment method) for the
- * template. Any failure is swallowed — never affects the webhook.
+ * Fire-and-forget: send the tenant the single "payment charged" email. For a
+ * card (instant) payment this reads like a receipt; for bank/ACH (isProcessing)
+ * it reads as "on its way" and quotes the clearing ETA. Looks up the full
+ * context (name, property, payment method) and respects the tenant's
+ * `notify_payment_charged` preference. Any failure is swallowed.
  */
-async function sendReceiptEmailForInvoice(invoice: Stripe.Invoice, supabase: Supabase): Promise<void> {
+async function sendChargedEmail(input: ChargedEmailInput, supabase: Supabase): Promise<void> {
   try {
-    const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
-    if (!customerId) return
+    if (!input.customerId) return
 
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('email, first_name, last_name, property_id, notify_payment_receipts')
-      .eq('stripe_customer_id', customerId)
+      .select('email, first_name, last_name, property_id, notify_payment_charged')
+      .eq('stripe_customer_id', input.customerId)
       .maybeSingle()
     if (!tenant?.email) return
-    // Respect the tenant's receipt-email preference (default on).
-    if (tenant.notify_payment_receipts === false) return
+    // Respect the tenant's payment-email preference (default on).
+    if (tenant.notify_payment_charged === false) return
 
-    // Property (optional — receipt still sends without it).
+    // Property (optional — email still sends without it).
     let propertyAddress: string | null = null
     let propertyUnit: string | null = null
     if (tenant.property_id) {
@@ -260,37 +302,136 @@ async function sendReceiptEmailForInvoice(invoice: Stripe.Invoice, supabase: Sup
       propertyUnit = property?.unit_number ?? null
     }
 
-    // Payment method (optional) — resolve via the invoice's default PM.
+    // Payment method (optional) — resolve via the Stripe PM id.
     let methodType: string | null = null
     let methodLast4: string | null = null
-    const stripePm = invoice.default_payment_method
-    if (typeof stripePm === 'string' && stripePm) {
+    if (input.paymentMethodStripeId) {
       const { data: pm } = await supabase
         .from('payment_methods')
         .select('type, last4')
-        .eq('stripe_payment_method_id', stripePm)
+        .eq('stripe_payment_method_id', input.paymentMethodStripeId)
         .maybeSingle()
       methodType = pm?.type ?? null
       methodLast4 = pm?.last4 ?? null
     }
 
-    const paidAt = new Date((invoice.status_transitions?.paid_at ?? invoice.created) * 1000)
     const fullName = [tenant.first_name, tenant.last_name].filter(Boolean).join(' ') || tenant.email
 
-    await sendReceipt({
+    await sendPaymentChargedEmail({
       tenantName: fullName,
       tenantEmail: tenant.email,
-      amount: invoice.amount_paid / 100,
-      invoiceId: invoice.id,
-      paidDate: paidAt,
+      amount: input.amount,
+      invoiceId: input.invoiceId,
+      chargedDate: input.chargedDate,
+      isProcessing: input.isProcessing,
       propertyAddress,
       propertyUnit,
       paymentMethodType: methodType,
       paymentMethodLast4: methodLast4,
     })
   } catch {
-    // Never let a receipt failure bubble up to the webhook handler.
+    // Never let an email failure bubble up to the webhook handler.
   }
+}
+
+/**
+ * Handle a bank/ACH payment entering Stripe's `processing` state. Marks the
+ * matching `payments` mirror row `processing` and sends the single "on its way"
+ * email. The invoice stays `open` on Stripe's side until funds clear, so this
+ * is what stops the tenant dashboard from nagging "Pay Now" while in flight.
+ *
+ * Linking: cards never enter `processing`, so a tenant in this path has exactly
+ * one open invoice. We match the tenant's open mirror row by amount; the
+ * `status = 'open'` guard also makes a replay (reconcile) a safe no-op (an
+ * already-`processing`/`succeeded` row won't match, so no duplicate email).
+ */
+async function handlePaymentProcessing(
+  pi: Stripe.PaymentIntent,
+  supabase: Supabase,
+): Promise<void> {
+  const tenantId = await tenantIdFromCustomer(pi.customer, supabase)
+  if (!tenantId) {
+    console.warn(`PaymentIntent ${pi.id} processing — no tenant for customer; skipping`)
+    return
+  }
+
+  const amount = pi.amount / 100
+  const { data: rows } = await supabase
+    .from('payments')
+    .select('id, stripe_invoice_id, amount')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'open')
+    .order('due_date', { ascending: false })
+
+  // Prefer the amount-matched open invoice; fall back to the most recent open
+  // one if Stripe's amount and our mirror disagree (e.g. proration rounding).
+  const match =
+    rows?.find((r) => Number(r.amount) === amount) ?? rows?.[0] ?? null
+  if (!match) {
+    console.warn(`PaymentIntent ${pi.id} processing — no open invoice for tenant ${tenantId}; skipping`)
+    return
+  }
+
+  await supabase
+    .from('payments')
+    .update({ status: 'processing', stripe_payment_intent_id: pi.id })
+    .eq('id', match.id)
+
+  void sendChargedEmail(
+    {
+      customerId: customerIdOf(pi.customer),
+      amount,
+      invoiceId: match.stripe_invoice_id ?? '',
+      chargedDate: new Date(pi.created * 1000),
+      paymentMethodStripeId:
+        typeof pi.payment_method === 'string'
+          ? pi.payment_method
+          : pi.payment_method?.id ?? null,
+      isProcessing: true,
+    },
+    supabase,
+  )
+}
+
+/** Current mirror status for an invoice, or null if not yet mirrored. */
+async function currentPaymentStatus(
+  invoiceId: string | undefined,
+  supabase: Supabase,
+): Promise<string | null> {
+  if (!invoiceId) return null
+  const { data } = await supabase
+    .from('payments')
+    .select('status')
+    .eq('stripe_invoice_id', invoiceId)
+    .maybeSingle()
+  return data?.status ?? null
+}
+
+/** Narrow a Stripe customer field (string | object | null) to its id. */
+function customerIdOf(
+  customer: string | Stripe.Customer | Stripe.DeletedCustomer | null,
+): string | null {
+  if (!customer) return null
+  return typeof customer === 'string' ? customer : customer.id
+}
+
+/**
+ * Best-effort: pull the PaymentIntent id from an invoice's `payments[]` mapping
+ * (Stripe dahlia API). Returns null if the list isn't present/expanded on the
+ * event payload — callers must treat the id as optional.
+ */
+function paymentIntentIdFromInvoice(invoice: Stripe.Invoice): string | null {
+  // invoice.payments is ApiList<InvoicePayment>; each entry's `payment` maps to
+  // a PaymentIntent (string id or expanded object) when type === 'payment_intent'.
+  // The list is optional/expandable, so guard for it being absent on the event.
+  for (const entry of invoice.payments?.data ?? []) {
+    if (entry.payment?.type === 'payment_intent') {
+      const pi = entry.payment.payment_intent
+      if (typeof pi === 'string') return pi
+      if (pi && typeof pi === 'object') return pi.id
+    }
+  }
+  return null
 }
 
 function mapInvoiceStatus(stripeStatus: Stripe.Invoice.Status | null): string {

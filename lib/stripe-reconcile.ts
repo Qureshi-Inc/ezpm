@@ -23,6 +23,7 @@ export const RECONCILE_HANDLED_EVENT_TYPES = new Set<string>([
   'invoice.payment_failed',
   'invoice.marked_uncollectible',
   'invoice.voided',
+  'payment_intent.processing',
   'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',

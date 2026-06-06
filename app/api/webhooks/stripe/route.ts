@@ -16,6 +16,7 @@
  * Events handled (see lib/stripe-event-handler.ts):
  *   invoice.created / .finalized / .payment_succeeded / .payment_failed /
  *   .marked_uncollectible / .voided
+ *   payment_intent.processing      -> bank/ACH in flight; mark mirror `processing`
  *   customer.subscription.created / .updated / .deleted
  *
  * NOT handled in this PR (deferred per D11):

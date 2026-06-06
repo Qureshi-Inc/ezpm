@@ -140,7 +140,9 @@ export default async function PaymentHistoryPage() {
                               Rent Payment
                             </p>
                             <Badge variant={getStatusBadgeVariant(payment.status)}>
-                              {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                              {payment.status === 'processing'
+                                ? 'In progress'
+                                : payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
                             </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
@@ -203,7 +205,7 @@ export default async function PaymentHistoryPage() {
                   </div>
                   <div className="flex items-center space-x-2">
                     <span>🔄</span>
-                    <span className="text-muted-foreground">Processing - Payment in progress</span>
+                    <span className="text-muted-foreground">In progress - Bank payment clearing (up to 5-7 business days)</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span>❌</span>

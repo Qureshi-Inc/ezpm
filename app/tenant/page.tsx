@@ -84,21 +84,40 @@ export default async function TenantDashboard() {
           <Card className="lg:col-span-3 overflow-hidden border-transparent bg-gradient-to-br from-primary to-[hsl(183,83%,21%)] text-primary-foreground shadow-card">
             <CardContent className="p-7 sm:p-8">
               {nextPayment ? (
-                <>
-                  <p className="text-sm font-medium text-primary-foreground/70">
-                    {nextPayment.status === 'failed' ? 'Payment failed — retry' : 'Next payment due'}
-                    {' · '}{formatDate(nextPayment.due_date)}
-                  </p>
-                  <p className="font-display text-5xl sm:text-6xl font-medium mt-2 tracking-tight">
-                    {formatCurrency(nextPayment.amount)}
-                  </p>
-                  <Link href="/tenant/pay" className="inline-block mt-6">
-                    <Button size="lg" className="bg-card text-primary hover:bg-card hover:brightness-100 hover:-translate-y-0.5">
-                      Pay now
-                      <span aria-hidden>→</span>
-                    </Button>
-                  </Link>
-                </>
+                nextPayment.status === 'processing' ? (
+                  <>
+                    <p className="text-sm font-medium text-primary-foreground/70">
+                      Payment in progress{' · '}{formatDate(nextPayment.due_date)}
+                    </p>
+                    <p className="font-display text-5xl sm:text-6xl font-medium mt-2 tracking-tight">
+                      {formatCurrency(nextPayment.amount)}
+                    </p>
+                    <p className="text-primary-foreground/80 mt-3 text-sm">
+                      Your bank payment is clearing — this usually takes up to 5-7 business days. Nothing to do; we&apos;ll update your account once it settles.
+                    </p>
+                    <Link href="/tenant/payment-history" className="inline-block mt-6">
+                      <Button size="lg" variant="outline" className="border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:border-primary-foreground/40">
+                        View payments
+                      </Button>
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-primary-foreground/70">
+                      {nextPayment.status === 'failed' ? 'Payment failed — retry' : 'Next payment due'}
+                      {' · '}{formatDate(nextPayment.due_date)}
+                    </p>
+                    <p className="font-display text-5xl sm:text-6xl font-medium mt-2 tracking-tight">
+                      {formatCurrency(nextPayment.amount)}
+                    </p>
+                    <Link href="/tenant/pay" className="inline-block mt-6">
+                      <Button size="lg" className="bg-card text-primary hover:bg-card hover:brightness-100 hover:-translate-y-0.5">
+                        Pay now
+                        <span aria-hidden>→</span>
+                      </Button>
+                    </Link>
+                  </>
+                )
               ) : (
                 <>
                   <p className="text-sm font-medium text-primary-foreground/70">Account status</p>
@@ -238,7 +257,7 @@ export default async function TenantDashboard() {
                     </div>
                     <div className="flex items-center gap-3">
                       <p className="font-semibold text-foreground tabular-nums">{formatCurrency(payment.amount)}</p>
-                      <Badge variant={statusVariant(payment.status)}>{capitalize(payment.status)}</Badge>
+                      <Badge variant={statusVariant(payment.status)}>{statusLabel(payment.status)}</Badge>
                     </div>
                   </div>
                 ))}
@@ -265,6 +284,11 @@ function ordinal(n: number): string {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function statusLabel(status: string): string {
+  if (status === 'processing') return 'In progress'
+  return capitalize(status)
 }
 
 function statusVariant(status: string): 'success' | 'destructive' | 'accent' | 'warning' {
